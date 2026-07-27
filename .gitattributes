@@ -14,3 +14,7 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+
+# Checksum-pinned research data must remain byte-identical
+/source_lexicons/** -text
+/resources/pronunciation/** -text
