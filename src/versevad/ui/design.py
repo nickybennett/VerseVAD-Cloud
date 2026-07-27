@@ -502,9 +502,33 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       padding: .75rem .9rem;
       box-shadow: none;
       font-variant-numeric: tabular-nums;
+      container-type: inline-size;
+      min-width: 0;
     }}
     [data-testid="stMetricLabel"], [data-testid="stMetricValue"] {{
       color: var(--color-text-primary);
+    }}
+    [data-testid="stMetricValue"] {{
+      width: 100%;
+      min-width: 0;
+      font-size: clamp(1rem, 8cqi, 2.25rem) !important;
+      line-height: 1.15 !important;
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }}
+    [data-testid="stMetricValue"] > div,
+    [data-testid="stMetricValue"] > div * {{
+      max-width: 100%;
+      font-size: inherit !important;
+      line-height: inherit !important;
+      white-space: inherit !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      overflow-wrap: inherit;
+      word-break: inherit;
     }}
     [data-testid="stDataFrame"], [data-testid="stTable"] {{
       border: 1px solid var(--color-border);

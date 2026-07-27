@@ -11,6 +11,9 @@ All notable VerseVAD changes will be recorded here.
   isolated to an unguessable browser-session database, clearly labeled as
   nonpersistent, and appearance choices remain session-only so visitors cannot
   see or overwrite one another's application state.
+- Made short textual metric results such as meter names and confidence bands
+  scale responsively with their card width, with readable wrapping as a final
+  fallback instead of Streamlit's clipped ellipsis.
 - Added always-available, offline VADER rule-based sentiment evidence with
   positive/neutral/negative proportions, compound score, conventional threshold
   label, sentence-level audit, package/method provenance, social-media-domain

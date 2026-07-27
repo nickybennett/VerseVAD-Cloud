@@ -86,6 +86,11 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert 'button[data-testid="stExpandSidebarButton"]' in sheet
         assert '[data-testid="stSidebar"] [data-testid="stAlert"] *' in sheet
         assert '[data-testid="stSidebar"] p' in sheet
+        assert '[data-testid="stMetricValue"] > div' in sheet
+        assert "container-type: inline-size" in sheet
+        assert "font-size: clamp(1rem, 8cqi, 2.25rem)" in sheet
+        assert "text-overflow: clip" in sheet
+        assert "overflow-wrap: anywhere" in sheet
         assert "-webkit-text-fill-color" in sheet
         assert "caret-color" in sheet
         assert "::placeholder" in sheet
