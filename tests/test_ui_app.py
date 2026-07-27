@@ -78,6 +78,12 @@ def test_interface_starts_with_beginner_input_workflow() -> None:
     assert "Show Configuration Controls" in [
         panel.label for panel in app.expander
     ]
+    assert "Collapse Additional Optional Models" in [
+        button.label for button in app.button
+    ]
+    assert "Collapse Analysis Configuration and Methodology" in [
+        button.label for button in app.button
+    ]
     assert not app.tabs
 
 
@@ -116,6 +122,31 @@ def test_cloud_entrypoint_rerenders_after_report_navigation(
 
 def test_inherited_form_report_uses_fragment_scoped_widget_reruns() -> None:
     assert hasattr(render_inherited_form, "__wrapped__")
+
+
+def test_bottom_controls_force_front_page_sections_closed() -> None:
+    app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
+    _button(app, "Collapse Additional Optional Models").click()
+    app.run(timeout=30)
+    assert not app.exception
+    assert app.session_state["additional_optional_models_collapse_epoch"] == 1
+    optional_panel = next(
+        panel
+        for panel in app.expander
+        if panel.label.startswith("Choose Additional Optional Models")
+    )
+    assert not optional_panel.proto.expanded
+
+    _button(app, "Collapse Analysis Configuration and Methodology").click()
+    app.run(timeout=30)
+    assert not app.exception
+    assert app.session_state["analysis_configuration_collapse_epoch"] == 1
+    configuration_panel = next(
+        panel
+        for panel in app.expander
+        if panel.label.startswith("Show Configuration Controls")
+    )
+    assert not configuration_panel.proto.expanded
 
 
 def test_pronunciation_fragment_approval_requests_full_app_rerun() -> None:
@@ -364,6 +395,9 @@ def test_lexicon_explorer_offers_printable_word_report() -> None:
     app.run(timeout=60)
 
     assert not app.exception
+    assert "Rule-Based Sentiment and Readability Evidence" in [
+        heading.value for heading in app.subheader
+    ]
     downloads = {
         button.label: button
         for button in app.get("download_button")
@@ -446,11 +480,12 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
     assert not app.tabs
     collapsible_report_sections = {
         "VAD · Complete",
-        "Emotion Association & Intensity · Complete",
+        "Emotion Association, Intensity & Sentiment · Complete",
+        "Lexical Trajectory · Complete",
         "PoetryID · Not selected",
         "Concreteness · Not selected",
         "Frequency & Rarity · Not selected",
-        "Age of Acquisition · Not selected",
+        "Acquisition & Readability · Complete",
         "Pronunciation, Syllables & Stress · Not selected",
         "Meter & Rhythm · Not selected",
         "Rhyme & Recurring Sound · Not selected",
@@ -500,6 +535,15 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
     assert any("Stopword Sensitivity" in heading.value for heading in app.subheader)
     assert any("Eight Emotion Associations" in heading.value for heading in app.subheader)
     assert any(
+        "VADER Rule-Based Sentiment" in heading.value
+        for heading in app.subheader
+    )
+    assert any("Lexical Trajectory" in heading.value for heading in app.subheader)
+    assert any(
+        "Readability and Grade-Formula Evidence" in heading.value
+        for heading in app.subheader
+    )
+    assert any(
         "Positive and Negative Sentiment Associations" in heading.value
         for heading in app.subheader
     )
@@ -515,6 +559,50 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
         "Concreteness was not selected" in message.value
         for message in app.info
     )
+
+
+def test_lexical_trajectory_source_change_retains_affective_report_section() -> None:
+    app = AppTest.from_file(str(APP_PATH), default_timeout=60).run()
+    title = next(
+        field
+        for field in app.text_input
+        if field.label == "Poem title or working label"
+    )
+    title.input("Trajectory state poem")
+    app.text_area[0].input("Bright stone.\nDark night.")
+    app.multiselect[0].set_value(["nrc_vad_v1", "nrc_vad_v2_1"])
+    _button(app, "Analyze Poem").click()
+    app.run(timeout=60)
+
+    navigation = _section_navigation(app, "Report section")
+    navigation.set_value("Affective Evidence")
+    app.run(timeout=60)
+    source = next(
+        field
+        for field in app.selectbox
+        if field.label == "Trajectory VAD source"
+    )
+    assert set(source.options) == {
+        "NRC VAD Lexicon v1",
+        "NRC VAD Lexicon v2.1",
+    }
+    display_by_value = {
+        "nrc_vad_v1": "NRC VAD Lexicon v1",
+        "nrc_vad_v2_1": "NRC VAD Lexicon v2.1",
+    }
+    replacement = next(
+        value for value in display_by_value if value != source.value
+    )
+    source.set_value(display_by_value[replacement])
+    app.run(timeout=60)
+
+    assert not app.exception
+    assert _section_navigation(app, "Report section").value == "Affective Evidence"
+    assert next(
+        field
+        for field in app.selectbox
+        if field.label == "Trajectory VAD source"
+    ).value == replacement
 
 
 def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> None:

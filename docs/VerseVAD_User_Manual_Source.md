@@ -6,7 +6,7 @@
 **Manual updated:** {{DATE}}  
 **Intended reader:** A first-time user who needs no programming, linguistics, or statistics background
 
-> IMPORTANT: VerseVAD describes **lexical evidence**, optional dictionary-based pronunciation evidence, transparent candidate-meter comparisons, phonological patterns, lexical-style counts, PoetryID candidate lexical-affective neighborhoods, and inherited-form resemblance. Concreteness, corpus-relative frequency, retrospective Age of Acquisition, pronunciation/lexical stress, meter fit, rhyme/sound evidence, lexical diversity, word length, structural word counts, PoetryID, and inherited-form consistency remain separately documented constructs. VerseVAD does not determine the emotion of a poem, speaker, author, or reader, diagnose cognition, establish definitive meter, performed rhythm, or genre identity, or replace contextual close reading.
+> IMPORTANT: VerseVAD describes **lexical evidence**, offline rule-based polarity, prose-oriented readability formulas, optional dictionary-based pronunciation evidence, transparent candidate-meter comparisons, phonological patterns, lexical-style counts, PoetryID candidate lexical-affective neighborhoods, and inherited-form resemblance. VADER polarity, readability, concreteness, corpus-relative frequency, retrospective Age of Acquisition, pronunciation/lexical stress, meter fit, rhyme/sound evidence, lexical diversity, word length, structural word counts, PoetryID, and inherited-form consistency remain separately documented constructs. VerseVAD does not determine the emotion of a poem, speaker, author, or reader, diagnose cognition, establish definitive meter, performed rhythm, or genre identity, or replace contextual close reading.
 
 [[PAGEBREAK]]
 
@@ -59,6 +59,13 @@ VerseVAD compares words and accepted phrases in a literary text with locally ins
 - normative valence, arousal, and dominance ratings;
 - binary emotion and sentiment associations;
 - numeric word-emotion intensity ratings;
+- offline VADER positive/neutral/negative polarity proportions, compound score,
+  and sentence-level evidence with visible domain cautions;
+- line-level valence, arousal, dominance, and optional normalized-concreteness
+  trajectories for one explicitly selected VAD source;
+- resource-free Flesch Reading Ease, Flesch-Kincaid Grade, Gunning Fog,
+  Automated Readability Index, Coleman-Liau, and sentence-qualified SMOG
+  evidence with auditable syllable methods;
 - token- and type-weighted summaries;
 - part-of-speech counts and relative shares over all eligible lexical tokens;
 - all-matched and stopword-excluded VAD views;
@@ -100,7 +107,7 @@ VerseVAD does not infer an author's intention, diagnose a speaker, identify a po
 
 ## Privacy and offline use
 
-Ordinary use runs locally on this computer at `http://127.0.0.1:8501`. VerseVAD does not send literary texts, lexicons, projects, or results to ChatGPT, OpenAI, or another external service. Once the local environment is installed, ordinary analysis does not require a ChatGPT subscription.
+Ordinary use runs locally on this computer at `http://127.0.0.1:8501`. VerseVAD does not send literary texts, lexicons, projects, or results to an external generative-AI or hosted text-analysis service. Once the local environment is installed, ordinary analysis does not require a third-party subscription.
 
 The supplied lexicons remain under `source_lexicons/` and must not be renamed, edited, merged, or redistributed. VerseVAD reads them in place, records SHA-256 checksums, and stores derived project data separately.
 
@@ -225,7 +232,7 @@ Close the browser tab, then close the visible launcher window. One-poem results 
 2. Enter a title or working label.
 3. Paste a short poem, or upload a UTF-8 `.txt` file.
 4. Keep the selected lexicons and default methodology for the first run.
-5. Optionally enable **Normative lexical concreteness**, **Frequency & rarity profile (SUBTLEX-US Zipf)**, **Age of Acquisition profile (Kuperman et al. ratings)**, **Pronunciation & prosody foundation (CMUdict)**, and/or **Meter & rhythmic regularity** under **Choose Evidence**.
+5. Optionally enable **Normative lexical concreteness**, **Frequency & rarity profile (SUBTLEX-US Zipf)**, **Age of Acquisition profile (Kuperman et al. ratings)**, **Pronunciation & prosody foundation (CMUdict)**, and/or **Meter & rhythmic regularity** under **Additional Optional Models**.
 6. Keep both affective reporting views enabled.
 7. Click **Analyze Poem**.
 8. In **Overview**, inspect coverage and warnings.
@@ -985,9 +992,25 @@ This tab contains:
 - top midpoint-centered contributors;
 - original source scales and normalization formulas.
 
-## Affective Evidence: Emotion Association and Intensity section
+## Affective Evidence: Emotion Association, Intensity, and Sentiment section
 
-The eight emotion associations, positive/negative sentiment associations, and numeric emotion intensities appear in three separate sections. Do not compare their values as though they were alternate VAD scales.
+The eight emotion associations, positive/negative NRC sentiment associations,
+numeric emotion intensities, and VADER rule-based polarity appear as separate
+constructs. VADER reports raw positive/neutral/negative proportions and a
+rule-adjusted compound score. Its conventional threshold label is not a
+declaration of the poem's emotion, and its social-media design can misread
+poetic ambiguity, irony, persona, quotation, and historical usage. Do not
+compare these values as though they were alternate VAD scales.
+
+## Affective Evidence: Lexical Trajectory section
+
+This default-collapsed section plots token-weighted mean normalized valence,
+arousal, and dominance by preserved physical line for one selected VAD source.
+When Concreteness was enabled, it adds a fourth line using `(rating - 1) / 4`
+for overlay display while retaining the original 1-5 mean in the table and
+export. Multiple VAD lexicons remain separate in the source dropdown. Changing
+the source or token scope retains Affective Evidence. Missing line evidence
+remains a gap rather than zero.
 
 ## Lexical Character: Concreteness section
 
@@ -1001,9 +1024,19 @@ This tab appears when the optional SUBTLEX-US module is enabled. It emphasizes t
 
 The page identifies whether the default all-lexical-token scope or the non-default `NOUN`/`VERB`/`ADJ`/`ADV` scope was used. Exact observed form, lemma, documented fallback, unmatched, and ineligible decisions stay distinct. The source workbook is read-only; a missing, changed, malformed, or unsupported source prevents activation.
 
-## Lexical Character: Age of Acquisition section
+## Lexical Character: Acquisition and Readability section
 
-This tab appears when the optional Kuperman module is enabled. It shows
+The always-available readability subsection reports Flesch Reading Ease,
+Flesch-Kincaid Grade, Gunning Fog, Automated Readability Index, Coleman-Liau,
+and SMOG with the exact word, sentence, syllable, character, and pronunciation-
+coverage denominators. SMOG remains missing below 30 model-segmented sentences.
+Contractions and hyphenated expressions count as one orthographic word.
+Out-of-dictionary syllables use a clearly labeled heuristic until the user
+approves or edits a session pronunciation override. These prose-oriented
+formulas do not measure literary quality, reader ability, actual comprehension,
+or a required grade.
+
+The normative AoA subsection appears when the optional Kuperman module is enabled. It shows
 source-age mean, median, dispersion, range, token/type coverage, configured
 early/middle/later bands, source-response evidence, warnings, line and stanza
 patterns, model-assigned POS groups, earliest/latest represented terms,
@@ -1448,6 +1481,19 @@ different statuses. A missing field remains missing. Pronunciation alternatives
 remain separate and are dictionary candidates rather than a context-sensitive
 performance or dialect judgment.
 
+## Rule-based sentiment and readability evidence
+
+The Explorer calculates VADER positive, neutral, and negative proportions and
+compound score for the exact entered string. It also reports applicable
+word-level readability evidence: word and alphabetic-character counts,
+estimated syllables, polysyllabic status, pronunciation coverage, and the
+method used for each syllable estimate. These are local derived values rather
+than additional published lexicon ratings.
+
+Document-level Flesch Reading Ease, grade, Fog, ARI, Coleman-Liau, and SMOG
+values are intentionally not reported for an isolated lookup. Use a complete
+poem or Other Text analysis for those formulas.
+
 ## Phrase and component behavior
 
 An exact phrase entry is shown as published lexical evidence. If no phrase entry exists but all component words have exact VAD entries in one source, VerseVAD may show their arithmetic mean as a clearly labeled **derived component average**. It never presents that calculation as a published phrase rating.
@@ -1462,9 +1508,10 @@ The Explorer can export the current lookup as a narrative `.docx` report. The
 report includes query processing, match methods, affective ratings and
 associations, original and normalized VAD, source uncertainty where available,
 derived component averages and cross-lexicon spread, concreteness, frequency,
-AoA, every pronunciation variant, missing-resource statuses, notices,
-suggestions, and source provenance. It is designed for reading and printing;
-poem and corpus CSV audit exports remain separate.
+AoA, every pronunciation variant, local VADER and word-level readability
+evidence, missing-resource statuses, notices, suggestions, and source
+provenance. It is designed for reading and printing; poem and corpus CSV audit
+exports remain separate.
 
 # 11. Downloads, CSV files, and Word reports
 
@@ -1491,6 +1538,13 @@ module-specific Word reports, and the following detailed CSV files.
 | `phase2_cross_lexicon_comparison.csv` | Source-specific metrics placed side by side without a consensus score |
 | `phase2_manifest.csv` | Software, source hashes, adapters, recipe, scenario, stopword policy, and inclusion metadata |
 | `processing_*.csv` | Exact original text, poetic/model structure, shared tokens and annotations, orthographic spans, processing configuration/provenance, coverage, and warnings |
+| `vader_sentiment_summary.csv` | Document positive/neutral/negative proportions, compound score, thresholds, package version, and citation |
+| `vader_sentiment_sentences.csv` | Model-sentence polarity proportions, compound scores, labels, line numbers, and text |
+| `vader_sentiment_report.docx` | Narrative VADER findings, method, denominators, domain cautions, and companion-file guide |
+| `readability_summary.csv` | Formula scores plus word, sentence, syllable, character, polysyllable, and pronunciation-method counts |
+| `readability_word_audit.csv` | Every readability word's line, characters, syllables, dictionary/override/heuristic method, and polysyllable status |
+| `readability_report.docx` | Narrative readability findings, denominators, prose-domain cautions, and companion-file guide |
+| `lexical_trajectory.csv` | Every VAD source and token scope by physical line, with VAD means, normalized/source-scale concreteness means, and match counts |
 | `concreteness_summary.csv` | Overall source-scale statistics, thresholds, token/type coverage, and source identity when the module is enabled |
 | `concreteness_by_structure.csv` | Physical-line and stanza summaries with eligible/rated counts and coverage |
 | `concreteness_by_pos.csv` | Model-assigned part-of-speech summaries |

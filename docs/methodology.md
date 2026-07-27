@@ -109,6 +109,50 @@ Categorical emotion associations and numeric word-emotion intensities are not
 alternate scales for VAD. They retain their own value kinds and denominators
 and are never normalized into or averaged with the VAD dimensions.
 
+## VADER rule-based sentiment
+
+VerseVAD applies `vaderSentiment` locally to the complete preserved text and
+separately to each model-segmented sentence. It reports the raw positive,
+neutral, and negative lexical-category proportions, which sum to approximately
+one, and the rule-adjusted compound score on -1 to +1. Conventional labels use
+positive at or above +0.05, negative at or below -0.05, and neutral between
+those thresholds.
+
+The three proportions do not incorporate all of VADER's word-order rules;
+compound does. VADER was designed and validated for social-media sentiment.
+Poetic ambiguity, irony, persona, quotation, historical usage, and lineation
+can invalidate a straightforward polarity reading. Outputs are therefore
+rule-based polarity evidence, not declarations of the poem's emotion, speaker,
+author, reader response, or emotional archetype.
+
+## Readability and grade formulas
+
+The resource-free readability module reuses the shared model sentence record
+and lexical-token record. Contractions and hyphenated orthographic spans count
+as one readability word. Session pronunciation overrides take priority for
+syllable counts, followed by the installed `pronouncing` package's bundled
+CMUdict. An out-of-dictionary word receives a deterministic vowel-group
+heuristic so document formulas remain calculable, but that estimate is labeled
+unconfirmed and stays in the word audit.
+
+VerseVAD reports Flesch Reading Ease, Flesch-Kincaid Grade, Gunning Fog,
+Automated Readability Index, Coleman-Liau, and SMOG. SMOG remains missing below
+30 model-segmented sentences. The exact word, sentence, syllable, character,
+polysyllable, dictionary/override, and heuristic counts accompany the scores.
+These formulas were designed for prose. They do not measure literary quality,
+actual comprehension, a reader's ability, cognitive status, or a prescriptive
+grade requirement.
+
+## Line-level lexical trajectory
+
+For one selected VAD source and one visible token scope, VerseVAD groups
+included normalized VAD observations by preserved physical line and reports
+token-weighted means. Sources are never pooled. If Concreteness was enabled,
+its token-weighted source-scale line mean is retained and a display-only
+normalization `(rating - 1) / 4` supplies the fourth 0-1 chart series. Missing
+line evidence remains missing rather than zero. The all-source/all-scope CSV
+retains line text and the VAD/concreteness observation counts.
+
 ## Normative lexical concreteness
 
 The optional Stage 2 module reads the user-supplied Brysbaert, Warriner, and
@@ -460,6 +504,13 @@ entries. The interface labels ranges up to 0.10 "high" agreement, up to 0.25
 source-provided reliability statistic or inferential test. Warriner standard
 deviations and dimension-specific rater counts are displayed from their source
 columns; missing uncertainty fields in other resources remain blank.
+
+The Explorer also reuses the local VADER engine on the exact entered string and
+the readability engine's word audit. It exposes VADER's three proportions,
+compound score, and threshold label, plus word, alphabetic-character, syllable,
+polysyllabic, pronunciation-coverage, and syllable-method evidence. It does not
+show document-level readability formulas for an isolated lookup because a word
+or short phrase is not a defensible readability document.
 
 ## Cross-lexicon comparison
 

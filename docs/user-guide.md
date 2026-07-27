@@ -74,9 +74,9 @@ the old folder until private data are verified.
 Ordinary startup is offline. The `127.0.0.1` address means the app is running
 on this computer, not on a public website.
 
-The installed app has no ChatGPT or OpenAI API dependency. It remains usable if
-you cancel a ChatGPT subscription. Internet access is needed only if you later
-reinstall dependencies or deliberately update the software.
+The installed app has no external generative-AI or hosted text-analysis API
+dependency. Internet access is needed only if you later reinstall dependencies
+or deliberately update the software.
 
 ## Appearance
 
@@ -98,7 +98,7 @@ or export a result. Exported charts remain publication-light.
    overwrite advanced thresholds or other methodology.
 4. Leave all five lexicons selected for a broad first look, or remove sources
    that are outside the current question.
-5. Under **Choose Evidence**, optionally enable **Normative lexical
+5. Under **Additional Optional Models**, optionally enable **Normative lexical
    concreteness**, **Frequency & rarity profile (SUBTLEX-US Zipf)**, and/or
    **Age of Acquisition profile (Kuperman et al. ratings)**. Any can run with
    the affective sources or by itself.
@@ -121,11 +121,12 @@ Use this order:
 1. **Overview** — check coverage and matched counts first. A mean based on only
    a few matched observations should be treated cautiously. The displayed 60%
    and 80% coverage bands are orientation aids, not universal scholarly rules.
-2. **Affective Evidence** — open the VAD, emotion association/intensity, and
-   PoetryID sections. Each large section is collapsible and reports whether it
-   is complete or was not selected.
+2. **Affective Evidence** — open the VAD, emotion association/intensity/
+   sentiment, Lexical Trajectory, and PoetryID sections. Each large section is
+   collapsible and reports whether it is complete or was not selected.
 3. **Lexical Character** — open concreteness, SUBTLEX-US frequency/rarity, and
-   Age of Acquisition sections when enabled.
+   Acquisition & Readability. Readability is always available; normative AoA
+   appears there when enabled.
 4. **Sound & Form** — open pronunciation/syllables/stress, candidate meter, and
    rhyme/recurring-sound evidence.
 5. **Structure** — inspect the shared language profile plus lexical diversity,
@@ -156,6 +157,30 @@ Within **Affective Evidence > VAD**, **Dispersion of Matched Ratings** is a
 separate section immediately after **What Valence, Arousal, and Dominance
 Mean**. Its population standard deviations describe variation among the
 matched ratings, independently of the token/type mean comparison that follows.
+
+Within **Affective Evidence > Emotion Association, Intensity & Sentiment**,
+VADER reports raw positive, neutral, and negative lexical-polarity proportions
+plus a rule-adjusted compound score from -1 to +1. The conventional +/-0.05
+threshold label is a polarity aid, not a declaration of the poem's emotion.
+VADER was designed for social-media sentiment and can misread poetic ambiguity,
+irony, persona, quotation, and historical usage.
+
+**Lexical Trajectory** plots token-weighted mean valence, arousal, and dominance
+for each physical line. When Concreteness is enabled, its source 1-5 line mean
+is rescaled to 0-1 with `(rating - 1) / 4` for the overlay only. Select one VAD
+source from the dropdown; VerseVAD never averages the enabled lexicons together.
+Changing the source or token scope retains **Affective Evidence**. Blank and
+unmatched lines remain gaps rather than zeroes.
+
+Within **Lexical Character > Acquisition & Readability**, Flesch Reading Ease,
+Flesch-Kincaid Grade, Gunning Fog, Automated Readability Index, Coleman-Liau,
+and SMOG appear alongside explicit counts and syllable-method coverage. SMOG
+remains missing below 30 model-segmented sentences. Prose-oriented readability
+formulas do not measure literary quality, actual comprehension, reader ability,
+or a required grade. Contractions and hyphenated expressions count as one
+orthographic word. Out-of-dictionary syllables are labeled heuristic; review
+them in the default-collapsed pronunciation-attention panel and approve/edit a
+session override in **Sound & Form > Words Needing Attention** when needed.
 
 In every interactive results table, the header row stays visible while
 scrolling vertically and the leftmost data column stays pinned while scrolling
@@ -231,7 +256,7 @@ coverage denominator. Sparse groups remain visible and are labeled.
 
 ### Normative lexical concreteness
 
-Under **Choose Evidence**, enable **Normative lexical concreteness** to analyze
+Under **Additional Optional Models**, enable **Normative lexical concreteness** to analyze
 the poem against the locally supplied Brysbaert, Warriner, and Kuperman (2014)
 ratings. You can run it with affective lexicons or by itself. The dedicated
 **Concreteness Profile** reports:
@@ -259,7 +284,7 @@ Unmatched tokens remain missing.
 
 ### Corpus-relative lexical frequency and rarity
 
-Under **Choose Evidence**, enable **Frequency & rarity profile (SUBTLEX-US
+Under **Additional Optional Models**, enable **Frequency & rarity profile (SUBTLEX-US
 Zipf)** to analyze observed word forms against the pinned official local
 SUBTLEX-US workbook. It can run with affective lexicons and concreteness or by
 itself. The dedicated **Frequency & Rarity** tab reports:
@@ -298,11 +323,11 @@ difficult, sophisticated, accessible, intelligent, or high quality.
 
 ### Retrospective normative lexical Age of Acquisition
 
-Under **Choose Evidence**, enable **Age of Acquisition profile (Kuperman et
+Under **Additional Optional Models**, enable **Age of Acquisition profile (Kuperman et
 al. ratings)** to compare the poem's observed vocabulary with the pinned
 official local supplement. The ratings are adult retrospective estimates of
 the age, in years, at which respondents believed they learned a word well
-enough to understand it. The dedicated **Age of Acquisition** tab reports:
+enough to understand it. The dedicated **Acquisition & Readability** section reports:
 
 - token-weighted mean, median, population SD, inclusive quartiles, IQR,
   minimum, maximum, and range;
@@ -528,6 +553,13 @@ syllable count, and lexical-stress digits. Available-but-unmatched,
 source-entry-without-numeric-rating, and resource-unavailable are distinct
 states. Missing evidence never becomes zero or neutral.
 
+The **Rule-Based Sentiment and Readability Evidence** section reports VADER
+positive, neutral, and negative proportions and compound score for the exact
+entered string. It also reports applicable word-level counts, syllable evidence,
+polysyllabic status, and pronunciation coverage. These are local calculations,
+not source ratings. Document-level Flesch, grade, Fog, ARI, Coleman-Liau, and
+SMOG values are intentionally reserved for complete poem or text analysis.
+
 Warriner standard deviations and rater counts appear where supplied. Empty
 uncertainty cells mean the source did not provide those fields. Cross-lexicon
 "agreement" is a labeled VerseVAD range heuristic, not a source reliability
@@ -543,9 +575,9 @@ Scenarios**.
 The Explorer Word report is a printable record of the current lookup. It
 includes affective ratings and associations, original and normalized VAD,
 source uncertainty where available, supplementary lexical evidence,
-pronunciation alternatives, derived comparisons, missing-resource statuses,
-and provenance. It does not alter or replace the CSV audit exports produced by
-poem and corpus analyses.
+pronunciation alternatives, local VADER and word-level readability evidence,
+derived comparisons, missing-resource statuses, and provenance. It does not
+alter or replace the CSV audit exports produced by poem and corpus analyses.
 
 Each CMUdict alternative also has a **Hear** speaker control. The preview is
 generated locally from that exact ARPAbet sequence with bundled eSpeak NG

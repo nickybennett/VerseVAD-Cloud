@@ -59,6 +59,28 @@ REPORT_PROFILES: Mapping[str, NarrativeReportProfile] = {
         "They are lexical norms, not estimates of a reader's actual age.",
         ("The source resource is principally a content-word resource.",),
     ),
+    "vader_sentiment": NarrativeReportProfile(
+        "VADER Sentiment Analysis Report",
+        "This report summarizes offline VADER rule-based polarity evidence for "
+        "the complete preserved text and its model-segmented sentences.",
+        "Positive, neutral, and negative proportions describe VADER's raw lexical "
+        "categories; compound is a rule-adjusted normalized composite.",
+        (
+            "VADER was designed for social-media sentiment and can misread poetic ambiguity, irony, persona, and historical usage.",
+            "Its polarity outputs are not declarations of the poem's emotion or a reader's response.",
+        ),
+    ),
+    "readability": NarrativeReportProfile(
+        "Readability and Grade-Formula Report",
+        "This report summarizes familiar English readability formulas using the "
+        "shared sentence and lexical-token record plus auditable syllable estimates.",
+        "The scores are prose-oriented orientation evidence; they are not literary "
+        "quality judgments, reader diagnoses, or prescriptive grade requirements.",
+        (
+            "Poetic lineation, fragments, and deliberate syntactic disruption can make the formulas unstable.",
+            "Out-of-dictionary syllables use an explicitly labeled orthographic heuristic unless a session override is supplied.",
+        ),
+    ),
     "pronunciation": NarrativeReportProfile(
         "Pronunciation and Stress Report",
         "This report summarizes dictionary-supported syllable and stress evidence "

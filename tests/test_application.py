@@ -22,6 +22,8 @@ from versevad.application import (
     emotion_intensity_views,
     match_views,
     installed_resource_readiness,
+    lexical_trajectory_csv,
+    lexical_trajectory_views,
     overview_notes,
     part_of_speech_views,
     part_of_speech_views_for_tokens,
@@ -167,6 +169,45 @@ def test_workspace_analysis_preserves_text_and_runs_selected_real_source(preproc
     assert workspace.results[0].coverage.phrase_match_count >= 1
 
 
+def test_lexical_trajectory_keeps_sources_separate_and_preserves_lines(
+    preprocessor,
+) -> None:
+    workspace = run_workspace_analysis(
+        AnalysisRequest(
+            project_name="Trajectory",
+            title="Two lines",
+            original_text="bright stone\nnight dream",
+            lexicon_ids=("nrc_vad_v1", "nrc_vad_v2_1"),
+            include_concreteness=True,
+        ),
+        preprocessor=preprocessor,
+    )
+
+    points = lexical_trajectory_views(
+        workspace,
+        lexicon_id="nrc_vad_v2_1",
+        analysis_view="All matched tokens",
+    )
+    assert [point.line_number for point in points] == [1, 2]
+    assert {point.lexicon_id for point in points} == {"nrc_vad_v2_1"}
+    assert any(point.valence_mean is not None for point in points)
+    concrete_point = next(
+        point
+        for point in points
+        if point.concreteness_mean_source_scale is not None
+    )
+    assert concrete_point.concreteness_mean_normalized == pytest.approx(
+        (concrete_point.concreteness_mean_source_scale - 1) / 4
+    )
+    exported = _csv_rows(lexical_trajectory_csv(workspace))
+    assert {row["lexicon_id"] for row in exported} == {
+        "nrc_vad_v1",
+        "nrc_vad_v2_1",
+    }
+    with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
+        assert "lexical_trajectory.csv" in bundle.namelist()
+
+
 def test_workspace_poetry_id_reuses_completed_vad_and_has_no_json_export(
     preprocessor,
 ) -> None:
@@ -251,7 +292,9 @@ def test_workspace_preprocesses_once_for_multiple_lexicons() -> None:
     )
 
 
-def test_workspace_requires_title_text_and_lexicon(preprocessor) -> None:
+def test_workspace_requires_title_and_text_but_runs_resource_free_metrics(
+    preprocessor,
+) -> None:
     base = dict(project_name="Temporary", title="Poem", original_text="Stone.")
     with pytest.raises(WorkspaceAnalysisError, match="title"):
         run_workspace_analysis(
@@ -263,10 +306,28 @@ def test_workspace_requires_title_text_and_lexicon(preprocessor) -> None:
             AnalysisRequest(**{**base, "original_text": "", "lexicon_ids": ("nrc_vad_v1",)}),
             preprocessor=preprocessor,
         )
-    with pytest.raises(WorkspaceAnalysisError, match="at least one"):
-        run_workspace_analysis(
-            AnalysisRequest(**base, lexicon_ids=()), preprocessor=preprocessor
-        )
+    resource_free = run_workspace_analysis(
+        AnalysisRequest(**base, lexicon_ids=()), preprocessor=preprocessor
+    )
+    assert resource_free.results == ()
+    assert resource_free.vader_sentiment is not None
+    assert resource_free.readability is not None
+    summary_sections = {
+        row["section"] for row in _csv_rows(scholar_summary_csv(resource_free))
+    }
+    assert {"VADER sentiment", "Readability"} <= summary_sections
+    with zipfile.ZipFile(io.BytesIO(detailed_export_zip(resource_free))) as bundle:
+        names = set(bundle.namelist())
+        assert {
+            "vader_sentiment_summary.csv",
+            "vader_sentiment_sentences.csv",
+            "vader_sentiment_report.docx",
+            "readability_summary.csv",
+            "readability_word_audit.csv",
+            "readability_report.docx",
+        } <= names
+        assert "lexical_trajectory.csv" not in names
+        assert not any(name.endswith(".json") for name in names)
 
 
 def test_workspace_name_is_optional_for_temporary_analysis(preprocessor) -> None:

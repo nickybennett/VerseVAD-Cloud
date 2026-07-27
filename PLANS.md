@@ -323,8 +323,8 @@ review required.
   11-check diagnostic, live browser workflow, and rendered workbook review pass.
 - [x] Current behavior, methodology, limitations, and beginner test steps are
   documented.
-- [x] Create the Phase 4 source-control checkpoint using the bundled Git
-  executable supplied by the local Codex workspace runtime.
+- [x] Create the Phase 4 source-control checkpoint using the bundled local Git
+  executable.
 
 ## Phase 4.1 - Dual VAD reporting and project usability
 
@@ -1157,7 +1157,31 @@ review required.
   any environment-limited render exception recorded precisely.
 - [x] Create the expansion Stage 12 source-control checkpoint.
 
-## Cross-cutting later work - Scholarly diagnostics
+## Post-release evidence and interface expansion - sentiment, readability, and trajectory
+
+- [x] Add offline VADER document and sentence polarity evidence with published
+  conventional thresholds, package provenance, domain cautions, CSV exports,
+  and a narrative Word report.
+- [x] Add transparent resource-free readability formulas with explicit word,
+  sentence, character, syllable, polysyllable, and pronunciation-method
+  denominators; keep short-text SMOG missing.
+- [x] Reuse approved session pronunciation overrides in readability and retain
+  out-of-dictionary heuristic syllables in a default-collapsed attention panel.
+- [x] Add source- and token-scope-specific line-level VAD/concreteness
+  trajectories without pooling lexicons or filling missing lines with zero.
+- [x] Retain the active Affective Evidence report section when the trajectory
+  source or token scope changes.
+- [x] Add bottom collapse actions to both large front-page configuration
+  panels and strengthen dark-sidebar contrast.
+- [x] Extend Lexicon Explorer and its printable Word report with every
+  meaningful isolated-lookup metric from the new VADER and readability
+  engines, while withholding document-level readability formulas.
+- [x] Remove provider-specific assistant/product references from tracked source
+  and public documentation without rewriting Git history.
+- [x] Complete targeted/full automated, export, cross-platform launcher,
+  responsive-browser, cloud-entrypoint, and documentation validation in both
+  the canonical public and private cloud repositories.
+- [x] Create and push matching source-control checkpoints to both repositories.
 
 ## Post-release portability - macOS and supported browsers
 
@@ -1240,6 +1264,8 @@ review required.
   the broader full-resource synthetic rerun because it is disproportionate to
   this display-only repair.
 - [x] Create the source-control checkpoint.
+
+## Cross-cutting later work - Scholarly diagnostics
 
 - [ ] Add anomaly candidates and structured close-reading prompts.
 - [ ] Add corpus trends, source-disagreement views, and optional descriptive

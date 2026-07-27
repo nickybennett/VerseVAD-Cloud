@@ -8,6 +8,11 @@ normative valence, arousal, dominance, emotion categories, and emotion
 intensity. It will **not** determine what a poem "feels," what an author
 intended, or what a reader experiences.
 
+Resource-free analysis also includes offline VADER rule-based polarity evidence
+and transparent English readability formulas. Both carry visible domain
+cautions: VADER is not an emotional-archetype classifier, and prose-oriented
+grade formulas do not measure literary quality or a reader's ability.
+
 ## Current status
 
 **VerseVAD 1.0.0 is the first public-release version.** The repository includes
@@ -33,6 +38,17 @@ collapsed while remaining independently expandable, and the native sidebar
 arrow hides or restores the sidebar while the wide workspace resizes. In
 Affective Evidence, matched-rating dispersion is a standalone VAD section
 immediately below the VAD definitions.
+
+The Affective Evidence report now also includes VADER positive/neutral/negative
+proportions and compound score, plus a source-selectable **Lexical Trajectory**
+chart of line-level mean valence, arousal, dominance, and—when enabled—
+concreteness. Multiple VAD lexicons remain separate in the chart dropdown, and
+changing the source retains the current report section. The
+**Acquisition & Readability** report combines optional normative AoA evidence
+with always-available Flesch Reading Ease, Flesch-Kincaid Grade, Gunning Fog,
+Automated Readability Index, Coleman-Liau, and sentence-qualified SMOG output.
+Out-of-dictionary syllables remain explicitly heuristic until a session
+pronunciation override is approved.
 
 Scrollable result tables retain Streamlit's fixed header row and pin the
 leftmost data column, keeping row meanings visible while scholars move through
@@ -141,7 +157,11 @@ Lexicon Explorer searches all installed affective sources plus concreteness,
 SUBTLEX-US, Kuperman AoA, and CMUdict for exact entries, phrases, explicitly
 labeled lemma-derived or user-mapped lookups, ratings, frequency fields,
 pronunciation/stress candidates, emotion associations/intensities, Warriner
-uncertainty fields, source provenance, and derived normalized comparisons.
+uncertainty fields, source provenance, and derived normalized comparisons. It
+also reports local VADER polarity for the entered word or phrase and applicable
+word-level readability evidence—character count, syllable estimate and method,
+polysyllabic status, and pronunciation coverage—while reserving document-level
+readability formulas for analyzed poems or texts.
 CMUdict alternatives include on-demand offline speaker previews of their exact
 ARPAbet sequences; the same local preview and session selection workflow is
 available for ambiguous words under **Words Needing Attention**. A word absent
@@ -206,10 +226,10 @@ See:
 Ordinary analysis will run locally. Runtime code must not upload literary
 texts, lexicons, projects, or results.
 
-The installed application does not call ChatGPT or the OpenAI API. After setup,
-ordinary use does not depend on a ChatGPT subscription. Cancelling a
-subscription would only remove access to future ChatGPT/Codex assistance, not
-the already installed local application.
+The installed application does not call an external generative-AI or text-analysis
+API. After setup, ordinary analysis does not depend on a third-party subscription.
+Internet access is needed only when installing or deliberately updating software
+dependencies.
 
 The research datasets are not part of VerseVAD and are not distributed in the
 public repository. This separate private deployment repository contains only

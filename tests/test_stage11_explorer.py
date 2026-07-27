@@ -139,6 +139,14 @@ def test_explorer_reports_every_available_supplementary_source(
     assert values[("pronunciation", "ARPAbet phones")] == "S T OW1 N"
     assert values[("pronunciation", "Lexical stress")] == "1"
     assert all(row.match_method == "exact entry" for row in result.supplementary_entries)
+    assert result.vader_sentiment is not None
+    assert result.vader_sentiment.document_score.threshold_label == "neutral"
+    assert result.readability is not None
+    assert result.readability.summary.word_count == 1
+    assert result.readability.summary.syllable_count == 1
+    assert result.readability.word_audit[0].syllable_method.startswith(
+        "bundled CMUdict"
+    )
 
 
 def test_explorer_keeps_unmatched_and_unavailable_resources_explicit(

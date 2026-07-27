@@ -22,7 +22,7 @@ import versevad.prosody.pronunciation as _pronunciation_services
 import versevad.ui.design as _design_services
 import versevad.ui.preferences as _preference_services
 
-# Codex may update the local source while a Streamlit server is still open.
+# The local source may be updated while a Streamlit server is still open.
 # Streamlit reruns this page but Python normally retains already imported
 # service modules, which can momentarily pair a new interface with an older
 # application API or adapter policy. Reload only when a required revision is
@@ -38,6 +38,7 @@ _application_was_reloaded = (
             "part_of_speech_views",
             "detailed_part_of_speech_views",
             "vad_part_of_speech_views",
+            "lexical_trajectory_views",
             "RESOURCE_ROOT",
             "FrequencyConfiguration",
             "AoAConfiguration",
@@ -60,7 +61,7 @@ _application_was_reloaded = (
 )
 if _application_was_reloaded:
     # Reload the framework-independent dependency graph in type-definition
-    # order. This is used only after Codex updates an already-running local
+    # order. This is used only after updates to an already-running local
     # Streamlit process; a normal launch imports each module once.
     for _module_name in (
         "versevad.models",
@@ -81,6 +82,8 @@ if _application_was_reloaded:
         "versevad.lexical_semantic.concreteness",
         "versevad.lexical_semantic.frequency",
         "versevad.lexical_semantic.aoa",
+        "versevad.lexical_semantic.sentiment",
+        "versevad.lexical_semantic.readability",
         "versevad.prosody.pronunciation",
         "versevad.prosody.meter",
         "versevad.prosody",
@@ -104,6 +107,8 @@ if _application_was_reloaded:
         "versevad.exports.lexical_style",
         "versevad.exports.poetry_id",
         "versevad.exports.inherited_form",
+        "versevad.exports.sentiment",
+        "versevad.exports.readability",
         "versevad.ui.poetry_id",
         "versevad.ui.inherited_form",
     ):
@@ -137,6 +142,7 @@ from versevad.application import (
     emotion_association_views,
     emotion_intensity_views,
     installed_resource_readiness,
+    lexical_trajectory_views,
     match_views,
     overview_notes,
     part_of_speech_views,
@@ -257,7 +263,7 @@ if _corpus_was_reloaded:
 # Stage 13 centralizes the shell and appearance tokens. Reload the presentation
 # modules once in an already-open local server so theme and workspace changes
 # do not require the scholar to restart VerseVAD manually.
-_DESIGN_RUNTIME_REVISION = "2026-07-26-design-4"
+_DESIGN_RUNTIME_REVISION = "2026-07-27-design-5"
 _design_was_reloaded = (
     _DEVELOPMENT_HOT_RELOAD
     and st.session_state.get("_design_runtime_revision")
@@ -311,6 +317,24 @@ def _decimal(value: float | None) -> str:
 def _frame(rows, rename: dict[str, str] | None = None) -> pd.DataFrame:
     data = pd.DataFrame([asdict(row) for row in rows])
     return data.rename(columns=rename or {})
+
+
+def _stateful_expander(label: str, *, state_key: str):
+    """Return an expander whose bottom control can force a collapsed rerender."""
+
+    epoch = int(st.session_state.get(f"{state_key}_collapse_epoch", 0))
+    return st.expander(label + ("\u2060" * epoch), expanded=False)
+
+
+def _render_bottom_collapse_button(label: str, *, state_key: str) -> None:
+    if st.button(
+        f"Collapse {label}",
+        key=f"{state_key}_bottom_collapse",
+        width="stretch",
+    ):
+        epoch_key = f"{state_key}_collapse_epoch"
+        st.session_state[epoch_key] = int(st.session_state.get(epoch_key, 0)) + 1
+        st.rerun()
 
 
 def _queue_pronunciation_resolutions(
@@ -1074,7 +1098,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "Enable only the lexical-character, structural, PoetryID, sound, "
             "and inherited-form models needed for this analysis."
         )
-        with st.expander("Choose Additional Optional Models", expanded=False):
+        with _stateful_expander(
+            "Choose Additional Optional Models",
+            state_key="additional_optional_models",
+        ):
             st.markdown("#### Lexical Character")
             include_concreteness = st.checkbox(
                 "Concreteness profile (Brysbaert et al. ratings)",
@@ -1309,6 +1336,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "modules. Its candidate tooltip explains the traditional "
                     "definition and the poem's agreements and departures."
                 )
+            _render_bottom_collapse_button(
+                "Additional Optional Models",
+                state_key="additional_optional_models",
+            )
 
     with st.container(border=True):
         st.subheader("3. Analysis Configuration and Methodology")
@@ -1316,7 +1347,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "Fine-tune thresholds, matching policies, and evidence handling. "
             "Defaults are suitable for an initial analysis."
         )
-        with st.expander("Show Configuration Controls", expanded=False):
+        with _stateful_expander(
+            "Show Configuration Controls",
+            state_key="analysis_configuration",
+        ):
             policy_labels = {
                 "Prefer the longest phrase (recommended)": PhrasePolicy.PHRASE_PREFERRED,
                 "Use unigrams only": PhrasePolicy.UNIGRAM_ONLY,
@@ -1981,6 +2015,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
             with st.expander("Stopword settings"):
                 stopword_settings = render_stopword_settings("one_poem")
+            _render_bottom_collapse_button(
+                "Analysis Configuration and Methodology",
+                state_key="analysis_configuration",
+            )
 
         analyze_clicked = st.button(
             "Analyze Text" if is_other_text else "Analyze Poem",
@@ -2248,6 +2286,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 expanded=True,
             ) as analysis_status:
                 st.write("Preparing one shared linguistic representation.")
+                st.write(
+                    "Calculating offline VADER polarity and transparent readability "
+                    "formula evidence."
+                )
                 if selected_lexicons:
                     st.write("Analyzing selected affective lexicons independently.")
                 if (
@@ -2281,8 +2323,8 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
                 st.success(
                     f"{applied_count} pronunciation choice(s) applied; "
-                    "pronunciation, meter, sound, and inherited-form evidence "
-                    "are updated."
+                    "readability, pronunciation, meter, sound, and inherited-form "
+                    "evidence are updated."
                 )
             else:
                 st.success(
@@ -2308,9 +2350,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "processing representation."
             ),
             (
-                "Choose a preset or modules, then select Analyze Text."
+                "Optionally choose a preset or modules, then select Analyze Text."
                 if is_other_text
-                else "Choose a preset or modules, then select Analyze Poem."
+                else "Optionally choose a preset or modules, then select Analyze Poem."
             ),
         )
         st.stop()
@@ -2443,7 +2485,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
             _section_label("VAD", bool(workspace.results)),
         )
         emotion_tab = st.expander(
-            _section_label("Emotion Association & Intensity", bool(workspace.results)),
+            _section_label(
+                "Emotion Association, Intensity & Sentiment",
+                workspace.vader_sentiment is not None,
+            ),
+        )
+        trajectory_tab = st.expander(
+            _section_label(
+                "Lexical Trajectory",
+                any(result.vad_summary is not None for result in workspace.results),
+            ),
         )
         poetry_id_tab = st.expander(
             _section_label("PoetryID", workspace.poetry_id is not None),
@@ -2456,7 +2507,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
             _section_label("Frequency & Rarity", workspace.frequency is not None),
         )
         aoa_tab = st.expander(
-            _section_label("Age of Acquisition", workspace.aoa is not None),
+            _section_label(
+                "Acquisition & Readability",
+                workspace.readability is not None,
+            ),
         )
     with sound_tab:
         pronunciation_tab = st.expander(
@@ -2488,6 +2542,170 @@ if workspace_page in {"Single Poem", "Other Text"}:
     with export_help_tab:
         download_tab = st.expander("Export Report & Data")
         help_tab = st.expander("Methodology & How to Read")
+
+    with trajectory_tab:
+        vad_sources = [
+            result
+            for result in workspace.results
+            if result.vad_summary is not None
+        ]
+        if not vad_sources:
+            st.info(
+                "Select at least one VAD lexicon and analyze again to build a "
+                "line-level lexical trajectory."
+            )
+        else:
+            st.subheader("Lexical Trajectory")
+            st.write(
+                "Each line shows token-weighted mean normative VAD evidence for "
+                "one selected lexicon. Concreteness is overlaid when that optional "
+                "module was enabled. Blank or unmatched physical lines remain gaps."
+            )
+            source_ids = [
+                result.lexicon_metadata.lexicon_id for result in vad_sources
+            ]
+            if st.session_state.get("lexical_trajectory_source") not in source_ids:
+                st.session_state["lexical_trajectory_source"] = source_ids[0]
+            trajectory_controls = st.columns(2)
+            trajectory_source = trajectory_controls[0].selectbox(
+                "Trajectory VAD source",
+                options=source_ids,
+                format_func=lambda value: next(
+                    result.lexicon_metadata.display_name
+                    for result in vad_sources
+                    if result.lexicon_metadata.lexicon_id == value
+                ),
+                key="lexical_trajectory_source",
+                help=(
+                    "Sources remain separate. Changing this display choice retains "
+                    "the Affective Evidence report section."
+                ),
+            )
+            selected_result = next(
+                result
+                for result in vad_sources
+                if result.lexicon_metadata.lexicon_id == trajectory_source
+            )
+            trajectory_view_options = ["All matched tokens"]
+            if selected_result.stopword_coverage is not None:
+                trajectory_view_options.append("Stopwords excluded")
+            current_trajectory_view = st.session_state.get(
+                "lexical_trajectory_view"
+            )
+            if current_trajectory_view not in trajectory_view_options:
+                st.session_state["lexical_trajectory_view"] = (
+                    trajectory_view_options[0]
+                )
+            trajectory_view = trajectory_controls[1].selectbox(
+                "Trajectory token scope",
+                options=trajectory_view_options,
+                key="lexical_trajectory_view",
+                help=(
+                    "The full and stopword-excluded views remain distinct; changing "
+                    "this display choice does not rerun the poem analysis."
+                ),
+            )
+            trajectory = lexical_trajectory_views(
+                workspace,
+                lexicon_id=trajectory_source,
+                analysis_view=trajectory_view,
+            )
+            trajectory_frame = pd.DataFrame(
+                [
+                    {
+                        "Line": row.line_number,
+                        "Text": row.source_text,
+                        "Valence": row.valence_mean,
+                        "Arousal": row.arousal_mean,
+                        "Dominance": row.dominance_mean,
+                        "Concreteness": row.concreteness_mean_normalized,
+                        "Concreteness (source 1-5)": (
+                            row.concreteness_mean_source_scale
+                        ),
+                        "VAD matches": row.vad_matched_observations,
+                        "Concreteness matches": row.concreteness_matched_tokens,
+                    }
+                    for row in trajectory
+                ]
+            )
+            chart_columns = ["Valence", "Arousal", "Dominance"]
+            if workspace.concreteness is not None:
+                chart_columns.append("Concreteness")
+            chart_long = trajectory_frame.melt(
+                id_vars=["Line", "Text"],
+                value_vars=chart_columns,
+                var_name="Measure",
+                value_name="Mean",
+            )
+            trajectory_chart = (
+                alt.Chart(chart_long)
+                .mark_line(point=True, strokeWidth=2.4)
+                .encode(
+                    x=alt.X(
+                        "Line:Q",
+                        title="Physical line",
+                        axis=alt.Axis(tickMinStep=1),
+                    ),
+                    y=alt.Y(
+                        "Mean:Q",
+                        title="Mean rating (normalized 0-1)",
+                        scale=alt.Scale(domain=[0, 1]),
+                    ),
+                    color=alt.Color(
+                        "Measure:N",
+                        scale=alt.Scale(
+                            domain=[
+                                "Valence",
+                                "Arousal",
+                                "Dominance",
+                                "Concreteness",
+                            ],
+                            range=[
+                                "#c64e52",
+                                "#d88b1f",
+                                "#3778b8",
+                                "#3f8b5b",
+                            ],
+                        ),
+                        legend=alt.Legend(title=None, orient="top"),
+                    ),
+                    tooltip=[
+                        alt.Tooltip("Line:Q", format=".0f"),
+                        "Text:N",
+                        "Measure:N",
+                        alt.Tooltip("Mean:Q", format=".3f"),
+                    ],
+                )
+                .properties(height=360)
+            )
+            st.altair_chart(
+                trajectory_chart,
+                width="stretch",
+                theme="streamlit",
+            )
+            if workspace.concreteness is None:
+                st.info(
+                    "Concreteness was not enabled for this analysis, so this graph "
+                    "shows the three VAD trajectories. Enable Concreteness to add "
+                    "the fourth line."
+                )
+            else:
+                st.caption(
+                    "Concreteness is linearly rescaled from its source 1-5 range "
+                    "to 0-1 for this overlay only: (rating - 1) / 4. The original "
+                    "line means remain in the table and CSV export."
+                )
+            render_dataframe(
+                trajectory_frame,
+                hide_index=True,
+                width="stretch",
+                height=360,
+            )
+            st.caption(
+                "Means use only matched observations on each physical line. "
+                "Missing evidence is not entered as zero and adjacent points may "
+                "therefore be separated by gaps."
+            )
 
     with poetry_id_tab:
         render_poetry_id(workspace.poetry_id)
@@ -3987,6 +4205,137 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.caption(resource.license_notice)
 
     with aoa_tab:
+        readability = workspace.readability
+        if readability is not None:
+            readability_summary = readability.summary
+            st.subheader("Readability and Grade-Formula Evidence")
+            st.write(
+                "These familiar English formulas combine sentence length, word "
+                "length, and estimated syllables. They were designed for prose, "
+                "so VerseVAD presents them as orientation evidence rather than a "
+                "judgment of literary quality, reader ability, or required grade."
+            )
+            readability_columns = st.columns(3)
+            readability_columns[0].metric(
+                "Flesch Reading Ease",
+                _decimal(readability_summary.flesch_reading_ease),
+            )
+            readability_columns[1].metric(
+                "Flesch-Kincaid Grade",
+                _decimal(readability_summary.flesch_kincaid_grade),
+            )
+            readability_columns[2].metric(
+                "Gunning Fog Index",
+                _decimal(readability_summary.gunning_fog_index),
+            )
+            readability_columns = st.columns(3)
+            readability_columns[0].metric(
+                "Automated Readability Index",
+                _decimal(readability_summary.automated_readability_index),
+            )
+            readability_columns[1].metric(
+                "Coleman-Liau Index",
+                _decimal(readability_summary.coleman_liau_index),
+            )
+            readability_columns[2].metric(
+                "SMOG Index",
+                _decimal(readability_summary.smog_index),
+            )
+            st.caption(
+                f"Denominators: {readability_summary.word_count:,} shared-processing "
+                f"lexical tokens; {readability_summary.sentence_count:,} sentence(s) "
+                f"using {readability_summary.sentence_count_method}; "
+                f"{readability_summary.syllable_count:,} estimated syllables. "
+                f"Dictionary/override syllable coverage: "
+                f"{_percentage(readability_summary.pronunciation_coverage)}. "
+                f"SMOG remains missing below "
+                f"{readability.configuration.smog_minimum_sentences} sentences."
+            )
+            render_dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "Mean words per sentence": (
+                                readability_summary.mean_words_per_sentence
+                            ),
+                            "Mean syllables per word": (
+                                readability_summary.mean_syllables_per_word
+                            ),
+                            "Mean alphabetic characters per word": (
+                                readability_summary.mean_characters_per_word
+                            ),
+                            "Polysyllabic words": (
+                                readability_summary.polysyllabic_word_count
+                            ),
+                            "Dictionary/override words": (
+                                readability_summary.dictionary_or_override_word_count
+                            ),
+                            "Heuristic words": (
+                                readability_summary.heuristic_word_count
+                            ),
+                        }
+                    ]
+                ).style.format(
+                    {
+                        "Mean words per sentence": lambda value: _decimal(value),
+                        "Mean syllables per word": lambda value: _decimal(value),
+                        "Mean alphabetic characters per word": lambda value: (
+                            _decimal(value)
+                        ),
+                    }
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+            heuristic_rows = [
+                item
+                for item in readability.word_audit
+                if item.syllable_method.startswith("orthographic heuristic")
+            ]
+            if heuristic_rows:
+                with st.expander(
+                    "Pronunciation Estimates Needing Attention "
+                    f"({len(heuristic_rows):,})",
+                    expanded=False,
+                ):
+                    st.warning(
+                        "These out-of-dictionary occurrences use an explicit "
+                        "orthographic estimate for formula completeness; the estimate "
+                        "is not a confirmed pronunciation. Resolve the observed word "
+                        "in Sound & Form > Words Needing Attention, then reanalyze to "
+                        "apply that session override here as well."
+                    )
+                    render_dataframe(
+                        pd.DataFrame(
+                            [
+                                {
+                                    "Word": item.surface_form,
+                                    "Line": item.line_number,
+                                    "Estimated syllables": item.syllable_count,
+                                    "Method": item.syllable_method,
+                                }
+                                for item in heuristic_rows
+                            ]
+                        ),
+                        hide_index=True,
+                        width="stretch",
+                    )
+            with st.expander("Readability Formula Cautions and Provenance"):
+                for warning in readability.module_result.warnings:
+                    if warning.severity.value == "information":
+                        st.info(warning.message)
+                    else:
+                        st.warning(warning.message)
+                provenance = readability.module_result.provenance
+                st.write(
+                    f"**Module:** {readability.module_result.module_name} "
+                    f"{readability.module_result.module_version}  \n"
+                    f"**Configuration:** `{provenance.configuration_id}`  \n"
+                    f"**Lookup policy:** {provenance.lookup_policy}  \n"
+                    f"**Inclusion policy:** {provenance.inclusion_policy}"
+                )
+            st.divider()
+
         aoa = workspace.aoa
         if aoa is None:
             st.subheader("Normative Lexical Age of Acquisition")
@@ -5703,7 +6052,96 @@ if workspace_page in {"Single Poem", "Other Text"}:
         sentiments = sentiment_association_views(workspace)
         intensities = emotion_intensity_views(workspace)
         if not associations and not sentiments and not intensities:
-            st.info("Select NRC Emotion or NRC Emotion Intensity to see this view.")
+            st.info(
+                "NRC Emotion or NRC Emotion Intensity was not selected. "
+                "The resource-free VADER polarity evidence remains available below."
+            )
+        vader = workspace.vader_sentiment
+        if vader is not None:
+            st.subheader("VADER Rule-Based Sentiment")
+            st.write(
+                "VADER reports raw positive, neutral, and negative lexical-polarity "
+                "proportions plus a rule-adjusted compound score from -1 to +1. "
+                "Its conventional threshold label is descriptive polarity evidence, "
+                "not a declaration of the poem's emotion."
+            )
+            score = vader.document_score
+            vader_columns = st.columns(4)
+            vader_columns[0].metric(
+                "Positive proportion",
+                _percentage(score.positive_proportion),
+            )
+            vader_columns[1].metric(
+                "Neutral proportion",
+                _percentage(score.neutral_proportion),
+            )
+            vader_columns[2].metric(
+                "Negative proportion",
+                _percentage(score.negative_proportion),
+            )
+            vader_columns[3].metric(
+                "Compound score",
+                f"{score.compound_score:+.3f}",
+            )
+            st.caption(
+                f"Conventional threshold label: {score.threshold_label.title()} "
+                f"(positive >= {vader.configuration.positive_minimum:+.2f}; "
+                f"negative <= {vader.configuration.negative_maximum:+.2f}). "
+                "The three proportions are raw lexical-category ratios; compound "
+                "also applies VADER's negation, intensity, punctuation, casing, "
+                "and contrast rules."
+            )
+            with st.expander(
+                f"Sentence-Level VADER Evidence ({len(vader.sentence_scores):,})",
+                expanded=False,
+            ):
+                render_dataframe(
+                    pd.DataFrame(
+                        [
+                            {
+                                "Sentence": item.ordinal,
+                                "Lines": " | ".join(
+                                    str(value) for value in item.line_numbers
+                                ),
+                                "Text": item.source_text,
+                                "Positive": item.score.positive_proportion,
+                                "Neutral": item.score.neutral_proportion,
+                                "Negative": item.score.negative_proportion,
+                                "Compound": item.score.compound_score,
+                                "Threshold label": (
+                                    item.score.threshold_label.title()
+                                ),
+                            }
+                            for item in vader.sentence_scores
+                        ]
+                    ).style.format(
+                        {
+                            "Positive": lambda value: _percentage(value),
+                            "Neutral": lambda value: _percentage(value),
+                            "Negative": lambda value: _percentage(value),
+                            "Compound": lambda value: _decimal(value),
+                        }
+                    ),
+                    hide_index=True,
+                    width="stretch",
+                    height=320,
+                )
+            with st.expander("VADER Cautions, Method, and Citation"):
+                for warning in vader.module_result.warnings:
+                    if warning.severity.value == "information":
+                        st.info(warning.message)
+                    else:
+                        st.warning(warning.message)
+                st.write(f"**Citation:** {vader.citation}")
+                provenance = vader.module_result.provenance
+                st.write(
+                    f"**Package:** vaderSentiment {vader.package_version}  \n"
+                    f"**Configuration:** `{provenance.configuration_id}`  \n"
+                    f"**Lookup policy:** {provenance.lookup_policy}  \n"
+                    f"**Inclusion policy:** {provenance.inclusion_policy}"
+                )
+            if associations or sentiments or intensities:
+                st.divider()
         if associations:
             st.subheader("Eight Emotion Associations")
             st.write(
@@ -6005,6 +6443,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
                 + "|".join(
                     (
+                        (
+                            workspace.vader_sentiment.module_result.result_id
+                            if workspace.vader_sentiment
+                            else ""
+                        ),
+                        (
+                            workspace.readability.module_result.result_id
+                            if workspace.readability
+                            else ""
+                        ),
                         (
                             workspace.concreteness.module_result.result_id
                             if workspace.concreteness

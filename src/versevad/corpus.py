@@ -28,6 +28,8 @@ from versevad.db import (
 from versevad.lexical_semantic.aoa import AoAConfiguration
 from versevad.lexical_semantic.concreteness import ConcretenessConfiguration
 from versevad.lexical_semantic.frequency import FrequencyConfiguration
+from versevad.lexical_semantic.readability import ReadabilityConfiguration
+from versevad.lexical_semantic.sentiment import VaderSentimentConfiguration
 from versevad.lexical_style import (
     LexicalStyleConfiguration,
     calculate_hdd,
@@ -160,7 +162,7 @@ class CorpusAnalysisConfiguration:
 
     @property
     def module_names(self) -> tuple[str, ...]:
-        names = []
+        names = ["vader_sentiment", "readability"]
         if self.include_concreteness:
             names.append("concreteness")
         if self.include_frequency:
@@ -189,6 +191,20 @@ class CorpusAnalysisConfiguration:
     @property
     def manifest(self) -> dict[str, object]:
         rows = (
+            (
+                True,
+                "vader_sentiment",
+                VaderSentimentConfiguration(),
+            ),
+            (
+                True,
+                "readability",
+                ReadabilityConfiguration(
+                    pronunciation_overrides=(
+                        self.pronunciation_configuration.overrides
+                    ),
+                ),
+            ),
             (
                 self.include_concreteness,
                 "concreteness",

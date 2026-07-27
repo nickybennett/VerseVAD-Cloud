@@ -11,6 +11,34 @@ All notable VerseVAD changes will be recorded here.
   isolated to an unguessable browser-session database, clearly labeled as
   nonpersistent, and appearance choices remain session-only so visitors cannot
   see or overwrite one another's application state.
+- Added always-available, offline VADER rule-based sentiment evidence with
+  positive/neutral/negative proportions, compound score, conventional threshold
+  label, sentence-level audit, package/method provenance, social-media-domain
+  cautions, CSV files, and a narrative Word report.
+- Added always-available, transparent English readability evidence: Flesch
+  Reading Ease, Flesch-Kincaid Grade, Gunning Fog, Automated Readability Index,
+  Coleman-Liau, and sentence-qualified SMOG. Contractions and hyphenated forms
+  count as one orthographic word; session pronunciation overrides take priority,
+  and out-of-dictionary syllables remain explicitly heuristic and auditable.
+- Added **Lexical Trajectory** under Affective Evidence with four fixed-color
+  line series for token-weighted mean valence, arousal, dominance, and optional
+  normalized concreteness by physical line. A stateful source dropdown keeps
+  multiple VAD lexicons separate and retains the active report section.
+- Expanded Lexicon Explorer to include local VADER polarity and applicable
+  word-level readability evidence in both the interface and printable Word
+  report, while reserving document-level readability formulas for analyzed
+  poems or texts.
+- Renamed the relevant report panels to **Emotion Association, Intensity &
+  Sentiment** and **Acquisition & Readability**, added complete CSV/DOCX export
+  coverage, and kept missing line and pronunciation evidence missing or
+  explicitly estimated rather than neutral.
+- Added bottom **Collapse** controls to the default-collapsed Additional
+  Optional Models and Analysis Configuration and Methodology panels.
+- Strengthened sidebar text, alert, widget, and installation-check contrast in
+  Light, Dark, and System modes without changing analytical state.
+- Removed provider-specific assistant/product references from runtime comments
+  and public documentation, replacing privacy language with service-neutral
+  descriptions. Existing Git history is not rewritten.
 - Collapsed **Words Needing Attention** by default and placed provisional G2P
   review behind a default-off **Show Out-of-Dictionary Words** control, keeping
   the pronunciation report compact until review is requested.

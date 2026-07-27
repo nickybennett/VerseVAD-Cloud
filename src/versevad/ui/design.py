@@ -422,6 +422,38 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
     [data-testid="stSidebar"] {{
       background: var(--color-surface-muted);
       border-right: 1px solid var(--color-border);
+      color: var(--color-text-primary);
+    }}
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4,
+    [data-testid="stSidebar"] h5,
+    [data-testid="stSidebar"] h6,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] strong,
+    [data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {{
+      color: var(--color-text-primary) !important;
+      -webkit-text-fill-color: var(--color-text-primary) !important;
+    }}
+    [data-testid="stSidebar"] [data-testid="stAlert"] *,
+    [data-testid="stSidebar"] [data-testid="stNotification"] * {{
+      color: var(--color-text-primary) !important;
+      -webkit-text-fill-color: var(--color-text-primary) !important;
+    }}
+    [data-testid="stSidebar"] input,
+    [data-testid="stSidebar"] textarea,
+    [data-testid="stSidebar"] [data-baseweb="select"] * {{
+      color: var(--color-text-primary) !important;
+      -webkit-text-fill-color: var(--color-text-primary) !important;
+    }}
+    [data-testid="stSidebar"] [data-testid="stButton"] button *,
+    [data-testid="stSidebar"] [data-testid="stDownloadButton"] button * {{
+      color: inherit !important;
+      -webkit-text-fill-color: inherit !important;
     }}
     [data-testid="stSidebarCollapseButton"],
     [data-testid="stSidebarCollapsedControl"] {{

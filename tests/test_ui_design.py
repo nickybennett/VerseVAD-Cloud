@@ -83,6 +83,8 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert '[aria-label="Project section"]' in sheet
         assert '[data-testid="stSidebarCollapseButton"]' in sheet
         assert '[data-testid="stSidebarCollapsedControl"]' in sheet
+        assert '[data-testid="stSidebar"] [data-testid="stAlert"] *' in sheet
+        assert '[data-testid="stSidebar"] p' in sheet
         assert "-webkit-text-fill-color" in sheet
         assert "caret-color" in sheet
         assert "::placeholder" in sheet
@@ -118,6 +120,7 @@ def test_primary_text_and_focus_tokens_meet_contrast_expectations() -> None:
     for tokens in (LIGHT_TOKENS, DARK_TOKENS):
         assert _contrast(tokens["text-primary"], tokens["background"]) >= 7
         assert _contrast(tokens["text-primary"], tokens["surface"]) >= 7
+        assert _contrast(tokens["text-primary"], tokens["surface-muted"]) >= 7
         assert _contrast(tokens["text-secondary"], tokens["background"]) >= 4.5
         assert _contrast(tokens["focus"], tokens["background"]) >= 3
         assert (

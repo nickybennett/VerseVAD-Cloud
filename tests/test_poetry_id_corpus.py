@@ -52,13 +52,21 @@ def test_poetry_id_corpus_reuses_modules_and_keeps_compatible_distributions(
     )
 
     assert batch.status == "complete"
-    assert batch.module_names == ("poetry_id",)
+    assert batch.module_names == (
+        "vader_sentiment",
+        "readability",
+        "poetry_id",
+    )
     results = repository.list_module_results_for_batch(
         project.project_id,
         batch.batch_id,
     )
-    assert len(results) == 2
-    assert {row.module_name for row in results} == {"poetry_id"}
+    assert len(results) == 6
+    assert {row.module_name for row in results} == {
+        "vader_sentiment",
+        "readability",
+        "poetry_id",
+    }
 
     metrics = repository.list_module_metrics_for_batch(
         project.project_id,

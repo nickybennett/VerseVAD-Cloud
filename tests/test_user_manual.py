@@ -67,11 +67,17 @@ def test_comprehensive_user_manual_is_current_and_structurally_sound() -> None:
             "frequency_token_audit.csv",
             "74,286 word-form rows",
             "NOUN, VERB, ADJ, and ADV",
-            "Age of Acquisition section",
+            "Acquisition and Readability section",
             "Retrospective normative lexical Age of Acquisition",
             "aoa_token_audit.csv",
             "31,124 unique nonblank word rows",
             "not diagnostic of cognitive impairment or decline",
+            "VADER reports raw positive",
+            "vader_sentiment_summary.csv",
+            "Lexical Trajectory section",
+            "lexical_trajectory.csv",
+            "Flesch-Kincaid Grade",
+            "readability_word_audit.csv",
             "Dictionary pronunciation, syllables, and lexical stress",
             "Pronunciation & Prosody",
             "pronunciation_token_audit.csv",
@@ -99,6 +105,8 @@ def test_comprehensive_user_manual_is_current_and_structurally_sound() -> None:
             "corpus_module_*.csv",
             "ordered pooled token evidence",
             "Additional lexical evidence",
+            "Rule-based sentiment and readability evidence",
+            "Document-level Flesch Reading Ease",
             "Resource unavailable",
             "every exact CMUdict pronunciation candidate",
             "PoetryID section",
@@ -117,7 +125,6 @@ def test_comprehensive_user_manual_is_current_and_structurally_sound() -> None:
             "If the VerseVAD folder is moved",
         ):
             assert required in text
-
         section = document.find(".//w:sectPr", NS)
         assert section is not None
         page_size = section.find("w:pgSz", NS)
@@ -214,6 +221,9 @@ def test_beginner_values_guide_defines_requested_terms_and_formulas() -> None:
             "Net Midpoint Load",
             "Absolute Midpoint Load",
             "Positive and Negative Sentiment Associations",
+            "VADER Rule-Based Polarity",
+            "Lexical Trajectory",
+            "Readability and Grade-Level Formulas",
             "Review Decisions and Scenarios",
             "Worked Examples",
             "How to Report a Result",

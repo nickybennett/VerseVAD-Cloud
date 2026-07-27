@@ -30,6 +30,21 @@ from versevad.lexical_semantic.frequency import (
     FrequencyModule,
     FrequencyModuleError,
 )
+from versevad.lexical_semantic.readability import (
+    ReadabilityAnalysisResult,
+    ReadabilityConfiguration,
+    ReadabilityModule,
+    ReadabilitySummary,
+    ReadabilityWordAudit,
+)
+from versevad.lexical_semantic.sentiment import (
+    VADER_CITATION,
+    VaderScore,
+    VaderSegmentScore,
+    VaderSentimentAnalysisResult,
+    VaderSentimentConfiguration,
+    VaderSentimentModule,
+)
 
 __all__ = [
     "AOA_CONTENT_WORD_POS",
@@ -55,5 +70,16 @@ __all__ = [
     "FrequencyMatchMethod",
     "FrequencyModule",
     "FrequencyModuleError",
+    "ReadabilityAnalysisResult",
+    "ReadabilityConfiguration",
+    "ReadabilityModule",
+    "ReadabilitySummary",
+    "ReadabilityWordAudit",
+    "VADER_CITATION",
+    "VaderScore",
+    "VaderSegmentScore",
+    "VaderSentimentAnalysisResult",
+    "VaderSentimentConfiguration",
+    "VaderSentimentModule",
     "attach_aoa_relationships",
 ]

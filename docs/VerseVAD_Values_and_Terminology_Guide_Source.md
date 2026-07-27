@@ -6,7 +6,7 @@
 **Guide updated:** {{DATE}}  
 **Intended reader:** A first-time user with no linguistics or statistics background
 
-> THE CENTRAL RULE: VerseVAD describes lexical evidence found in published word-rating and corpus-frequency resources plus optional dictionary-based pronunciation, fixed candidate-meter, separate performance-aware realization, rhyme, recurring-sound, lexical-diversity, word-length, structural word-count, and PoetryID candidate-profile evidence. These constructs are separate from each other. VerseVAD does not discover the emotion of a poem, diagnose a speaker or cognition, recover an author's intention, measure what an individual reader feels, or establish definitive meter, performed rhythm, pronunciation, or rhyme.
+> THE CENTRAL RULE: VerseVAD describes lexical evidence found in published word-rating and corpus-frequency resources plus offline rule-based sentiment, formula-based readability, optional dictionary-based pronunciation, fixed candidate-meter, separate performance-aware realization, rhyme, recurring-sound, lexical-diversity, word-length, structural word-count, and PoetryID candidate-profile evidence. These constructs are separate from each other. VerseVAD does not discover the emotion of a poem, diagnose a speaker or cognition, recover an author's intention, measure what an individual reader feels, determine actual reader difficulty, or establish definitive meter, performed rhythm, pronunciation, or rhyme.
 
 [[PAGEBREAK]]
 
@@ -15,7 +15,7 @@
 1. The one-minute mental model
 2. A safe reading order
 3. Valence, arousal, and dominance
-4. Original and normalized scales, concreteness, Zipf frequency, Age of Acquisition, dictionary pronunciation, candidate meter, rhyme, recurring sounds, lexical diversity, word length, structural word counts, and PoetryID
+4. Original and normalized scales, concreteness, Zipf frequency, Age of Acquisition, readability, dictionary pronunciation, candidate meter, rhyme, recurring sounds, lexical diversity, word length, structural word counts, and PoetryID
 5. Tokens, types, phrases, lemmas, and matches
 6. Part-of-speech profiles
 7. Coverage and unmatched vocabulary
@@ -133,6 +133,21 @@ Avoid: “The speaker is powerless.”
 ## What a VAD Mean Actually Summarizes
 
 A work-level VAD mean is the arithmetic mean of included lexicon ratings under a declared matching policy, analysis view, and weighting. It describes the center of those matched ratings. It does not summarize words that did not match, and it does not assign unmatched words a neutral value.
+
+## Lexical Trajectory
+
+The **Lexical Trajectory** chart repeats the same token-weighted lookup logic
+line by line. It plots valence, arousal, and dominance from one selected VAD
+source, plus concreteness when that resource is available. Original
+concreteness values from 1 to 5 are linearly normalized to 0 to 1 for the
+overlay only:
+
+`concreteness_overlay = (source_rating - 1) / 4`
+
+A missing point means that line has no matched evidence for that series. It is
+not converted to a midpoint or joined as if evidence existed. The chart shows
+descriptive lexical movement across physical lines; it does not measure the
+speaker's or reader's emotional state.
 
 # 4. Original and Normalized Scales
 
@@ -273,6 +288,25 @@ Avoid: “The poem is for seven-year-olds,” “the vocabulary is difficult,”
 “the author shows cognitive decline.” Age-of-acquisition results are not
 grade-level, comprehension, intelligence, reader-response, or cognitive
 diagnostic measures.
+
+## Readability and Grade-Level Formulas
+
+Readability is always available and is calculated locally from preserved word,
+sentence, character, and estimated syllable counts. VerseVAD reports Flesch
+Reading Ease, Flesch-Kincaid Grade, Gunning Fog, Automated Readability Index,
+Coleman-Liau, and SMOG when the formula's requirements are met. SMOG remains
+missing below 30 sentences.
+
+These formulas were designed primarily for prose. Line breaks, fragments,
+unusual punctuation, and poetic syntax can materially affect their inputs.
+Grade-level values are formula outputs, not claims about the education,
+intelligence, or actual comprehension of a particular reader.
+
+Syllable counting uses a session pronunciation override first, an installed
+dictionary candidate second, and a labeled orthographic estimate only when
+neither exists. The report therefore includes pronunciation coverage and a
+default-collapsed attention list for estimated words. Contractions such as
+`you're` and `can't` count as single readability words.
 
 ## Dictionary Pronunciation, Syllables, and Lexical Stress
 
@@ -895,6 +929,21 @@ They use the same occurrence-counting logic:
 
 Positive and negative are not endpoints of the VAD valence scale, and they are not replacements for the eight emotions. A source entry can have multiple labels; rates need not sum to 100 percent.
 
+## VADER Rule-Based Polarity
+
+VADER is a separate, always-available rule-based sentiment model. It reports
+positive, neutral, and negative proportions that sum to approximately 1, plus
+a rule-adjusted **compound score** from -1 to 1. VerseVAD labels compound scores
+at or above 0.05 positive, at or below -0.05 negative, and values between those
+thresholds neutral.
+
+The proportions summarize lexical-polarity allocation; the compound score also
+uses VADER's word-order, punctuation, capitalization, negation, and modifier
+rules. VADER was developed for social-media sentiment, so poetic ambiguity,
+irony, lineation, historical usage, and figurative language may be misread.
+Treat the result as one contextualized rule-based signal, not an emotional
+diagnosis or a substitute for VAD or NRC emotion evidence.
+
 ## Emotion Intensity
 
 NRC Emotion Intensity provides numeric values only for particular word-emotion pairs.
@@ -1245,7 +1294,7 @@ Include these elements for every numeric claim:
 | Age of Acquisition rating | Adult retrospective source estimate, in years, of when a listed word was learned well enough to understand |
 | Analysis run | One immutable calculation tied to exact inputs and methods |
 | Analysis view | All matched observations or stopwords excluded |
-| Additional module result | Generic persisted result from an existing concreteness, frequency, AoA, pronunciation, meter, rhyme/sound, lexical-style, or PoetryID engine |
+| Additional module result | Generic persisted result from the VADER, readability, concreteness, frequency, AoA, pronunciation, meter, rhyme/sound, lexical-style, or PoetryID engine |
 | AoA orientation band | Configurable early/middle/later VerseVAD display aid, not a source-validated category |
 | Arousal | Normative activation or energy associated with a lexical item |
 | Association | Binary source label linking an entry to an emotion or sentiment |
@@ -1294,13 +1343,14 @@ Include these elements for every numeric claim:
 | Pronunciation candidate | One exact CMUdict phone sequence retained for an observed spelling |
 | Pronunciation coverage | Resolved eligible lexical-token occurrences divided by all eligible lexical-token occurrences |
 | Provisional G2P candidate | Local out-of-dictionary ARPAbet suggestion for review; remains unmatched and unused until explicitly approved or edited into a session override |
+| Readability formula | Prose-oriented calculation from declared word, sentence, character, or syllable counts; not an observed reader outcome |
 | Resource unavailable | Expected local resource is missing or fails validation; distinct from an unmatched word |
 | Prosodic consensus | Multiple dictionary candidates whose phone strings differ but syllable count and full stress sequence agree |
 | Review scenario | Named, versioned set of scholar-authored decision revisions |
 | Rhyme scheme | Letter sequence formed only from robust perfect/identical groups; `x` is analyzable and ungrouped, `?` unresolved |
 | Rule-based meter confidence | Configured category from evidence count, coverage, fit, margin, and matching lines; not a calibrated probability |
 | Scholar pronunciation override | Poem-specific validated ARPAbet phones with a required note, kept distinct from dictionary candidates |
-| Sentiment | Broad positive or negative source association, reported separately from eight emotions |
+| Sentiment | Broad positive, neutral, or negative orientation reported separately from eight emotions and VAD dimensions |
 | Source value | Original value published by one lexicon |
 | Source-unrated AoA entry | A source word row whose mean is unavailable; retained in the audit with no numeric age |
 | Stopword | Common function word selected for exclusion from the secondary aggregate |
@@ -1311,6 +1361,7 @@ Include these elements for every numeric claim:
 | Type | One distinct matched lexicon entry in the declared unit |
 | Type-weighted | Every distinct matched entry contributes once |
 | Unmatched | No accepted entry; value remains missing |
+| VADER compound score | Rule-adjusted sentiment signal from -1 to 1, interpreted with the documented conventional thresholds |
 | Alphabetic word length | Number of Unicode alphabetic characters in the preserved surface token |
 | Source POS tag(s) | Model-generated grammatical tag; displayed Noun merges NOUN/PROPN and Verb merges VERB/AUX |
 | Valence | Normative pleasantness or unpleasantness associated with a lexical item |

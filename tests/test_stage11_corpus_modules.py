@@ -66,7 +66,13 @@ def test_optional_module_only_corpus_batch_persists_auditable_results(
     assert repository.schema_version() == 4
     assert batch.status == "complete"
     assert batch.lexicon_ids == ()
-    assert batch.module_names == ("lexical_style",)
+    assert batch.module_names == (
+        "vader_sentiment",
+        "readability",
+        "lexical_style",
+    )
+    assert "vader_sentiment" in batch.module_configuration
+    assert "readability" in batch.module_configuration
     assert (
         batch.module_configuration["lexical_style"]["mattr_window_size"]
         == 2
@@ -76,8 +82,12 @@ def test_optional_module_only_corpus_batch_persists_auditable_results(
         project.project_id,
         batch.batch_id,
     )
-    assert len(results) == 2
-    assert {row.module_name for row in results} == {"lexical_style"}
+    assert len(results) == 6
+    assert {row.module_name for row in results} == {
+        "vader_sentiment",
+        "readability",
+        "lexical_style",
+    }
     assert all(row.source_text_sha256 for row in results)
 
     metrics = repository.list_module_metrics_for_batch(
@@ -113,15 +123,22 @@ def test_optional_module_only_corpus_batch_persists_auditable_results(
         project.project_id,
         batch.batch_id,
     )
-    assert len(coverage) == 4
-    assert all(row.coverage_rate == 1.0 for row in coverage)
+    lexical_style_coverage = [
+        row for row in coverage if row.module_name == "lexical_style"
+    ]
+    assert len(lexical_style_coverage) == 4
+    assert all(row.coverage_rate == 1.0 for row in lexical_style_coverage)
     warnings = repository.list_module_warnings_for_batch(
         project.project_id,
         batch.batch_id,
     )
-    assert all(row.module_name == "lexical_style" for row in warnings)
+    assert {row.module_name for row in warnings} <= {
+        "vader_sentiment",
+        "readability",
+        "lexical_style",
+    }
 
-    first = results[0]
+    first = next(row for row in results if row.module_name == "lexical_style")
     artifacts = repository.list_module_artifacts(
         first.run_id,
         first.module_name,

@@ -82,6 +82,16 @@ from versevad.exports.poetry_id import (
     export_poetry_id_summary_csv,
     export_poetry_id_vad_scales_csv,
 )
+from versevad.exports.readability import (
+    export_readability_bundle,
+    export_readability_summary_csv,
+    export_readability_word_audit_csv,
+)
+from versevad.exports.sentiment import (
+    export_vader_sentence_scores_csv,
+    export_vader_sentiment_bundle,
+    export_vader_sentiment_summary_csv,
+)
 
 __all__ = [
     "export_analysis_csv",
@@ -148,4 +158,10 @@ __all__ = [
     "export_poetry_id_neighbors_csv",
     "export_poetry_id_summary_csv",
     "export_poetry_id_vad_scales_csv",
+    "export_readability_bundle",
+    "export_readability_summary_csv",
+    "export_readability_word_audit_csv",
+    "export_vader_sentence_scores_csv",
+    "export_vader_sentiment_bundle",
+    "export_vader_sentiment_summary_csv",
 ]

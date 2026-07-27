@@ -247,7 +247,129 @@ def export_lexicon_explorer_docx(result: LexiconExplorerResult) -> bytes:
                 note=(
                     "VerseVAD range heuristic; not a source reliability statistic."
                 ),
+                )
+
+    if result.vader_sentiment is not None:
+        sentiment = result.vader_sentiment
+        score = sentiment.document_score
+        section = "Locally derived VADER sentiment"
+        for metric, value, unit in (
+            ("Positive proportion", score.positive_proportion, "proportion"),
+            ("Neutral proportion", score.neutral_proportion, "proportion"),
+            ("Negative proportion", score.negative_proportion, "proportion"),
+            ("Compound score", score.compound_score, "-1 to 1"),
+            (
+                "Conventional compound label",
+                score.threshold_label.title(),
+                "configured threshold label",
+            ),
+        ):
+            _add_row(
+                rows,
+                section=section,
+                metric=metric,
+                value=value,
+                unit=unit,
+                denominator="entered word or phrase",
             )
+        _add_source_provenance(
+            rows,
+            section="VADER method provenance",
+            values={
+                "Module version": sentiment.module_result.module_version,
+                "Package version": sentiment.package_version,
+                "Configuration ID": sentiment.configuration.configuration_id,
+                "Negative threshold": sentiment.configuration.negative_maximum,
+                "Positive threshold": sentiment.configuration.positive_minimum,
+                "Citation": sentiment.citation,
+            },
+        )
+
+    if result.readability is not None:
+        readability = result.readability
+        summary = readability.summary
+        section = "Locally derived word-level readability evidence"
+        for metric, value, unit in (
+            ("Readability word count", summary.word_count, "word units"),
+            (
+                "Alphabetic character count",
+                summary.alphabetic_character_count,
+                "Unicode alphabetic characters",
+            ),
+            ("Estimated syllable count", summary.syllable_count, "syllables"),
+            (
+                "Polysyllabic word count",
+                summary.polysyllabic_word_count,
+                "words with at least three estimated syllables",
+            ),
+            (
+                "Mean syllables per word",
+                summary.mean_syllables_per_word,
+                "estimated syllables per word",
+            ),
+            (
+                "Mean alphabetic characters per word",
+                summary.mean_characters_per_word,
+                "alphabetic characters per word",
+            ),
+            (
+                "Pronunciation coverage",
+                summary.pronunciation_coverage,
+                "proportion",
+            ),
+        ):
+            _add_row(
+                rows,
+                section=section,
+                metric=metric,
+                value=value,
+                unit=unit,
+                denominator="entered word or phrase",
+            )
+        for position, word in enumerate(readability.word_audit, start=1):
+            audit_section = f"Readability word evidence - {position}"
+            for metric, value in (
+                ("Surface word", word.surface_form),
+                ("Lookup form", word.lookup_form),
+                (
+                    "Alphabetic character count",
+                    word.alphabetic_character_count,
+                ),
+                ("Estimated syllable count", word.syllable_count),
+                ("Syllable method", word.syllable_method),
+                (
+                    "Pronunciation candidate count",
+                    word.pronunciation_candidate_count,
+                ),
+                ("Polysyllabic", word.is_polysyllabic),
+            ):
+                _add_row(
+                    rows,
+                    section=audit_section,
+                    metric=metric,
+                    value=value,
+                )
+        _add_row(
+            rows,
+            section=section,
+            metric="Document readability formulas",
+            value="Not reported for an isolated lookup",
+            note=(
+                "Flesch, grade, Fog, ARI, Coleman-Liau, and SMOG are reserved "
+                "for analyzed poems or texts with a defensible document scope."
+            ),
+        )
+        _add_source_provenance(
+            rows,
+            section="Readability method provenance",
+            values={
+                "Module version": readability.module_result.module_version,
+                "Configuration ID": readability.configuration.configuration_id,
+                "Syllable lookup policy": (
+                    readability.module_result.provenance.lookup_policy
+                ),
+            },
+        )
 
     for entry in result.supplementary_entries:
         variant = f" - {entry.variant_label}" if entry.variant_label else ""
@@ -328,8 +450,9 @@ def export_lexicon_explorer_docx(result: LexiconExplorerResult) -> bytes:
         companion_csv_files=(),
         additional_paragraphs=(
             "This printable record reflects the installed local resources and "
-            "the lookup methods shown for this query. It does not alter poem or "
-            "corpus analyses.",
+            "the lookup methods shown for this query. VADER and word-level "
+            "readability values are local derived evidence, not published "
+            "lexicon ratings. It does not alter poem or corpus analyses.",
         ),
     )
 

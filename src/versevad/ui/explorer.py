@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -89,13 +90,36 @@ def _render_vad(result: LexiconExplorerResult) -> None:
                     "Method": entry.match_method,
                 }
             )
-    st.bar_chart(
-        pd.DataFrame(comparison_rows),
-        x="Dimension",
-        y="Normalized rating",
-        color="Lexicon",
-        stack=False,
-        height=320,
+    comparison_frame = pd.DataFrame(comparison_rows)
+    comparison_chart = (
+        alt.Chart(comparison_frame)
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "Dimension:N",
+                sort=["Valence", "Arousal", "Dominance"],
+                title=None,
+            ),
+            xOffset=alt.XOffset("Lexicon:N", title=None),
+            y=alt.Y(
+                "Normalized rating:Q",
+                scale=alt.Scale(domain=[0, 1]),
+                title="Normalized rating (0–1)",
+            ),
+            color=alt.Color("Lexicon:N", title="Lexicon"),
+            tooltip=(
+                alt.Tooltip("Lexicon:N"),
+                alt.Tooltip("Dimension:N"),
+                alt.Tooltip("Normalized rating:Q", format=".3f"),
+                alt.Tooltip("Method:N"),
+            ),
+        )
+        .properties(height=320)
+    )
+    st.altair_chart(
+        comparison_chart,
+        width="stretch",
+        theme="streamlit",
     )
 
     uncertainty = []
@@ -420,6 +444,110 @@ def _render_supplementary(result: LexiconExplorerResult) -> None:
     )
 
 
+def _render_local_derived_metrics(result: LexiconExplorerResult) -> None:
+    sentiment = result.vader_sentiment
+    readability = result.readability
+    if sentiment is None and readability is None:
+        return
+
+    st.subheader("Rule-Based Sentiment and Readability Evidence")
+    st.caption(
+        "These values are calculated locally from the entered word or phrase. "
+        "They are not additional published lexicon ratings."
+    )
+    if sentiment is not None:
+        score = sentiment.document_score
+        columns = st.columns(4)
+        columns[0].metric("VADER positive", f"{score.positive_proportion:.3f}")
+        columns[1].metric("VADER neutral", f"{score.neutral_proportion:.3f}")
+        columns[2].metric("VADER negative", f"{score.negative_proportion:.3f}")
+        columns[3].metric("VADER compound", f"{score.compound_score:.3f}")
+        st.caption(
+            f"Conventional compound label: **{score.threshold_label.title()}**. "
+            "The proportions are raw lexical-polarity allocation; compound also "
+            "applies VADER's rules. This is not an emotion classification."
+        )
+
+    if readability is not None:
+        summary = readability.summary
+        render_dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Metric": "Readability word count",
+                        "Value": str(summary.word_count),
+                        "Method or unit": "shared lexical/orthographic word units",
+                    },
+                    {
+                        "Metric": "Alphabetic characters",
+                        "Value": str(summary.alphabetic_character_count),
+                        "Method or unit": "Unicode alphabetic characters",
+                    },
+                    {
+                        "Metric": "Estimated syllables",
+                        "Value": str(summary.syllable_count),
+                        "Method or unit": "dictionary candidate or labeled heuristic",
+                    },
+                    {
+                        "Metric": "Polysyllabic words",
+                        "Value": str(summary.polysyllabic_word_count),
+                        "Method or unit": "three or more estimated syllables",
+                    },
+                    {
+                        "Metric": "Mean syllables per word",
+                        "Value": _score(summary.mean_syllables_per_word),
+                        "Method or unit": "estimated syllables / words",
+                    },
+                    {
+                        "Metric": "Mean alphabetic characters per word",
+                        "Value": _score(summary.mean_characters_per_word),
+                        "Method or unit": "alphabetic characters / words",
+                    },
+                    {
+                        "Metric": "Pronunciation coverage",
+                        "Value": (
+                            "—"
+                            if summary.pronunciation_coverage is None
+                            else f"{summary.pronunciation_coverage:.1%}"
+                        ),
+                        "Method or unit": "dictionary or override / words",
+                    },
+                ]
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        if readability.word_audit:
+            with st.expander("Readability Word Evidence", expanded=False):
+                render_dataframe(
+                    pd.DataFrame(
+                        [
+                            {
+                                "Word": row.surface_form,
+                                "Lookup form": row.lookup_form,
+                                "Alphabetic characters": row.alphabetic_character_count,
+                                "Syllables": row.syllable_count,
+                                "Syllable method": row.syllable_method,
+                                "Pronunciation candidates": (
+                                    row.pronunciation_candidate_count
+                                ),
+                                "Polysyllabic": (
+                                    "Yes" if row.is_polysyllabic else "No"
+                                ),
+                            }
+                            for row in readability.word_audit
+                        ]
+                    ),
+                    hide_index=True,
+                    width="stretch",
+                )
+        st.caption(
+            "Document-level Flesch, grade, Fog, ARI, Coleman-Liau, and SMOG "
+            "formulas are intentionally reserved for analyzed poems or texts; "
+            "an isolated lookup is not a defensible readability document."
+        )
+
+
 def _render_provenance(result: LexiconExplorerResult) -> None:
     if not result.entries and not result.supplementary_entries:
         return
@@ -494,7 +622,9 @@ def render_lexicon_explorer(preprocessor: TextPreprocessor) -> None:
         "Lexicon Explorer",
         "Look up a word or phrase across all installed affective lexicons plus "
         "concreteness, SUBTLEX-US frequency, age of acquisition, and CMUdict "
-        "pronunciation and stress. Each source remains separate and auditable.",
+        "pronunciation and stress, with local VADER polarity and applicable "
+        "word-level readability evidence. Each source and derived construct "
+        "remains separate and auditable.",
         kicker="Auditable word and phrase lookup",
         status="Local resources",
     )
@@ -525,8 +655,8 @@ def render_lexicon_explorer(preprocessor: TextPreprocessor) -> None:
         render_empty_state(
             "Inspect a word or phrase",
             "The Explorer reports every available local lexical and phonological "
-            "source while keeping exact, lemma-derived, mapped, and missing "
-            "evidence distinct.",
+            "source plus applicable local derived metrics, while keeping exact, "
+            "lemma-derived, mapped, calculated, and missing evidence distinct.",
             "Enter one word or phrase above and select Search installed lexicons.",
         )
         return
@@ -565,6 +695,7 @@ def render_lexicon_explorer(preprocessor: TextPreprocessor) -> None:
     _render_emotion(result)
     _render_components(result)
     _render_supplementary(result)
+    _render_local_derived_metrics(result)
     _render_provenance(result)
     st.download_button(
         "Download printable Word report",

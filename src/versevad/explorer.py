@@ -23,6 +23,7 @@ from versevad.application import (
     RESOURCE_ROOT,
     load_lexicon,
 )
+from versevad.core.modules import ModuleInput
 from versevad.lexical_semantic.aoa import AoAModule, KUPERMAN_AOA_SPEC
 from versevad.lexical_semantic.concreteness import (
     BRYSBAERT_CONCRETENESS_SPEC,
@@ -31,6 +32,14 @@ from versevad.lexical_semantic.concreteness import (
 from versevad.lexical_semantic.frequency import (
     FrequencyModule,
     SUBTLEX_US_SPEC,
+)
+from versevad.lexical_semantic.readability import (
+    ReadabilityAnalysisResult,
+    ReadabilityModule,
+)
+from versevad.lexical_semantic.sentiment import (
+    VaderSentimentAnalysisResult,
+    VaderSentimentModule,
 )
 from versevad.models import (
     EmotionAssociationEntry,
@@ -148,6 +157,8 @@ class LexiconExplorerResult:
     comparisons: tuple[CrossLexiconSpread, ...]
     suggestions: tuple[str, ...]
     notices: tuple[str, ...]
+    vader_sentiment: VaderSentimentAnalysisResult | None = None
+    readability: ReadabilityAnalysisResult | None = None
 
 
 def _mean_scores(values: Iterable[VadScores]) -> VadScores:
@@ -665,7 +676,9 @@ def explore_loaded_lexicons(
         raise ValueError("Look up one word or phrase of at most 200 characters.")
     normalized = normalize_lookup(raw_query)
     document = create_text_document("lexicon-explorer", "Lexicon Explorer", raw_query)
-    tokens = tuple(token for token in preprocessor.process(document) if token.is_lexical)
+    poem_document = preprocessor.process_document(document)
+    module_input = ModuleInput.from_poem_document(poem_document)
+    tokens = tuple(token for token in poem_document.tokens if token.is_lexical)
     lemma = ""
     pos = ""
     if len(tokens) == 1:
@@ -799,6 +812,8 @@ def explore_loaded_lexicons(
         comparisons=tuple(comparisons),
         suggestions=suggestions,
         notices=tuple(notices),
+        vader_sentiment=VaderSentimentModule().analyze_detailed(module_input),
+        readability=ReadabilityModule().analyze_detailed(module_input),
     )
 
 

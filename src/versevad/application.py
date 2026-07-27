@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import statistics
 import zipfile
 from collections import Counter
 from dataclasses import dataclass, replace
@@ -49,6 +50,8 @@ from versevad.exports.phonology import export_phonological_bundle
 from versevad.exports.poem_document_csv import export_poem_document_csv_bundle
 from versevad.exports.pronunciation import export_pronunciation_bundle
 from versevad.exports.poetry_id import export_poetry_id_bundle
+from versevad.exports.readability import export_readability_bundle
+from versevad.exports.sentiment import export_vader_sentiment_bundle
 from versevad.lexical_semantic.concreteness import (
     ConcretenessAnalysisResult,
     ConcretenessConfiguration,
@@ -67,6 +70,15 @@ from versevad.lexical_semantic.frequency import (
     FrequencyConfiguration,
     FrequencyModule,
     FrequencyModuleError,
+)
+from versevad.lexical_semantic.readability import (
+    ReadabilityAnalysisResult,
+    ReadabilityConfiguration,
+    ReadabilityModule,
+)
+from versevad.lexical_semantic.sentiment import (
+    VaderSentimentAnalysisResult,
+    VaderSentimentModule,
 )
 from versevad.lexical_style import (
     LexicalStyleAnalysisResult,
@@ -399,6 +411,8 @@ class WorkspaceAnalysis:
     results: tuple[Phase2AnalysisResult, ...]
     comparison: CrossLexiconComparison
     poem_document: PoemDocument | None = None
+    vader_sentiment: VaderSentimentAnalysisResult | None = None
+    readability: ReadabilityAnalysisResult | None = None
     concreteness: ConcretenessAnalysisResult | None = None
     frequency: FrequencyAnalysisResult | None = None
     aoa: AoAAnalysisResult | None = None
@@ -478,6 +492,23 @@ class VadView:
     type_dominance: float | None
     original_scale: str
     normalization_formula: str
+
+
+@dataclass(frozen=True)
+class LexicalTrajectoryPoint:
+    lexicon_id: str
+    lexicon: str
+    analysis_view: str
+    line_number: int
+    stanza_number: int
+    source_text: str
+    valence_mean: float | None
+    arousal_mean: float | None
+    dominance_mean: float | None
+    concreteness_mean_normalized: float | None
+    concreteness_mean_source_scale: float | None
+    vad_matched_observations: int
+    concreteness_matched_tokens: int
 
 
 @dataclass(frozen=True)
@@ -830,26 +861,13 @@ def run_workspace_analysis(
     lexical_style_module: LexicalStyleModule | None = None,
     poetry_id_engine: PoetryIDEngine | None = None,
     inherited_form_engine: InheritedFormEngine | None = None,
+    vader_sentiment_module: VaderSentimentModule | None = None,
+    readability_module: ReadabilityModule | None = None,
 ) -> WorkspaceAnalysis:
     if not request.title.strip():
         raise WorkspaceAnalysisError("Enter a title or working label for this text.")
     if not request.original_text.strip():
         raise WorkspaceAnalysisError("Paste a poem or choose a UTF-8 text file before analyzing.")
-    if (
-        not request.lexicon_ids
-        and not request.include_concreteness
-        and not request.include_frequency
-        and not request.include_aoa
-        and not request.include_pronunciation
-        and not request.include_meter
-        and not request.include_phonology
-        and not request.include_lexical_style
-        and not request.include_poetry_id
-        and not request.include_inherited_form
-    ):
-        raise WorkspaceAnalysisError(
-            "Select at least one lexicon or optional analysis module before analyzing."
-        )
     unknown = set(request.lexicon_ids) - set(LEXICON_SPEC_BY_ID)
     if unknown:
         raise WorkspaceAnalysisError(f"Unknown lexicon selection: {sorted(unknown)}")
@@ -938,6 +956,44 @@ def run_workspace_analysis(
     )
     prepared_processor = PreparedPoemPreprocessor(poem_document)
     module_input = ModuleInput.from_poem_document(poem_document)
+    sentiment_engine = vader_sentiment_module or VaderSentimentModule()
+    vader_sentiment = cached_operation(
+        "vader_sentiment",
+        {
+            "text_sha256": document.text_sha256,
+            "text_version_id": document.text_version_id,
+            "module_version": sentiment_engine.version,
+        },
+        lambda: sentiment_engine.analyze_detailed(module_input),
+        validator=lambda value: (
+            isinstance(value, VaderSentimentAnalysisResult)
+            and value.module_result.text_version_id == document.text_version_id
+        ),
+        enabled=vader_sentiment_module is None,
+    )
+    readability_engine = readability_module or ReadabilityModule()
+    readability_configuration = ReadabilityConfiguration(
+        pronunciation_overrides=request.pronunciation_configuration.overrides,
+    )
+    readability = cached_operation(
+        "readability",
+        {
+            "text_sha256": document.text_sha256,
+            "text_version_id": document.text_version_id,
+            "preprocessing": poem_document.preprocessing,
+            "configuration": readability_configuration,
+            "module_version": readability_engine.version,
+        },
+        lambda: readability_engine.analyze_detailed(
+            module_input,
+            readability_configuration,
+        ),
+        validator=lambda value: (
+            isinstance(value, ReadabilityAnalysisResult)
+            and value.module_result.text_version_id == document.text_version_id
+        ),
+        enabled=readability_module is None,
+    )
     result_rows = []
     for lexicon_id in request.lexicon_ids:
         spec = LEXICON_SPEC_BY_ID[lexicon_id]
@@ -1326,6 +1382,8 @@ def run_workspace_analysis(
         results=results,
         comparison=comparison,
         poem_document=poem_document,
+        vader_sentiment=vader_sentiment,
+        readability=readability,
         concreteness=concreteness,
         frequency=frequency,
         aoa=aoa,
@@ -1435,6 +1493,186 @@ def vad_views(workspace: WorkspaceAnalysis) -> tuple[VadView, ...]:
                 )
             )
     return tuple(rows)
+
+
+def lexical_trajectory_views(
+    workspace: WorkspaceAnalysis,
+    *,
+    lexicon_id: str,
+    analysis_view: str = "All matched tokens",
+) -> tuple[LexicalTrajectoryPoint, ...]:
+    """Return source-specific token-weighted VAD and concreteness means by line.
+
+    Concreteness is rescaled from its source 1-5 range to 0-1 only for the
+    overlaid chart. Its source-scale mean remains alongside the normalized
+    display value. Missing line evidence remains missing.
+    """
+
+    result = next(
+        (
+            candidate
+            for candidate in workspace.results
+            if candidate.lexicon_metadata.lexicon_id == lexicon_id
+            and candidate.vad_summary is not None
+        ),
+        None,
+    )
+    if result is None or workspace.poem_document is None:
+        return ()
+    if analysis_view not in {"All matched tokens", "Stopwords excluded"}:
+        raise ValueError(f"Unknown lexical-trajectory analysis view: {analysis_view}")
+    stopwords_excluded = analysis_view == "Stopwords excluded"
+    vad_by_line: dict[int, list] = {}
+    for match in result.matches:
+        included = (
+            match.included_in_stopword_view
+            if stopwords_excluded
+            else match.included
+        )
+        if not included or match.normalized_scores is None:
+            continue
+        vad_by_line.setdefault(match.line_number, []).append(match.normalized_scores)
+
+    eligible_token_ids: set[str] | None = None
+    if stopwords_excluded and result.stopword_policy is not None:
+        eligible_token_ids = stopword_eligible_token_ids(
+            result.tokens,
+            result.matches,
+            result.stopword_policy,
+        )
+    concreteness_by_line: dict[int, list[float]] = {}
+    if workspace.concreteness is not None:
+        for row in workspace.concreteness.token_audit:
+            if not row.included or row.rating is None:
+                continue
+            if eligible_token_ids is not None and row.token_id not in eligible_token_ids:
+                continue
+            concreteness_by_line.setdefault(row.line_number, []).append(row.rating)
+
+    rows = []
+    for line in workspace.poem_document.lines:
+        scores = vad_by_line.get(line.ordinal, ())
+        concreteness_values = concreteness_by_line.get(line.ordinal, ())
+        concreteness_mean = (
+            statistics.fmean(concreteness_values)
+            if concreteness_values
+            else None
+        )
+        rows.append(
+            LexicalTrajectoryPoint(
+                lexicon_id=lexicon_id,
+                lexicon=result.lexicon_metadata.display_name,
+                analysis_view=analysis_view,
+                line_number=line.ordinal,
+                stanza_number=next(
+                    (
+                        token.stanza_number
+                        for token in result.tokens
+                        if token.line_number == line.ordinal
+                        and token.stanza_number
+                    ),
+                    0,
+                ),
+                source_text=line.content_text,
+                valence_mean=(
+                    statistics.fmean(score.valence for score in scores)
+                    if scores
+                    else None
+                ),
+                arousal_mean=(
+                    statistics.fmean(score.arousal for score in scores)
+                    if scores
+                    else None
+                ),
+                dominance_mean=(
+                    statistics.fmean(score.dominance for score in scores)
+                    if scores
+                    else None
+                ),
+                concreteness_mean_normalized=(
+                    (concreteness_mean - 1) / 4
+                    if concreteness_mean is not None
+                    else None
+                ),
+                concreteness_mean_source_scale=concreteness_mean,
+                vad_matched_observations=len(scores),
+                concreteness_matched_tokens=len(concreteness_values),
+            )
+        )
+    return tuple(rows)
+
+
+def lexical_trajectory_csv(workspace: WorkspaceAnalysis) -> bytes:
+    """Export every source/view trajectory without blending lexicons."""
+
+    fields = [
+        "lexicon_id",
+        "lexicon",
+        "analysis_view",
+        "line_number",
+        "stanza_number",
+        "source_text",
+        "mean_valence_0_1",
+        "mean_arousal_0_1",
+        "mean_dominance_0_1",
+        "mean_concreteness_normalized_0_1",
+        "mean_concreteness_source_scale_1_5",
+        "vad_matched_observations",
+        "concreteness_matched_tokens",
+    ]
+    rows = []
+    for result in workspace.results:
+        if result.vad_summary is None:
+            continue
+        views = ["All matched tokens"]
+        if result.stopword_coverage is not None:
+            views.append("Stopwords excluded")
+        for view in views:
+            for row in lexical_trajectory_views(
+                workspace,
+                lexicon_id=result.lexicon_metadata.lexicon_id,
+                analysis_view=view,
+            ):
+                rows.append(
+                    {
+                        "lexicon_id": row.lexicon_id,
+                        "lexicon": row.lexicon,
+                        "analysis_view": row.analysis_view,
+                        "line_number": row.line_number,
+                        "stanza_number": row.stanza_number,
+                        "source_text": row.source_text,
+                        "mean_valence_0_1": (
+                            row.valence_mean
+                            if row.valence_mean is not None
+                            else ""
+                        ),
+                        "mean_arousal_0_1": (
+                            row.arousal_mean
+                            if row.arousal_mean is not None
+                            else ""
+                        ),
+                        "mean_dominance_0_1": (
+                            row.dominance_mean
+                            if row.dominance_mean is not None
+                            else ""
+                        ),
+                        "mean_concreteness_normalized_0_1": (
+                            row.concreteness_mean_normalized
+                            if row.concreteness_mean_normalized is not None
+                            else ""
+                        ),
+                        "mean_concreteness_source_scale_1_5": (
+                            row.concreteness_mean_source_scale
+                            if row.concreteness_mean_source_scale is not None
+                            else ""
+                        ),
+                        "vad_matched_observations": row.vad_matched_observations,
+                        "concreteness_matched_tokens": (
+                            row.concreteness_matched_tokens
+                        ),
+                    }
+                )
+    return _csv_bytes(fields, rows)
 
 
 def _match_part_of_speech_tag(
@@ -2504,6 +2742,53 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                 "plain_language_note": "Absent word-emotion pairs are missing, not zero.",
             }
         )
+    if workspace.vader_sentiment is not None:
+        vader = workspace.vader_sentiment
+        score = vader.document_score
+        for metric, value, unit, note in (
+            (
+                "Positive proportion",
+                score.positive_proportion,
+                "proportion",
+                "Raw lexical polarity category; the three proportions sum to approximately one.",
+            ),
+            (
+                "Neutral proportion",
+                score.neutral_proportion,
+                "proportion",
+                "Raw lexical polarity category; not evidence of emotional neutrality.",
+            ),
+            (
+                "Negative proportion",
+                score.negative_proportion,
+                "proportion",
+                "Raw lexical polarity category; the three proportions sum to approximately one.",
+            ),
+            (
+                "Compound score",
+                score.compound_score,
+                "normalized weighted composite (-1 to 1)",
+                "Includes VADER's rule-based adjustments.",
+            ),
+            (
+                "Conventional threshold label",
+                score.threshold_label,
+                "positive / neutral / negative",
+                "A rule-based polarity label, not a declaration of the poem's emotion.",
+            ),
+        ):
+            rows.append(
+                {
+                    "section": "VADER sentiment",
+                    "lexicon": f"vaderSentiment {vader.package_version}",
+                    "analysis_view": "Complete preserved text",
+                    "metric": metric,
+                    "value": value,
+                    "unit_or_scale": unit,
+                    "denominator": "complete preserved text",
+                    "plain_language_note": note,
+                }
+            )
     if workspace.concreteness is not None:
         concreteness = workspace.concreteness
         summary = concreteness.summary
@@ -2677,6 +2962,58 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                     "plain_language_note": (
                         "Configurable VerseVAD orientation band; not a universal "
                         "linguistic category."
+                    ),
+                }
+            )
+    if workspace.readability is not None:
+        readability = workspace.readability.summary
+        for metric, value, unit in (
+            (
+                "Flesch Reading Ease",
+                readability.flesch_reading_ease,
+                "formula score; conventionally higher is easier",
+            ),
+            (
+                "Flesch-Kincaid Grade",
+                readability.flesch_kincaid_grade,
+                "approximate U.S. grade-formula score",
+            ),
+            (
+                "Gunning Fog Index",
+                readability.gunning_fog_index,
+                "approximate grade-formula score",
+            ),
+            (
+                "Automated Readability Index",
+                readability.automated_readability_index,
+                "approximate U.S. grade-formula score",
+            ),
+            (
+                "Coleman-Liau Index",
+                readability.coleman_liau_index,
+                "approximate U.S. grade-formula score",
+            ),
+            (
+                "SMOG Index",
+                readability.smog_index,
+                "approximate grade-formula score",
+            ),
+        ):
+            rows.append(
+                {
+                    "section": "Readability",
+                    "lexicon": "Transparent offline English formulas",
+                    "analysis_view": "Complete preserved text",
+                    "metric": metric,
+                    "value": value if value is not None else "",
+                    "unit_or_scale": unit,
+                    "denominator": (
+                        f"{readability.word_count} lexical tokens and "
+                        f"{readability.sentence_count} model-segmented sentence(s)"
+                    ),
+                    "plain_language_note": (
+                        "Prose-oriented formula evidence only; not literary quality, "
+                        "reader ability, or a prescriptive grade requirement."
                     ),
                 }
             )
@@ -3323,8 +3660,52 @@ def csv_reading_guide() -> bytes:
         {
             "file": "scholar_summary.csv",
             "what_it_answers": "What are the principal readable results?",
-            "start_with": "Coverage, concreteness, median Zipf frequency, normative AoA, token/type VAD means, cumulative load, contributors, association rates, and matched intensity means.",
+            "start_with": "Coverage, VADER polarity, readability, concreteness, median Zipf frequency, normative AoA, token/type VAD means, cumulative load, contributors, association rates, and matched intensity means.",
             "important_caution": "Read every metric with its denominator and plain-language note.",
+        },
+        {
+            "file": "vader_sentiment_summary.csv",
+            "what_it_answers": (
+                "What positive, neutral, and negative proportions and rule-adjusted "
+                "compound polarity score did VADER assign?"
+            ),
+            "start_with": (
+                "positive_proportion, neutral_proportion, negative_proportion, "
+                "compound_score, and conventional_threshold_label."
+            ),
+            "important_caution": (
+                "VADER is social-media-tuned rule-based polarity evidence, not a "
+                "declaration of the poem's emotion or a reader's response."
+            ),
+        },
+        {
+            "file": "readability_summary.csv",
+            "what_it_answers": (
+                "What do familiar English readability formulas report for the text?"
+            ),
+            "start_with": (
+                "Flesch Reading Ease, Flesch-Kincaid Grade, Gunning Fog, "
+                "Automated Readability Index, Coleman-Liau, and SMOG."
+            ),
+            "important_caution": (
+                "These prose-oriented formulas do not measure literary quality, "
+                "reader ability, or a prescriptive grade requirement."
+            ),
+        },
+        {
+            "file": "lexical_trajectory.csv",
+            "what_it_answers": (
+                "How do line-level mean VAD and concreteness ratings change through "
+                "the poem for each source and token scope?"
+            ),
+            "start_with": (
+                "lexicon, analysis_view, line_number, the four means, and their "
+                "matched-observation counts."
+            ),
+            "important_caution": (
+                "VAD sources remain separate; concreteness is normalized from 1-5 "
+                "to 0-1 only for overlay display, and missing lines remain missing."
+            ),
         },
         {
             "file": "poetry_id_summary.csv",
@@ -3849,6 +4230,8 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
         }
         title = workspace.document.title
         optional_results = (
+            (workspace.vader_sentiment, export_vader_sentiment_bundle),
+            (workspace.readability, export_readability_bundle),
             (workspace.concreteness, export_concreteness_bundle),
             (workspace.frequency, export_frequency_bundle),
             (workspace.aoa, export_aoa_bundle),
@@ -3870,6 +4253,10 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
             export_files["vad_by_part_of_speech.csv"] = (
                 vad_part_of_speech_csv(workspace)
             )
+        if any(result.vad_summary is not None for result in workspace.results):
+            export_files["lexical_trajectory.csv"] = lexical_trajectory_csv(
+                workspace
+            )
         summary_csv = scholar_summary_csv(workspace)
         export_files["scholar_summary.csv"] = summary_csv
         export_files["csv_reading_guide.csv"] = csv_reading_guide()
@@ -3878,6 +4265,24 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
             for result in workspace.results
             for warning in result.warnings
         ]
+        for optional_result in (
+            workspace.vader_sentiment,
+            workspace.readability,
+            workspace.concreteness,
+            workspace.frequency,
+            workspace.aoa,
+            workspace.pronunciation,
+            workspace.meter,
+            workspace.phonology,
+            workspace.lexical_style,
+            workspace.poetry_id,
+            workspace.inherited_form,
+        ):
+            if optional_result is not None:
+                warning_messages.extend(
+                    warning.message
+                    for warning in optional_result.module_result.warnings
+                )
         if workspace.poem_document is not None:
             warning_messages.extend(
                 warning.message for warning in workspace.poem_document.warnings
@@ -3918,6 +4323,8 @@ def detailed_export_zip(
         workspace.document.text_sha256,
         tuple(result.analysis_id for result in workspace.results),
         workspace.comparison.comparison_id,
+        _module_result_id(workspace.vader_sentiment),
+        _module_result_id(workspace.readability),
         _module_result_id(workspace.concreteness),
         _module_result_id(workspace.frequency),
         _module_result_id(workspace.aoa),

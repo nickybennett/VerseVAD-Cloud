@@ -78,6 +78,11 @@ def test_lexicon_explorer_word_report_is_complete_and_deterministic(
     assert "Valence - Normalized: 0.875 (derived 0-1)." in content
     assert "Zipf Value: 4.25 (synthetic Zipf)." in content
     assert "Dominant Source Pos: Adjective." in content
+    assert "Positive Proportion:" in content
+    assert "Compound Score:" in content
+    assert "Readability Word Count: 1 (word units)." in content
+    assert "Estimated Syllable Count: 1 (syllables)." in content
+    assert "Document Readability Formulas: Not reported for an isolated lookup." in content
     assert "Synthetic export test source." in content
     assert "Notice 1: Synthetic lookup notice." in content
     assert "Missing or unavailable evidence remains missing" in content

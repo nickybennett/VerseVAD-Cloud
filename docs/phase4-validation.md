@@ -8,7 +8,7 @@ VerseVAD now has three top-level local workspace tabs: one poem, persistent
 projects/corpus, and Lexicon Explorer. The project database defaults to
 `projects/versevad.sqlite3`; source lexicons remain read-only in their original
 location. Pending and failed corpus batches do not replace the latest complete
-comparison. Ordinary use makes no OpenAI or other external-service request.
+comparison. Ordinary use makes no external AI or text-analysis service request.
 
 The completed Phase 4.1 validation includes 87 automated tests, both synthetic
 demonstrations, all 11 local diagnostic checks, and an isolated live-browser

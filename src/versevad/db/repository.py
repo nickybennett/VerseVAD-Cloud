@@ -27,6 +27,8 @@ from versevad.exports.phonology import export_phonological_bundle
 from versevad.exports.pronunciation import export_pronunciation_bundle
 from versevad.exports.poetry_id import export_poetry_id_bundle
 from versevad.exports.inherited_form import export_inherited_form_bundle
+from versevad.exports.readability import export_readability_bundle
+from versevad.exports.sentiment import export_vader_sentiment_bundle
 from versevad.models import (
     MatchMethod,
     MatchSelection,
@@ -1773,9 +1775,11 @@ class ProjectRepository:
 
     @staticmethod
     def _workspace_modules(workspace: WorkspaceAnalysis) -> tuple[tuple, ...]:
-        """Return completed optional results and their existing audit exporters."""
+        """Return completed reusable results and their existing audit exporters."""
 
         candidates = (
+            (workspace.vader_sentiment, export_vader_sentiment_bundle),
+            (workspace.readability, export_readability_bundle),
             (workspace.concreteness, export_concreteness_bundle),
             (workspace.frequency, export_frequency_bundle),
             (workspace.aoa, export_aoa_bundle),
@@ -1796,6 +1800,24 @@ class ProjectRepository:
     def _module_configurations(workspace: WorkspaceAnalysis) -> dict[str, object]:
         request = workspace.request
         rows = (
+            (
+                workspace.vader_sentiment is not None,
+                "vader_sentiment",
+                (
+                    workspace.vader_sentiment.configuration
+                    if workspace.vader_sentiment is not None
+                    else None
+                ),
+            ),
+            (
+                workspace.readability is not None,
+                "readability",
+                (
+                    workspace.readability.configuration
+                    if workspace.readability is not None
+                    else None
+                ),
+            ),
             (
                 request.include_concreteness,
                 "concreteness",
