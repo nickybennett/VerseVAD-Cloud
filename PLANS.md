@@ -1173,6 +1173,8 @@ review required.
   source or token scope changes.
 - [x] Add bottom collapse actions to both large front-page configuration
   panels and strengthen dark-sidebar contrast.
+- [x] Cover Streamlit's standalone collapsed-sidebar expand control with the
+  same contrast-tested secondary-button styling as Installation Check.
 - [x] Extend Lexicon Explorer and its printable Word report with every
   meaningful isolated-lookup metric from the new VADER and readability
   engines, while withholding document-level readability formulas.

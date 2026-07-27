@@ -456,27 +456,41 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       -webkit-text-fill-color: inherit !important;
     }}
     [data-testid="stSidebarCollapseButton"],
-    [data-testid="stSidebarCollapsedControl"] {{
-      color: var(--color-text-primary) !important;
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stExpandSidebarButton"] {{
+      color: var(--color-button-secondary-text) !important;
+      -webkit-text-fill-color: var(--color-button-secondary-text) !important;
     }}
     [data-testid="stSidebarCollapseButton"] button,
-    [data-testid="stSidebarCollapsedControl"] button {{
-      background: var(--color-surface-raised) !important;
+    [data-testid="stSidebarCollapsedControl"] button,
+    button[data-testid="stExpandSidebarButton"] {{
+      background: var(--color-button-secondary-background) !important;
       border: 1px solid var(--color-border-strong) !important;
-      color: var(--color-text-primary) !important;
+      color: var(--color-button-secondary-text) !important;
+      -webkit-text-fill-color: var(--color-button-secondary-text) !important;
       min-height: 2.5rem;
       min-width: 2.5rem;
+      opacity: 1 !important;
     }}
     [data-testid="stSidebarCollapseButton"] button:hover,
-    [data-testid="stSidebarCollapsedControl"] button:hover {{
-      background: var(--color-accent-soft) !important;
+    [data-testid="stSidebarCollapsedControl"] button:hover,
+    button[data-testid="stExpandSidebarButton"]:hover {{
+      background: var(--color-button-secondary-hover) !important;
       border-color: var(--color-accent) !important;
-      color: var(--color-accent-strong) !important;
+      color: var(--color-button-secondary-text) !important;
+      -webkit-text-fill-color: var(--color-button-secondary-text) !important;
     }}
     [data-testid="stSidebarCollapseButton"] svg,
-    [data-testid="stSidebarCollapsedControl"] svg {{
+    [data-testid="stSidebarCollapsedControl"] svg,
+    button[data-testid="stExpandSidebarButton"] svg {{
       fill: currentColor !important;
       stroke: currentColor !important;
+    }}
+    [data-testid="stSidebarCollapseButton"] button *,
+    [data-testid="stSidebarCollapsedControl"] button *,
+    button[data-testid="stExpandSidebarButton"] * {{
+      color: inherit !important;
+      -webkit-text-fill-color: inherit !important;
     }}
     [data-testid="stHeader"] {{
       background: transparent;

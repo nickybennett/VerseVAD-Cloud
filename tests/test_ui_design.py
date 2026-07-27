@@ -83,6 +83,7 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert '[aria-label="Project section"]' in sheet
         assert '[data-testid="stSidebarCollapseButton"]' in sheet
         assert '[data-testid="stSidebarCollapsedControl"]' in sheet
+        assert 'button[data-testid="stExpandSidebarButton"]' in sheet
         assert '[data-testid="stSidebar"] [data-testid="stAlert"] *' in sheet
         assert '[data-testid="stSidebar"] p' in sheet
         assert "-webkit-text-fill-color" in sheet

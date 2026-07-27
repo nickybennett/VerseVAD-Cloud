@@ -36,6 +36,9 @@ All notable VerseVAD changes will be recorded here.
   Optional Models and Analysis Configuration and Methodology panels.
 - Strengthened sidebar text, alert, widget, and installation-check contrast in
   Light, Dark, and System modes without changing analytical state.
+- Matched the standalone collapsed-sidebar expand arrow to the Installation
+  Check secondary-button foreground, background, border, and hover treatment,
+  including Streamlit's current `stExpandSidebarButton` selector.
 - Removed provider-specific assistant/product references from runtime comments
   and public documentation, replacing privacy language with service-neutral
   descriptions. Existing Git history is not rewritten.
