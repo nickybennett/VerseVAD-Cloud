@@ -19,7 +19,9 @@ def test_cloud_entrypoint_and_configuration_are_host_safe() -> None:
     )
 
     assert 'os.environ["VERSEVAD_CLOUD_DEPLOYMENT"] = "1"' in entrypoint
-    assert "from versevad.ui import app" in entrypoint
+    assert "runpy.run_path(" in entrypoint
+    assert '"versevad" / "ui" / "app.py"' in entrypoint
+    assert "from versevad.ui import app" not in entrypoint
     assert 'address = "127.0.0.1"' not in configuration
     assert "headless = false" not in configuration
     assert "maxUploadSize = 5" in configuration

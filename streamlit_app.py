@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import runpy
 import sys
 from pathlib import Path
 
@@ -16,4 +17,11 @@ if str(SOURCE_ROOT) not in sys.path:
 # directly, so this private cloud-safety mode does not affect local installs.
 os.environ["VERSEVAD_CLOUD_DEPLOYMENT"] = "1"
 
-from versevad.ui import app as _versevad_app  # noqa: E402,F401
+# Streamlit re-executes this entrypoint for every widget interaction. Importing
+# the UI module directly can become a no-op once Python has cached the module,
+# leaving a blank page on a later rerun. Execute the source application afresh
+# so cloud reruns follow the same lifecycle as the local launchers.
+runpy.run_path(
+    str(SOURCE_ROOT / "versevad" / "ui" / "app.py"),
+    run_name="__main__",
+)

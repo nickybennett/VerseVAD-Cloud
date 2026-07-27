@@ -10,6 +10,7 @@ from versevad.ui.inherited_form import render_inherited_form
 
 
 APP_PATH = Path(__file__).parents[1] / "src" / "versevad" / "ui" / "app.py"
+CLOUD_APP_PATH = Path(__file__).parents[1] / "streamlit_app.py"
 REPORT_SECTIONS = [
     "Overview",
     "Affective Evidence",
@@ -78,6 +79,39 @@ def test_interface_starts_with_beginner_input_workflow() -> None:
         panel.label for panel in app.expander
     ]
     assert not app.tabs
+
+
+def test_cloud_entrypoint_rerenders_after_report_navigation(
+    monkeypatch,
+) -> None:
+    # Record the pre-test environment through monkeypatch so the cloud
+    # entrypoint's process-wide flag is removed again during fixture teardown.
+    monkeypatch.setenv("VERSEVAD_CLOUD_DEPLOYMENT", "")
+    app = AppTest.from_file(
+        str(CLOUD_APP_PATH),
+        default_timeout=60,
+    ).run()
+    next(
+        field
+        for field in app.text_input
+        if field.label == "Poem title or working label"
+    ).input("Cloud rerun validation")
+    app.text_area[0].input(
+        "The bright cat\nA silver night\nThe soft hat\nA quiet light"
+    )
+    app.multiselect[0].set_value(["nrc_vad_v1"])
+    app.run(timeout=60)
+    _button(app, "Analyze Poem").click()
+    app.run(timeout=60)
+
+    report_navigation = _section_navigation(app, "Report section")
+    assert report_navigation.value == "Overview"
+    report_navigation.set_value("Sound & Form")
+    app.run(timeout=60)
+
+    assert not app.exception
+    assert _section_navigation(app, "Report section").value == "Sound & Form"
+    assert "Analyze Poem" in [button.label for button in app.button]
 
 
 def test_inherited_form_report_uses_fragment_scoped_widget_reruns() -> None:
