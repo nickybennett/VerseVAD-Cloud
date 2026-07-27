@@ -11,8 +11,10 @@ import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
 from versevad import __version__
+from versevad.deployment import cloud_deployment_enabled
 from versevad.ui.preferences import (
     AppearanceMode,
+    UiPreferences,
     load_preferences,
     save_appearance,
 )
@@ -724,13 +726,19 @@ def apply_design_system(mode: AppearanceMode | str) -> None:
 
 
 def _persist_appearance() -> None:
+    if cloud_deployment_enabled():
+        return
     save_appearance(st.session_state["appearance_mode"])
 
 
 def render_app_shell() -> tuple[str, AppearanceMode]:
     """Render the shared application header and return active workspace/theme."""
 
-    preferences = load_preferences()
+    preferences = (
+        UiPreferences()
+        if cloud_deployment_enabled()
+        else load_preferences()
+    )
     st.session_state.setdefault("appearance_mode", preferences.appearance.value)
     st.session_state.setdefault("analysis_cache_enabled", True)
     st.session_state.setdefault("performance_diagnostics_enabled", True)

@@ -1,5 +1,17 @@
 # VerseVAD Implementation Plan
 
+## Completed private Streamlit Community Cloud preparation
+
+- [x] Add a root `streamlit_app.py` entrypoint without changing the public
+  repository or the ordinary Windows/macOS launch paths.
+- [x] Retain the locked Python 3.12 environment and verify that the bundled
+  eSpeak NG dependency provides a compatible Linux wheel.
+- [x] Remove local-only server binding from the private cloud configuration.
+- [x] Isolate hosted Project/Corpus databases by browser session, describe
+  their nonpersistent lifecycle in the interface, and keep appearance settings
+  session-only.
+- [x] Add deployment, configuration, and session-isolation regression tests.
+
 ## Completed compact pronunciation review and contraction handling
 
 - [x] Collapse **Words Needing Attention** by default and keep

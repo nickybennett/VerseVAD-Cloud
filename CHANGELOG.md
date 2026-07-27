@@ -6,6 +6,11 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Added a private-repository `streamlit_app.py` entrypoint and cloud-safe
+  configuration for Streamlit Community Cloud. Hosted Project/Corpus data is
+  isolated to an unguessable browser-session database, clearly labeled as
+  nonpersistent, and appearance choices remain session-only so visitors cannot
+  see or overwrite one another's application state.
 - Collapsed **Words Needing Attention** by default and placed provisional G2P
   review behind a default-off **Show Out-of-Dictionary Words** control, keeping
   the pronunciation report compact until review is requested.

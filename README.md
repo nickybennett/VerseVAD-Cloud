@@ -194,6 +194,7 @@ See:
 - [Data model](docs/data-model.md)
 - [Testing strategy](docs/testing.md)
 - [Beginner user guide](docs/user-guide.md)
+- [Private Streamlit Community Cloud deployment](docs/streamlit-community-cloud.md)
 - [Comprehensive Word user manual](docs/VerseVAD_User_Manual.docx)
 - [Values and terminology Word guide](docs/VerseVAD_Values_and_Terminology_Guide.docx)
 - [Phase 5 validation and test steps](docs/phase5-validation.md)
@@ -211,11 +212,10 @@ subscription would only remove access to future ChatGPT/Codex assistance, not
 the already installed local application.
 
 The research datasets are not part of VerseVAD and are not distributed in the
-public repository. NRC resources prohibit redistribution, the inspected
-Warriner package states non-commercial and no-derivatives conditions, and
-other supplements retain their own publisher or creator terms. Consequently,
-`source_lexicons/` and installed files under `resources/` are intentionally
-excluded from source control.
+public repository. This separate private deployment repository contains only
+the checksum-pinned runtime copies that its owner is authorized to host.
+Third-party sources retain their own licenses and are not relicensed by the
+VerseVAD GPL.
 
 Users download each desired source from its official page and place the
 unchanged file at the exact documented path. On startup, VerseVAD reports

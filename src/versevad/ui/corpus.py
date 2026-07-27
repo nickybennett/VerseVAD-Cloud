@@ -17,6 +17,10 @@ from versevad.application import (
     load_lexicon,
     part_of_speech_views_for_tokens,
 )
+from versevad.deployment import (
+    cloud_deployment_enabled,
+    cloud_session_database_path,
+)
 from versevad.exports.corpus_csv import build_corpus_export_bundle
 from versevad.corpus import (
     CorpusAnalysisConfiguration,
@@ -354,7 +358,7 @@ def _create_project(repository: ProjectRepository, *, expanded: bool) -> None:
                     researcher=researcher,
                     description=description,
                 )
-                st.success("Project created in the local VerseVAD database.")
+                st.success("Project created in the VerseVAD project database.")
                 st.rerun()
             except ValueError as error:
                 st.error(str(error))
@@ -519,7 +523,7 @@ def _render_texts_tab(repository: ProjectRepository, project_id: str) -> None:
                 notes=notes,
                 custom_metadata=custom,
             )
-            st.success("Metadata saved locally.")
+            st.success("Metadata saved.")
             st.rerun()
         except (ValueError, json.JSONDecodeError) as error:
             st.error(f"Metadata was not changed: {error}")
@@ -2050,7 +2054,7 @@ def _render_project_settings_tab(
         "Deleting this project permanently removes only this project's imported "
         "texts, preserved versions, completed analyses, corpus batches, and "
         "quality-control notes, review decisions, and scenario history from the "
-        "local VerseVAD database. Other projects are not affected."
+        "VerseVAD project database. Other projects are not affected."
     )
     confirmation = st.text_input(
         f'Type the exact project title to confirm: "{project.title}"',
@@ -2471,7 +2475,8 @@ def _render_qc_tab(repository: ProjectRepository, project_id: str) -> None:
     st.subheader("Unmatched-Vocabulary Quality Control")
     st.write(
         "These observations did not match a selected lexicon in the latest complete "
-        "batch. Notes persist locally by project, work, lexicon, and normalized form. "
+        "batch. Notes persist in the project database by project, work, lexicon, "
+        "and normalized form. "
         "They document review; they do not alter an analysis score."
     )
     if not rows:
@@ -2561,7 +2566,7 @@ def _render_qc_tab(repository: ProjectRepository, project_id: str) -> None:
             note=note,
             proposed_mapping=mapping,
         )
-        st.success("Quality-control note saved locally. Analysis results were not changed.")
+        st.success("Quality-control note saved. Analysis results were not changed.")
         st.rerun()
 
 
@@ -2745,14 +2750,28 @@ def render_corpus_workspace(
     preprocessor: TextPreprocessor,
     resource_readiness: ResourceReadiness,
 ) -> None:
-    """Render the persistent local-project branch of the Streamlit application."""
+    """Render the local or session-isolated project branch of the application."""
 
-    repository = ProjectRepository(default_database_path())
+    cloud_deployment = cloud_deployment_enabled()
+    database_path = (
+        cloud_session_database_path(st.session_state)
+        if cloud_deployment
+        else default_database_path()
+    )
+    repository = ProjectRepository(database_path)
     repository.initialize()
     with st.sidebar:
-        st.markdown("### Persistent Local Projects")
-        st.success("Projects, texts, notes, and results stay on this computer.")
-        st.caption(f"Database: {repository.database_path}")
+        if cloud_deployment:
+            st.markdown("### Session-Isolated Projects")
+            st.warning(
+                "Projects are private to this browser session and may be erased "
+                "when the session disconnects or the hosted app restarts. Export "
+                "anything you need to retain."
+            )
+        else:
+            st.markdown("### Persistent Local Projects")
+            st.success("Projects, texts, notes, and results stay on this computer.")
+            st.caption(f"Database: {repository.database_path}")
         st.markdown("---")
         st.caption(
             "Corpus results describe lexical evidence. They do not determine a work's emotion or a reader's response."
@@ -2763,8 +2782,12 @@ def render_corpus_workspace(
         "Import a folder as separate works, add metadata, compare complete analysis "
         "batches across affective and optional lexical/prosodic modules, build "
         "versioned review scenarios, and export CSV data with a readable Word report.",
-        kicker="Private corpus research workspace",
-        status="Persistent",
+        kicker=(
+            "Session-isolated corpus research workspace"
+            if cloud_deployment
+            else "Private corpus research workspace"
+        ),
+        status="Session-only" if cloud_deployment else "Persistent",
     )
     project_flash = st.session_state.pop("corpus_project_flash", None)
     if project_flash:
@@ -2778,7 +2801,12 @@ def render_corpus_workspace(
         render_empty_state(
             "No research project yet",
             "Projects keep texts, metadata, immutable analysis runs, review "
-            "scenarios, and exports together in the local database.",
+            "scenarios, and exports together "
+            + (
+                "for this browser session."
+                if cloud_deployment
+                else "in the local database."
+            ),
             "Use Create a research project above to begin.",
         )
         return
@@ -2808,7 +2836,12 @@ def render_corpus_workspace(
     )
     st.caption(
         f"{project.title} · {project.description or 'No project description.'} "
-        "All saves are local and completed analysis runs remain immutable."
+        + (
+            "Saves remain isolated to this browser session and are not durable; "
+            "completed analysis runs remain immutable while the session is active."
+            if cloud_deployment
+            else "All saves are local and completed analysis runs remain immutable."
+        )
     )
     part_of_speech_rows = _corpus_part_of_speech_rows(
         repository,

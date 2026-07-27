@@ -5,8 +5,6 @@ gatherUsageStats = false
 toolbarMode = "minimal"
 
 [server]
-address = "127.0.0.1"
-headless = false
 maxUploadSize = 5
 runOnSave = false
 
