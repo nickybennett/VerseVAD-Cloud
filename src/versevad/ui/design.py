@@ -414,10 +414,11 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
     }}
     .versevad-collapse-button {{
       align-items: center;
-      background: transparent;
-      border: 1px solid transparent;
+      background: var(--color-button-secondary-background) !important;
+      border: 1px solid var(--color-border-strong) !important;
       border-radius: 999px !important;
-      color: var(--color-button-tertiary-text);
+      color: var(--color-button-secondary-text) !important;
+      -webkit-text-fill-color: var(--color-button-secondary-text) !important;
       cursor: pointer;
       display: inline-flex;
       height: 2.25rem;
@@ -429,19 +430,27 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
         background-color var(--transition-fast),
         border-color var(--transition-fast);
       width: 2.25rem !important;
+      opacity: 1 !important;
     }}
     .versevad-collapse-button:hover {{
-      background: var(--color-accent-soft);
-      border-color: var(--color-accent);
+      background: var(--color-accent-soft) !important;
+      border-color: var(--color-accent) !important;
+      color: var(--color-button-secondary-text) !important;
+      -webkit-text-fill-color: var(--color-button-secondary-text) !important;
     }}
     .versevad-collapse-button:focus-visible {{
       outline: 3px solid var(--color-focus) !important;
       outline-offset: 2px !important;
     }}
-    .versevad-collapse-button svg {{
-      fill: currentColor;
-      height: 1.25rem;
-      width: 1.25rem;
+    .versevad-collapse-glyph {{
+      color: inherit;
+      display: block;
+      font-family: var(--font-sans);
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1;
+      transform: translateY(-0.04em);
+      -webkit-text-fill-color: inherit;
     }}
     [data-testid="stButton"] button:disabled,
     [data-testid="stFormSubmitButton"] button:disabled,
@@ -884,9 +893,7 @@ def collapse_control_html(label: str, control_id: str) -> str:
         title="Collapse {safe_label}"
         data-versevad-collapse-button
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
-          <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>
-        </svg>
+        <span class="versevad-collapse-glyph" aria-hidden="true">&#8593;</span>
       </button>
     </div>
     <script>

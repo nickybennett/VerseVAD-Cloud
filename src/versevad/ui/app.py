@@ -265,7 +265,7 @@ if _corpus_was_reloaded:
 # Stage 13 centralizes the shell and appearance tokens. Reload the presentation
 # modules once in an already-open local server so theme and workspace changes
 # do not require the scholar to restart VerseVAD manually.
-_DESIGN_RUNTIME_REVISION = "2026-07-28-design-6"
+_DESIGN_RUNTIME_REVISION = "2026-07-28-design-7"
 _design_was_reloaded = (
     _DEVELOPMENT_HOT_RELOAD
     and st.session_state.get("_design_runtime_revision")

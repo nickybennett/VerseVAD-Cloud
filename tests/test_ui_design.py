@@ -89,6 +89,11 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert '[data-testid="stSidebar"] p' in sheet
         assert ".versevad-collapse-control" in sheet
         assert ".versevad-collapse-button" in sheet
+        assert ".versevad-collapse-glyph" in sheet
+        assert (
+            "background: var(--color-button-secondary-background) !important"
+            in sheet
+        )
         assert '[class*="st-key-versevad_header_icon__"]' in sheet
         assert 'button > div > div[aria-hidden="true"]' in sheet
         assert '[data-testid="stIconMaterial"]' in sheet
@@ -113,6 +118,9 @@ def test_collapse_control_is_accessible_and_client_side() -> None:
     assert 'aria-label="Collapse PoetryID &amp; Form"' in markup
     assert 'title="Collapse PoetryID &amp; Form"' in markup
     assert 'data-collapse-id="report_poetry_id"' in markup
+    assert 'class="versevad-collapse-glyph"' in markup
+    assert "&#8593;" in markup
+    assert "<svg" not in markup
     assert 'button.closest("details")' in markup
     assert 'closest(\'[data-testid="stExpander"]\')' in markup
     assert "details.open = false" in markup

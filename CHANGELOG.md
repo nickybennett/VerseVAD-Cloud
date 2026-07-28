@@ -11,6 +11,8 @@ All notable VerseVAD changes will be recorded here.
   isolated to an unguessable browser-session database, clearly labeled as
   nonpersistent, and appearance choices remain session-only so visitors cannot
   see or overwrite one another's application state.
+- Made expanded-section collapse controls fully visible at rest in both themes
+  with a contrast-tested circular surface and a sanitizer-safe upward glyph.
 - Repaired **Clear text** by moving the text-area state update into a
   pre-rerun widget callback, eliminating the Streamlit session-state error.
 - Promoted the complete sentence-level VADER score table from a nested
