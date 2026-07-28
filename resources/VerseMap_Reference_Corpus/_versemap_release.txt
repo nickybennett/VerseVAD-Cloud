@@ -1,0 +1,11 @@
+VerseMap Reference Corpus Release
+schema_version: 1.0
+corpus_release_id: versemap-reference-d9969e023145ab13
+poet_count: 8
+poem_count: 2315
+total_source_bytes: 4716946
+manifest_sha256: 7020815faff4a6eaeb489be0facec589e94cb82ed1337f121031a409bac117be
+warning_count: 122
+warning_duplicate_text: 1
+warning_suspiciously_long: 28
+warning_suspiciously_short: 93

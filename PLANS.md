@@ -1,5 +1,21 @@
 # VerseVAD Implementation Plan
 
+## Completed VerseMap reference-corpus source pipeline
+
+- [x] Establish a narrowly tracked
+  `resources/VerseMap_Reference_Corpus/<Poet Name>/*.txt` convention without
+  exposing licensed lexicons, personal corpora, projects, or private texts.
+- [x] Add a deterministic updater that validates UTF-8 source files without
+  rewriting them, assigns stable poet/poem IDs, records exact and canonical
+  hashes, and creates an auditable CSV manifest and release identity.
+- [x] Keep questionable fragments, duplicate texts, and book-length files
+  visible as review warnings while reserving blocking errors for invalid,
+  empty, missing, or cross-platform-colliding source files.
+- [x] Add beginner-friendly Windows and macOS launchers, a no-write check mode,
+  synthetic regression tests, and a tracked-corpus freshness test.
+- [x] Document the add-folder, update, review, commit, and push workflow for
+  synchronized local and cloud repositories.
+
 ## Completed private Streamlit Community Cloud preparation
 
 - [x] Add a root `streamlit_app.py` entrypoint without changing the public

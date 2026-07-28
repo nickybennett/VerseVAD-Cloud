@@ -2,6 +2,8 @@
 /source_lexicons/
 /resources/**
 !/resources/README.md
+!/resources/VerseMap_Reference_Corpus/
+!/resources/VerseMap_Reference_Corpus/**
 
 # Private literary texts and runtime data
 /corpora/

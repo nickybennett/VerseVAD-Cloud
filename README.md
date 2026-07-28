@@ -206,6 +206,7 @@ See:
 - [Stage 14 performance report](docs/stage14-performance-report.md)
 - [Stage 15 inherited-form analysis](docs/inherited-form-stage15.md)
 - [Stage 15 inherited-form validation](docs/inherited-form-stage15-validation.md)
+- [VerseMap reference-corpus maintainer workflow](docs/versemap-reference-corpus.md)
 - [Public resource installation guide](docs/resource-installation.md)
 - [macOS installation and browser guide](docs/macos-installation.md)
 - [Safe in-place update guide](docs/updating.md)

@@ -1,8 +1,10 @@
 # Local Poetic Fingerprint Resources
 
-This directory is reserved for locally installed research resources used by
-optional VerseVAD modules. Resource data are ignored by source control. Only
-this instruction file is tracked.
+This directory contains locally installed research resources used by optional
+VerseVAD modules. Those licensed datasets remain ignored by source control.
+The one explicit exception is the redistributable public-domain VerseMap
+reference corpus under `VerseMap_Reference_Corpus/`, which is tracked together
+with its deterministic manifest and release record.
 
 For public-release download links, exact affective-lexicon locations,
 installation steps, source-term cautions, and troubleshooting, see
@@ -14,6 +16,11 @@ Current and planned local layout:
 
 ```text
 resources/
+  VerseMap_Reference_Corpus/
+    Poet Name/
+      Poem title.txt
+    _versemap_manifest.csv
+    _versemap_release.txt
   brysbaert_warriner_kuperman_concreteness_DATA.xlsx
   brysbaert_warriner_kuperman_concreteness_PAPER.pdf
   subtlexus1.zip
@@ -28,6 +35,12 @@ resources/
     CMUDICT_LICENSE.txt
     CMUDICT_README.txt
 ```
+
+For the folder convention, provenance guidance, validation rules, and
+Windows/macOS update commands, see
+[`docs/versemap-reference-corpus.md`](../docs/versemap-reference-corpus.md).
+The updater never edits a poem. Do not place private or copyrighted user
+corpora in this tracked folder.
 
 The two concreteness filenames are exact. Keep both directly inside
 `resources/`; do not rename or edit them. VerseVAD currently requires the
@@ -61,6 +74,10 @@ Each resource adapter must:
 6. leave unmatched tokens missing rather than assigning a neutral or zero
    value; and
 7. avoid copying a licensed dataset into exports, backups, or source control.
+
+The curated VerseMap reference corpus is not an adapter resource and is not an
+exception to any lexicon rule above. Only its specifically unignored folder is
+tracked; all other locally installed `resources/` data remain excluded.
 
 The implemented frequency module uses only the pinned official SUBTLEX-US
 Zipf workbook. VerseVAD does not use `wordfreq` as a fallback or alternate

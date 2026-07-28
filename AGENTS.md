@@ -13,7 +13,8 @@ not a programmer. Preserve methodological choices instead of hiding them.
 - Read source lexicons in place and record SHA-256 hashes. Store derived data
   outside `source_lexicons/` and retain a link to the exact source hash.
 - Never commit lexicons, literary corpora, project databases, exports, or
-  backups to source control.
+  backups to source control, except the explicitly curated public-domain
+  VerseMap reference corpus under `resources/VerseMap_Reference_Corpus/`.
 - Do not send texts, lexicons, project data, or results to external services.
 - Preserve imported text exactly. Perform normalization only in a separate,
   traceable processing representation.

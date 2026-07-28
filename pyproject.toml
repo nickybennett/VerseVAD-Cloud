@@ -35,6 +35,7 @@ versevad-phonology-demo = "versevad.phonology_validation:main"
 versevad-lexical-style-demo = "versevad.lexical_style_validation:main"
 versevad-inherited-form-demo = "versevad.inherited_form_validation:main"
 versevad-diagnose = "versevad.diagnostics:main"
+versevad-update-versemap = "versevad.versemap.reference:main"
 
 [dependency-groups]
 dev = [
