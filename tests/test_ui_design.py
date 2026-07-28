@@ -7,6 +7,7 @@ from versevad.ui.design import (
     DARK_TOKENS,
     LIGHT_TOKENS,
     MODULE_PRESETS,
+    collapse_control_html,
     preset_widget_state,
     render_dataframe,
     stylesheet_for,
@@ -86,7 +87,10 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert 'button[data-testid="stExpandSidebarButton"]' in sheet
         assert '[data-testid="stSidebar"] [data-testid="stAlert"] *' in sheet
         assert '[data-testid="stSidebar"] p' in sheet
-        assert '[class*="st-key-collapse_control__"]' in sheet
+        assert ".versevad-collapse-control" in sheet
+        assert ".versevad-collapse-button" in sheet
+        assert '[class*="st-key-versevad_header_icon__"]' in sheet
+        assert 'button > div > div[aria-hidden="true"]' in sheet
         assert '[data-testid="stIconMaterial"]' in sheet
         assert "width: 2.25rem" in sheet
         assert '[data-testid="stMetricValue"] > div' in sheet
@@ -101,6 +105,17 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
     assert "prefers-color-scheme: dark" not in dark
     assert "prefers-color-scheme: dark" in system
     assert light != dark
+
+
+def test_collapse_control_is_accessible_and_client_side() -> None:
+    markup = collapse_control_html("PoetryID & Form", "report_poetry_id")
+
+    assert 'aria-label="Collapse PoetryID &amp; Form"' in markup
+    assert 'title="Collapse PoetryID &amp; Form"' in markup
+    assert 'data-collapse-id="report_poetry_id"' in markup
+    assert 'button.closest("details")' in markup
+    assert 'closest(\'[data-testid="stExpander"]\')' in markup
+    assert "details.open = false" in markup
 
 
 def _relative_luminance(value: str) -> float:

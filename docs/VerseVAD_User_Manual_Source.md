@@ -40,13 +40,13 @@ slightly within a long section, but the active section remains stable.
 The one-text **Report section** control is a dropdown. All large vertical
 sections begin collapsed and can be opened independently, so multiple sections
 may remain expanded. Each expanded report section ends with a compact
-upward-arrow control in its bottom-right corner, so the section can be collapsed
-without returning to its heading. The Additional Optional Models and Analysis
-Configuration panels use the same icon control; hovering or focusing it
-identifies the section it will collapse. Streamlit's arrow at the top edge of
-the left sidebar hides or restores the sidebar; the main workspace automatically
-uses the freed width or resizes when the sidebar returns. This behavior is
-shared by supported Windows and macOS browsers.
+centered upward-arrow control that closes the section immediately in the
+browser without rerunning the analysis page. The Additional Optional Models and
+Analysis Configuration panels use the same icon control; hovering or focusing
+it identifies the section it will collapse. Streamlit's arrow at the top edge
+of the left sidebar hides or restores the sidebar; the main workspace
+automatically uses the freed width or resizes when the sidebar returns. This
+behavior is shared by supported Windows and macOS browsers.
 
 All interactive results tables keep their header row visible during vertical
 scrolling and pin the leftmost data column during horizontal scrolling. The
@@ -217,8 +217,9 @@ The shared application header contains:
 - **Other Text**
 - **Lexicon Explorer**
 - the current VerseVAD version;
-- **Light**, **Dark**, and **System** appearance;
-- settings and help access.
+- a circular sun/moon/automatic appearance menu for **Light**, **Dark**, and
+  **System**;
+- circular gear and question-mark controls for settings and help.
 
 System appearance follows the browser or operating-system preference. The
 selection is stored as an application-level local preference, not in a
@@ -1005,6 +1006,12 @@ rule-adjusted compound score. Its conventional threshold label is not a
 declaration of the poem's emotion, and its social-media design can misread
 poetic ambiguity, irony, persona, quotation, and historical usage. Do not
 compare these values as though they were alternate VAD scales.
+
+The interface directly displays a fixed-height **Sentence-Level VADER Scores**
+table containing each model-segmented sentence's source lines, text,
+positive/neutral/negative proportions, compound score, and threshold label.
+VADER scores the complete preserved text directly for the document compound;
+the sentence compounds are diagnostics and are not averaged into that value.
 
 ## Affective Evidence: Lexical Trajectory section
 

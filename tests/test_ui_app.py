@@ -78,12 +78,6 @@ def test_interface_starts_with_beginner_input_workflow() -> None:
     assert "Show Configuration Controls" in [
         panel.label for panel in app.expander
     ]
-    assert "Collapse Additional Optional Models" in [
-        button.label for button in app.button
-    ]
-    assert "Collapse Analysis Configuration and Methodology" in [
-        button.label for button in app.button
-    ]
     assert not app.tabs
 
 
@@ -124,29 +118,31 @@ def test_inherited_form_report_uses_fragment_scoped_widget_reruns() -> None:
     assert hasattr(render_inherited_form, "__wrapped__")
 
 
-def test_bottom_controls_force_front_page_sections_closed() -> None:
-    app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
-    _button(app, "Collapse Additional Optional Models").click()
-    app.run(timeout=30)
-    assert not app.exception
-    assert app.session_state["additional_optional_models_collapse_epoch"] == 1
-    optional_panel = next(
-        panel
-        for panel in app.expander
-        if panel.label.startswith("Choose Additional Optional Models")
+def test_bottom_controls_use_client_side_collapse_without_app_rerun() -> None:
+    tree = ast.parse(APP_PATH.read_text(encoding="utf-8"))
+    collapse_function = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_render_bottom_collapse_button"
     )
-    assert not optional_panel.proto.expanded
-
-    _button(app, "Collapse Analysis Configuration and Methodology").click()
-    app.run(timeout=30)
-    assert not app.exception
-    assert app.session_state["analysis_configuration_collapse_epoch"] == 1
-    configuration_panel = next(
-        panel
-        for panel in app.expander
-        if panel.label.startswith("Show Configuration Controls")
+    calls = [
+        node
+        for node in ast.walk(collapse_function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "st"
+    ]
+    assert any(node.func.attr == "html" for node in calls)
+    assert not any(node.func.attr == "rerun" for node in calls)
+    html_call = next(node for node in calls if node.func.attr == "html")
+    assert any(
+        keyword.arg == "unsafe_allow_javascript"
+        and isinstance(keyword.value, ast.Constant)
+        and keyword.value.value is True
+        for keyword in html_call.keywords
     )
-    assert not configuration_panel.proto.expanded
 
 
 def test_pronunciation_fragment_approval_requests_full_app_rerun() -> None:
@@ -461,6 +457,21 @@ def test_interface_shows_plain_language_input_error() -> None:
     assert any("Enter a title" in error.value for error in app.error)
 
 
+def test_clear_text_uses_widget_callback_without_session_state_error() -> None:
+    app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
+    app.text_area[0].input("Temporary poem text.")
+    app.run(timeout=30)
+
+    clear_button = _button(app, "Confirm clear text")
+    assert not clear_button.disabled
+    clear_button.click()
+    app.run(timeout=30)
+
+    assert not app.exception
+    assert app.text_area[0].value == ""
+    assert _button(app, "Confirm clear text").disabled
+
+
 def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
     app = AppTest.from_file(str(APP_PATH), default_timeout=60).run()
     title = next(field for field in app.text_input if field.label == "Poem title or working label")
@@ -502,24 +513,6 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
     }
     assert report_expanders.keys() == collapsible_report_sections
     assert all(not expander.proto.expanded for expander in report_expanders.values())
-    assert {
-        "Collapse VAD",
-        "Collapse Emotion Association, Intensity & Sentiment",
-        "Collapse Lexical Trajectory",
-        "Collapse PoetryID",
-        "Collapse Concreteness",
-        "Collapse Frequency & Rarity",
-        "Collapse Acquisition & Readability",
-        "Collapse Pronunciation, Syllables & Stress",
-        "Collapse Meter & Rhythm",
-        "Collapse Rhyme & Recurring Sound",
-        "Collapse Inherited Form Analysis",
-        "Collapse Language Profile",
-        "Collapse Lexical & Structural Measures",
-        "Collapse Token Evidence, Coverage & Diagnostics",
-        "Collapse Export Report & Data",
-        "Collapse Methodology & How to Read",
-    } <= {button.label for button in app.button}
     assert ("Lexicons analyzed", "3") in [
         (metric.label, metric.value) for metric in app.metric
     ]
@@ -554,6 +547,10 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
     assert any("Eight Emotion Associations" in heading.value for heading in app.subheader)
     assert any(
         "VADER Rule-Based Sentiment" in heading.value
+        for heading in app.subheader
+    )
+    assert any(
+        "Sentence-Level VADER Scores" in heading.value
         for heading in app.subheader
     )
     assert any("Lexical Trajectory" in heading.value for heading in app.subheader)
@@ -693,21 +690,6 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     assert "Download poetry_id_summary.csv" in labels
     assert "Download poetry_id_report.docx" in labels
     assert not any(label.endswith(".json") for label in labels)
-    _button(app, "Collapse PoetryID").click()
-    app.run(timeout=60)
-    assert not app.exception
-    assert app.session_state[
-        "single_poem_report_section_poetry_id_collapse_epoch"
-    ] == 1
-    assert _section_navigation(app, "Report section").value == (
-        "Affective Evidence"
-    )
-    poetry_id_panel = next(
-        panel
-        for panel in app.expander
-        if panel.label.startswith("PoetryID")
-    )
-    assert not poetry_id_panel.proto.expanded
 
 
 def test_interface_runs_optional_lexical_style_without_a_resource() -> None:

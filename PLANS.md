@@ -12,10 +12,21 @@
   session-only.
 - [x] Add deployment, configuration, and session-isolation regression tests.
 
+## Completed interface interaction refinements
+
+- [x] Clear the active text through a widget callback before Streamlit recreates
+  the text area, avoiding mutation of an already-instantiated widget.
+- [x] Display sentence-level VADER scores directly in the sentiment section and
+  distinguish them from the independently calculated document compound.
+- [x] Replace rerun-driven bottom collapse actions with centered, accessible,
+  client-side controls that close their parent expander immediately.
+- [x] Convert Appearance, Settings, and Help into compact circular header
+  popover icons with responsive light/dark styling.
+
 ## Completed compact bottom-collapse controls
 
 - [x] Replace the full-width front-page collapse actions with accessible,
-  right-aligned upward-arrow icon controls.
+  compact upward-arrow icon controls.
 - [x] Add the same bottom action to every large one-text report expander while
   retaining independent expansion and default-collapsed behavior.
 - [x] Preserve the selected report family and use stable per-workspace section

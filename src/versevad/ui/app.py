@@ -205,6 +205,7 @@ from versevad.ui.stopwords import render_stopword_settings
 from versevad.ui.design import (
     MODULE_PRESETS,
     PUBLICATION_CHART_COLORS,
+    collapse_control_html,
     publication_chart,
     preset_widget_state,
     render_app_shell,
@@ -264,7 +265,7 @@ if _corpus_was_reloaded:
 # Stage 13 centralizes the shell and appearance tokens. Reload the presentation
 # modules once in an already-open local server so theme and workspace changes
 # do not require the scholar to restart VerseVAD manually.
-_DESIGN_RUNTIME_REVISION = "2026-07-27-design-5"
+_DESIGN_RUNTIME_REVISION = "2026-07-28-design-6"
 _design_was_reloaded = (
     _DEVELOPMENT_HOT_RELOAD
     and st.session_state.get("_design_runtime_revision")
@@ -282,6 +283,7 @@ if _design_was_reloaded:
             importlib.reload(sys.modules[_module_name])
     MODULE_PRESETS = _design_services.MODULE_PRESETS
     PUBLICATION_CHART_COLORS = _design_services.PUBLICATION_CHART_COLORS
+    collapse_control_html = _design_services.collapse_control_html
     publication_chart = _design_services.publication_chart
     preset_widget_state = _design_services.preset_widget_state
     render_app_shell = _design_services.render_app_shell
@@ -315,37 +317,31 @@ def _decimal(value: float | None) -> str:
     return "—" if value is None else f"{value:.3f}"
 
 
+def _clear_current_text() -> None:
+    """Clear widget state before the text-area widget is recreated."""
+
+    st.session_state["poem_text"] = ""
+    st.session_state.pop("upload_signature", None)
+
+
 def _frame(rows, rename: dict[str, str] | None = None) -> pd.DataFrame:
     data = pd.DataFrame([asdict(row) for row in rows])
     return data.rename(columns=rename or {})
 
 
 def _stateful_expander(label: str, *, state_key: str):
-    """Return an expander whose bottom control can force a collapsed rerender."""
+    """Return a default-collapsed expander with a stable analytical label."""
 
-    epoch = int(st.session_state.get(f"{state_key}_collapse_epoch", 0))
-    return st.expander(label + ("\u2060" * epoch), expanded=False)
+    del state_key
+    return st.expander(label, expanded=False)
 
 
 def _render_bottom_collapse_button(label: str, *, state_key: str) -> None:
-    control = st.container(
-        key=f"collapse_control__{state_key}",
-        horizontal=True,
-        horizontal_alignment="right",
-        vertical_alignment="center",
-        gap="small",
+    st.html(
+        collapse_control_html(label, state_key),
+        width="stretch",
+        unsafe_allow_javascript=True,
     )
-    if control.button(
-        f"Collapse {label}",
-        key=f"{state_key}_bottom_collapse",
-        help=f"Collapse {label}",
-        type="tertiary",
-        icon=":material/keyboard_arrow_up:",
-        width="content",
-    ):
-        epoch_key = f"{state_key}_collapse_epoch"
-        st.session_state[epoch_key] = int(st.session_state.get(epoch_key, 0)) + 1
-        st.rerun()
 
 
 def _bottom_collapsible_expander(
@@ -997,14 +993,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "This clears the current session text. Completed results remain "
                 "visible but will be marked stale."
             )
-            if st.button(
+            st.button(
                 "Confirm clear text",
                 disabled=not bool(text),
                 key="confirm_clear_text",
-            ):
-                st.session_state["poem_text"] = ""
-                st.session_state.pop("upload_signature", None)
-                st.rerun()
+                on_click=_clear_current_text,
+            )
         with st.expander("Optional bibliographic metadata"):
             metadata_columns = st.columns([2, 1])
             with metadata_columns[0]:
@@ -6166,41 +6160,47 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "also applies VADER's negation, intensity, punctuation, casing, "
                 "and contrast rules."
             )
-            with st.expander(
-                f"Sentence-Level VADER Evidence ({len(vader.sentence_scores):,})",
-                expanded=False,
-            ):
-                render_dataframe(
-                    pd.DataFrame(
-                        [
-                            {
-                                "Sentence": item.ordinal,
-                                "Lines": " | ".join(
-                                    str(value) for value in item.line_numbers
-                                ),
-                                "Text": item.source_text,
-                                "Positive": item.score.positive_proportion,
-                                "Neutral": item.score.neutral_proportion,
-                                "Negative": item.score.negative_proportion,
-                                "Compound": item.score.compound_score,
-                                "Threshold label": (
-                                    item.score.threshold_label.title()
-                                ),
-                            }
-                            for item in vader.sentence_scores
-                        ]
-                    ).style.format(
+            st.subheader(
+                "Sentence-Level VADER Scores "
+                f"({len(vader.sentence_scores):,})"
+            )
+            st.caption(
+                "Each model-segmented sentence is scored separately and shown "
+                "below. VADER scores the complete preserved text directly for "
+                "the document compound; it does not average these sentence "
+                "compound scores to produce that value."
+            )
+            render_dataframe(
+                pd.DataFrame(
+                    [
                         {
-                            "Positive": lambda value: _percentage(value),
-                            "Neutral": lambda value: _percentage(value),
-                            "Negative": lambda value: _percentage(value),
-                            "Compound": lambda value: _decimal(value),
+                            "Sentence": item.ordinal,
+                            "Lines": " | ".join(
+                                str(value) for value in item.line_numbers
+                            ),
+                            "Text": item.source_text,
+                            "Positive": item.score.positive_proportion,
+                            "Neutral": item.score.neutral_proportion,
+                            "Negative": item.score.negative_proportion,
+                            "Compound": item.score.compound_score,
+                            "Threshold label": (
+                                item.score.threshold_label.title()
+                            ),
                         }
-                    ),
-                    hide_index=True,
-                    width="stretch",
-                    height=320,
-                )
+                        for item in vader.sentence_scores
+                    ]
+                ).style.format(
+                    {
+                        "Positive": lambda value: _percentage(value),
+                        "Neutral": lambda value: _percentage(value),
+                        "Negative": lambda value: _percentage(value),
+                        "Compound": lambda value: _decimal(value),
+                    }
+                ),
+                hide_index=True,
+                width="stretch",
+                height=320,
+            )
             with st.expander("VADER Cautions, Method, and Citation"):
                 for warning in vader.module_result.warnings:
                     if warning.severity.value == "information":

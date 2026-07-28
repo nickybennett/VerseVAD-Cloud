@@ -11,9 +11,15 @@ All notable VerseVAD changes will be recorded here.
   isolated to an unguessable browser-session database, clearly labeled as
   nonpersistent, and appearance choices remain session-only so visitors cannot
   see or overwrite one another's application state.
-- Replaced the wide bottom-collapse buttons with compact, right-aligned arrow
-  controls and added the same bottom-collapse action to every large one-text
-  report section, including PoetryID, meter, diagnostics, and exports.
+- Repaired **Clear text** by moving the text-area state update into a
+  pre-rerun widget callback, eliminating the Streamlit session-state error.
+- Promoted the complete sentence-level VADER score table from a nested
+  expander into the visible sentiment interface and clarified that document
+  compound is scored directly rather than averaged from sentence compounds.
+- Made every bottom collapse arrow a centered, client-side control that closes
+  its section immediately without rerunning the analysis page.
+- Replaced the header's wide Appearance, Settings, and Help controls with
+  compact circular appearance, gear, and question-mark popover icons.
 - Made short textual metric results such as meter names and confidence bands
   scale responsively with their card width, with readable wrapping as a final
   fallback instead of Streamlit's clipped ellipsis.

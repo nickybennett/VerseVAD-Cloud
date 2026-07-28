@@ -405,43 +405,43 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       fill: currentColor !important;
       stroke: currentColor !important;
     }}
-    [class*="st-key-collapse_control__"] {{
+    .versevad-collapse-control {{
+      align-items: center;
+      display: flex;
+      justify-content: center;
       margin-top: var(--space-2);
       width: 100%;
     }}
-    [class*="st-key-collapse_control__"] [data-testid="stHorizontalBlock"] {{
-      justify-content: flex-end !important;
-      width: 100%;
-    }}
-    [class*="st-key-collapse_control__"] [data-testid="stButton"] {{
-      flex: 0 0 auto !important;
-      margin-left: auto;
-      width: auto !important;
-    }}
-    [class*="st-key-collapse_control__"] [data-testid="stButton"] button {{
+    .versevad-collapse-button {{
       align-items: center;
+      background: transparent;
+      border: 1px solid transparent;
       border-radius: 999px !important;
+      color: var(--color-button-tertiary-text);
+      cursor: pointer;
       display: inline-flex;
       height: 2.25rem;
       justify-content: center;
       min-height: 2.25rem;
       min-width: 2.25rem;
       padding: 0 !important;
+      transition:
+        background-color var(--transition-fast),
+        border-color var(--transition-fast);
       width: 2.25rem !important;
     }}
-    [class*="st-key-collapse_control__"]
-      [data-testid="stButton"] button p {{
-      font-size: 0 !important;
-      height: 0;
-      line-height: 0 !important;
-      margin: 0 !important;
-      overflow: hidden;
-      width: 0;
+    .versevad-collapse-button:hover {{
+      background: var(--color-accent-soft);
+      border-color: var(--color-accent);
     }}
-    [class*="st-key-collapse_control__"]
-      [data-testid="stButton"] [data-testid="stIconMaterial"] {{
-      font-size: 1.2rem !important;
-      margin: 0 !important;
+    .versevad-collapse-button:focus-visible {{
+      outline: 3px solid var(--color-focus) !important;
+      outline-offset: 2px !important;
+    }}
+    .versevad-collapse-button svg {{
+      fill: currentColor;
+      height: 1.25rem;
+      width: 1.25rem;
     }}
     [data-testid="stButton"] button:disabled,
     [data-testid="stFormSubmitButton"] button:disabled,
@@ -676,6 +676,40 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       letter-spacing: .08em;
       text-transform: uppercase;
     }}
+    [class*="st-key-versevad_header_icon__"] {{
+      align-items: center;
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }}
+    [class*="st-key-versevad_header_icon__"] button {{
+      align-items: center;
+      border-radius: 999px !important;
+      display: inline-flex;
+      height: 2.5rem;
+      justify-content: center;
+      min-height: 2.5rem;
+      min-width: 2.5rem;
+      padding: 0 !important;
+      width: 2.5rem !important;
+    }}
+    [class*="st-key-versevad_header_icon__"] button p {{
+      font-size: 0 !important;
+      height: 0;
+      line-height: 0 !important;
+      margin: 0 !important;
+      overflow: hidden;
+      width: 0;
+    }}
+    [class*="st-key-versevad_header_icon__"]
+      button > div > div[aria-hidden="true"] {{
+      display: none !important;
+    }}
+    [class*="st-key-versevad_header_icon__"]
+      button [data-testid="stIconMaterial"] {{
+      font-size: 1.25rem !important;
+      margin: 0 !important;
+    }}
     .versevad-kicker {{
       color: var(--color-accent);
       font-size: .75rem;
@@ -771,9 +805,12 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
         width: 100% !important;
       }}
       .st-key-versevad_global_header [data-testid="stColumn"]:not(:first-child) {{
-        flex: 1 1 7rem !important;
-        min-width: 7rem !important;
-        width: auto !important;
+        flex: 0 0 2.5rem !important;
+        min-width: 2.5rem !important;
+        width: 2.5rem !important;
+      }}
+      .st-key-versevad_global_header [data-testid="stColumn"]:nth-child(2) {{
+        margin-left: auto;
       }}
       .st-key-versevad_global_header button {{
         white-space: nowrap;
@@ -790,9 +827,9 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
         position: static;
       }}
       .st-key-versevad_global_header [data-testid="stColumn"]:not(:first-child) {{
-        flex: 1 1 100% !important;
-        min-width: 0 !important;
-        width: 100% !important;
+        flex: 0 0 2.5rem !important;
+        min-width: 2.5rem !important;
+        width: 2.5rem !important;
       }}
       [role="radiogroup"][aria-label="Workspace"] {{
         display: flex;
@@ -833,6 +870,49 @@ def apply_design_system(mode: AppearanceMode | str) -> None:
     st.markdown(stylesheet_for(mode), unsafe_allow_html=True)
 
 
+def collapse_control_html(label: str, control_id: str) -> str:
+    """Return a trusted client-side control that closes its parent expander."""
+
+    safe_label = escape(label, quote=True)
+    safe_id = escape(control_id, quote=True)
+    return f"""
+    <div class="versevad-collapse-control" data-collapse-id="{safe_id}">
+      <button
+        type="button"
+        class="versevad-collapse-button"
+        aria-label="Collapse {safe_label}"
+        title="Collapse {safe_label}"
+        data-versevad-collapse-button
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>
+        </svg>
+      </button>
+    </div>
+    <script>
+      (() => {{
+        const script = document.currentScript;
+        const root = script ? script.previousElementSibling : null;
+        const button = root
+          ? root.querySelector("[data-versevad-collapse-button]")
+          : null;
+        if (!button || button.dataset.versevadBound === "true") return;
+        button.dataset.versevadBound = "true";
+        button.addEventListener("click", () => {{
+          const expander = button.closest('[data-testid="stExpander"]');
+          const details = button.closest("details") ||
+            (expander && expander.matches("details")
+              ? expander
+              : expander
+                ? expander.querySelector("details")
+                : null);
+          if (details && details.open) details.open = false;
+        }});
+      }})();
+    </script>
+    """
+
+
 def _persist_appearance() -> None:
     if cloud_deployment_enabled():
         return
@@ -868,7 +948,7 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
 
     with st.container(key="versevad_global_header"):
         brand, appearance_column, settings_column, help_column = st.columns(
-            [4.5, 1.3, 1, 1],
+            [6, 0.42, 0.42, 0.42],
             vertical_alignment="center",
         )
         with brand:
@@ -880,15 +960,36 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
                 unsafe_allow_html=True,
             )
         with appearance_column:
-            st.selectbox(
+            appearance_icon = {
+                AppearanceMode.LIGHT: ":material/light_mode:",
+                AppearanceMode.DARK: ":material/dark_mode:",
+                AppearanceMode.SYSTEM: ":material/brightness_auto:",
+            }[appearance]
+            with st.popover(
                 "Appearance",
-                options=[mode.value for mode in AppearanceMode],
-                key="appearance_mode",
-                on_change=_persist_appearance,
-                help="System follows the browser or operating-system preference.",
-            )
+                icon=appearance_icon,
+                type="tertiary",
+                width="content",
+                key="versevad_header_icon__appearance",
+            ):
+                st.selectbox(
+                    "Appearance",
+                    options=[mode.value for mode in AppearanceMode],
+                    key="appearance_mode",
+                    on_change=_persist_appearance,
+                    help=(
+                        "System follows the browser or operating-system "
+                        "preference."
+                    ),
+                )
         with settings_column:
-            with st.popover("Settings", width="stretch"):
+            with st.popover(
+                "Settings",
+                icon=":material/settings:",
+                type="tertiary",
+                width="content",
+                key="versevad_header_icon__settings",
+            ):
                 st.markdown("**Interface**")
                 st.caption(
                     "Appearance is application-level and never changes an analysis."
@@ -963,7 +1064,13 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
                     clear_resource_caches()
                     st.toast("Reloadable resources released.")
         with help_column:
-            with st.popover("Help", width="stretch"):
+            with st.popover(
+                "Help",
+                icon=":material/help:",
+                type="tertiary",
+                width="content",
+                key="versevad_header_icon__help",
+            ):
                 st.markdown("**How to use VerseVAD**")
                 st.caption(
                     "Choose a workspace, add or select text, configure evidence, "

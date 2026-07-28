@@ -80,11 +80,13 @@ or deliberately update the software.
 
 ## Appearance
 
-The global header provides **Light**, **Dark**, and **System** appearance modes.
-System follows the browser or operating-system preference. VerseVAD saves this
-application-level preference locally under ignored private runtime data. It is
-not stored in a project, recorded as an analysis setting, or used to calculate
-or export a result. Exported charts remain publication-light.
+The global header uses three compact circular controls: the sun/moon/automatic
+appearance icon, a settings gear, and a help icon. Open the appearance control
+to choose **Light**, **Dark**, or **System**. System follows the browser or
+operating-system preference. VerseVAD saves this application-level preference
+locally under ignored private runtime data. It is not stored in a project,
+recorded as an analysis setting, or used to calculate or export a result.
+Exported charts remain publication-light.
 
 ## Analyze a poem
 
@@ -148,14 +150,14 @@ because a control reran the page.
 
 Choose a one-text **Report section** from the dropdown. All large vertical
 sections begin collapsed and can be opened independently, so several may remain
-open at once. Each expanded report section ends with a compact upward-arrow
-control in its bottom-right corner, so it can be collapsed without returning to
-its heading. The two large front-page option panels use the same icon control.
-Hovering or focusing the icon identifies the section it will collapse. Use
-Streamlit's arrow control at the top edge of the left sidebar to hide or restore
-it; the main workspace automatically expands into the freed space or resizes
-when the sidebar returns. The controls and responsive layout work the same way
-on supported Windows and macOS browsers.
+open at once. Each expanded report section ends with a compact, centered
+upward-arrow control that closes the section immediately in the browser without
+rerunning the analysis page. The two large front-page option panels use the same
+icon control. Hovering or focusing the icon identifies the section it will
+collapse. Use Streamlit's arrow control at the top edge of the left sidebar to
+hide or restore it; the main workspace automatically expands into the freed
+space or resizes when the sidebar returns. The controls and responsive layout
+work the same way on supported Windows and macOS browsers.
 
 Within **Affective Evidence > VAD**, **Dispersion of Matched Ratings** is a
 separate section immediately after **What Valence, Arousal, and Dominance
@@ -168,6 +170,12 @@ plus a rule-adjusted compound score from -1 to +1. The conventional +/-0.05
 threshold label is a polarity aid, not a declaration of the poem's emotion.
 VADER was designed for social-media sentiment and can misread poetic ambiguity,
 irony, persona, quotation, and historical usage.
+
+The interface shows a fixed-height **Sentence-Level VADER Scores** table with
+each model-segmented sentence's text, source lines, positive/neutral/negative
+proportions, compound score, and threshold label. VADER scores the complete
+preserved text directly for the document compound; the sentence compounds are
+diagnostic evidence and are not averaged to create the document value.
 
 **Lexical Trajectory** plots token-weighted mean valence, arousal, and dominance
 for each physical line. When Concreteness is enabled, its source 1-5 line mean
