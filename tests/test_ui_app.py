@@ -388,7 +388,10 @@ def test_lexicon_explorer_offers_printable_word_report() -> None:
     )
     query.input("bright")
     _button(app, "Search installed lexicons").click()
-    app.run(timeout=60)
+    # The private cloud repository intentionally bundles every licensed
+    # dataset, so a completely cold Windows test process can spend longer than
+    # one minute loading all Lexicon Explorer sources for the first query.
+    app.run(timeout=180)
 
     assert not app.exception
     assert "Rule-Based Sentiment and Readability Evidence" in [
