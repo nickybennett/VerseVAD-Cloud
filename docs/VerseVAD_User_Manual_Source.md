@@ -39,10 +39,14 @@ slightly within a long section, but the active section remains stable.
 
 The one-text **Report section** control is a dropdown. All large vertical
 sections begin collapsed and can be opened independently, so multiple sections
-may remain expanded. Streamlit's arrow at the top edge of the left sidebar
-hides or restores the sidebar; the main workspace automatically uses the freed
-width or resizes when the sidebar returns. This behavior is shared by supported
-Windows and macOS browsers.
+may remain expanded. Each expanded report section ends with a compact
+upward-arrow control in its bottom-right corner, so the section can be collapsed
+without returning to its heading. The Additional Optional Models and Analysis
+Configuration panels use the same icon control; hovering or focusing it
+identifies the section it will collapse. Streamlit's arrow at the top edge of
+the left sidebar hides or restores the sidebar; the main workspace automatically
+uses the freed width or resizes when the sidebar returns. This behavior is
+shared by supported Windows and macOS browsers.
 
 All interactive results tables keep their header row visible during vertical
 scrolling and pin the leftmost data column during horizontal scrolling. The

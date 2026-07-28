@@ -86,6 +86,9 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert 'button[data-testid="stExpandSidebarButton"]' in sheet
         assert '[data-testid="stSidebar"] [data-testid="stAlert"] *' in sheet
         assert '[data-testid="stSidebar"] p' in sheet
+        assert '[class*="st-key-collapse_control__"]' in sheet
+        assert '[data-testid="stIconMaterial"]' in sheet
+        assert "width: 2.25rem" in sheet
         assert '[data-testid="stMetricValue"] > div' in sheet
         assert "container-type: inline-size" in sheet
         assert "font-size: clamp(1rem, 8cqi, 2.25rem)" in sheet

@@ -148,10 +148,14 @@ because a control reran the page.
 
 Choose a one-text **Report section** from the dropdown. All large vertical
 sections begin collapsed and can be opened independently, so several may remain
-open at once. Use Streamlit's arrow control at the top edge of the left sidebar
-to hide or restore it; the main workspace automatically expands into the freed
-space or resizes when the sidebar returns. The control and responsive layout
-work the same way on supported Windows and macOS browsers.
+open at once. Each expanded report section ends with a compact upward-arrow
+control in its bottom-right corner, so it can be collapsed without returning to
+its heading. The two large front-page option panels use the same icon control.
+Hovering or focusing the icon identifies the section it will collapse. Use
+Streamlit's arrow control at the top edge of the left sidebar to hide or restore
+it; the main workspace automatically expands into the freed space or resizes
+when the sidebar returns. The controls and responsive layout work the same way
+on supported Windows and macOS browsers.
 
 Within **Affective Evidence > VAD**, **Dispersion of Matched Ratings** is a
 separate section immediately after **What Valence, Arousal, and Dominance

@@ -8,6 +8,7 @@ import importlib
 import os
 import sys
 import zipfile
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
@@ -327,14 +328,46 @@ def _stateful_expander(label: str, *, state_key: str):
 
 
 def _render_bottom_collapse_button(label: str, *, state_key: str) -> None:
-    if st.button(
+    control = st.container(
+        key=f"collapse_control__{state_key}",
+        horizontal=True,
+        horizontal_alignment="right",
+        vertical_alignment="center",
+        gap="small",
+    )
+    if control.button(
         f"Collapse {label}",
         key=f"{state_key}_bottom_collapse",
-        width="stretch",
+        help=f"Collapse {label}",
+        type="tertiary",
+        icon=":material/keyboard_arrow_up:",
+        width="content",
     ):
         epoch_key = f"{state_key}_collapse_epoch"
         st.session_state[epoch_key] = int(st.session_state.get(epoch_key, 0)) + 1
         st.rerun()
+
+
+def _bottom_collapsible_expander(
+    label: str,
+    *,
+    state_key: str,
+    collapse_label: str,
+):
+    """Create a report expander with a compact collapse action at its end."""
+
+    expander = _stateful_expander(label, state_key=state_key)
+
+    @contextmanager
+    def _contents():
+        with expander:
+            yield
+            _render_bottom_collapse_button(
+                collapse_label,
+                state_key=state_key,
+            )
+
+    return _contents()
 
 
 def _queue_pronunciation_resolutions(
@@ -2481,67 +2514,109 @@ if workspace_page in {"Single Poem", "Other Text"}:
         return f"{label} · {'Complete' if available else 'Not selected'}"
 
     with affective_tab:
-        vad_tab = st.expander(
+        vad_tab = _bottom_collapsible_expander(
             _section_label("VAD", bool(workspace.results)),
+            state_key=f"{report_state_key}_vad",
+            collapse_label="VAD",
         )
-        emotion_tab = st.expander(
+        emotion_tab = _bottom_collapsible_expander(
             _section_label(
                 "Emotion Association, Intensity & Sentiment",
                 workspace.vader_sentiment is not None,
             ),
+            state_key=f"{report_state_key}_emotion",
+            collapse_label="Emotion Association, Intensity & Sentiment",
         )
-        trajectory_tab = st.expander(
+        trajectory_tab = _bottom_collapsible_expander(
             _section_label(
                 "Lexical Trajectory",
                 any(result.vad_summary is not None for result in workspace.results),
             ),
+            state_key=f"{report_state_key}_lexical_trajectory",
+            collapse_label="Lexical Trajectory",
         )
-        poetry_id_tab = st.expander(
+        poetry_id_tab = _bottom_collapsible_expander(
             _section_label("PoetryID", workspace.poetry_id is not None),
+            state_key=f"{report_state_key}_poetry_id",
+            collapse_label="PoetryID",
         )
     with lexical_tab:
-        concreteness_tab = st.expander(
+        concreteness_tab = _bottom_collapsible_expander(
             _section_label("Concreteness", workspace.concreteness is not None),
+            state_key=f"{report_state_key}_concreteness",
+            collapse_label="Concreteness",
         )
-        frequency_tab = st.expander(
+        frequency_tab = _bottom_collapsible_expander(
             _section_label("Frequency & Rarity", workspace.frequency is not None),
+            state_key=f"{report_state_key}_frequency",
+            collapse_label="Frequency & Rarity",
         )
-        aoa_tab = st.expander(
+        aoa_tab = _bottom_collapsible_expander(
             _section_label(
                 "Acquisition & Readability",
                 workspace.readability is not None,
             ),
+            state_key=f"{report_state_key}_acquisition",
+            collapse_label="Acquisition & Readability",
         )
     with sound_tab:
-        pronunciation_tab = st.expander(
-            _section_label("Pronunciation, Syllables & Stress", workspace.pronunciation is not None),
+        pronunciation_tab = _bottom_collapsible_expander(
+            _section_label(
+                "Pronunciation, Syllables & Stress",
+                workspace.pronunciation is not None,
+            ),
+            state_key=f"{report_state_key}_pronunciation",
+            collapse_label="Pronunciation, Syllables & Stress",
         )
-        meter_tab = st.expander(
+        meter_tab = _bottom_collapsible_expander(
             _section_label("Meter & Rhythm", workspace.meter is not None),
+            state_key=f"{report_state_key}_meter",
+            collapse_label="Meter & Rhythm",
         )
-        phonology_tab = st.expander(
+        phonology_tab = _bottom_collapsible_expander(
             _section_label("Rhyme & Recurring Sound", workspace.phonology is not None),
+            state_key=f"{report_state_key}_phonology",
+            collapse_label="Rhyme & Recurring Sound",
         )
-        inherited_form_tab = st.expander(
+        inherited_form_tab = _bottom_collapsible_expander(
             _section_label(
                 "Inherited Form Analysis",
                 workspace.inherited_form is not None,
             ),
+            state_key=f"{report_state_key}_inherited_form",
+            collapse_label="Inherited Form Analysis",
         )
     with structure_tab:
-        language_tab = st.expander(
+        language_tab = _bottom_collapsible_expander(
             _section_label("Language Profile", workspace.poem_document is not None),
+            state_key=f"{report_state_key}_language",
+            collapse_label="Language Profile",
         )
-        lexical_style_tab = st.expander(
-            _section_label("Lexical & Structural Measures", workspace.lexical_style is not None),
+        lexical_style_tab = _bottom_collapsible_expander(
+            _section_label(
+                "Lexical & Structural Measures",
+                workspace.lexical_style is not None,
+            ),
+            state_key=f"{report_state_key}_lexical_structure",
+            collapse_label="Lexical & Structural Measures",
         )
     with evidence_diagnostics_tab:
-        evidence_tab = st.expander(
+        evidence_tab = _bottom_collapsible_expander(
             "Token Evidence, Coverage & Diagnostics · Complete",
+            state_key=f"{report_state_key}_evidence",
+            collapse_label="Token Evidence, Coverage & Diagnostics",
         )
     with export_help_tab:
-        download_tab = st.expander("Export Report & Data")
-        help_tab = st.expander("Methodology & How to Read")
+        download_tab = _bottom_collapsible_expander(
+            "Export Report & Data",
+            state_key=f"{report_state_key}_exports",
+            collapse_label="Export Report & Data",
+        )
+        help_tab = _bottom_collapsible_expander(
+            "Methodology & How to Read",
+            state_key=f"{report_state_key}_help",
+            collapse_label="Methodology & How to Read",
+        )
 
     with trajectory_tab:
         vad_sources = [

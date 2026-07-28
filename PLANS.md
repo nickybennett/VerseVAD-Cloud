@@ -12,6 +12,15 @@
   session-only.
 - [x] Add deployment, configuration, and session-isolation regression tests.
 
+## Completed compact bottom-collapse controls
+
+- [x] Replace the full-width front-page collapse actions with accessible,
+  right-aligned upward-arrow icon controls.
+- [x] Add the same bottom action to every large one-text report expander while
+  retaining independent expansion and default-collapsed behavior.
+- [x] Preserve the selected report family and use stable per-workspace section
+  state when a bottom icon forces its section closed.
+
 ## Completed responsive metric-result typography
 
 - [x] Scale metric-result text with the available card width while preserving

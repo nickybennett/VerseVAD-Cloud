@@ -405,6 +405,44 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       fill: currentColor !important;
       stroke: currentColor !important;
     }}
+    [class*="st-key-collapse_control__"] {{
+      margin-top: var(--space-2);
+      width: 100%;
+    }}
+    [class*="st-key-collapse_control__"] [data-testid="stHorizontalBlock"] {{
+      justify-content: flex-end !important;
+      width: 100%;
+    }}
+    [class*="st-key-collapse_control__"] [data-testid="stButton"] {{
+      flex: 0 0 auto !important;
+      margin-left: auto;
+      width: auto !important;
+    }}
+    [class*="st-key-collapse_control__"] [data-testid="stButton"] button {{
+      align-items: center;
+      border-radius: 999px !important;
+      display: inline-flex;
+      height: 2.25rem;
+      justify-content: center;
+      min-height: 2.25rem;
+      min-width: 2.25rem;
+      padding: 0 !important;
+      width: 2.25rem !important;
+    }}
+    [class*="st-key-collapse_control__"]
+      [data-testid="stButton"] button p {{
+      font-size: 0 !important;
+      height: 0;
+      line-height: 0 !important;
+      margin: 0 !important;
+      overflow: hidden;
+      width: 0;
+    }}
+    [class*="st-key-collapse_control__"]
+      [data-testid="stButton"] [data-testid="stIconMaterial"] {{
+      font-size: 1.2rem !important;
+      margin: 0 !important;
+    }}
     [data-testid="stButton"] button:disabled,
     [data-testid="stFormSubmitButton"] button:disabled,
     [data-testid="stDownloadButton"] button:disabled,

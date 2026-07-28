@@ -502,6 +502,24 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
     }
     assert report_expanders.keys() == collapsible_report_sections
     assert all(not expander.proto.expanded for expander in report_expanders.values())
+    assert {
+        "Collapse VAD",
+        "Collapse Emotion Association, Intensity & Sentiment",
+        "Collapse Lexical Trajectory",
+        "Collapse PoetryID",
+        "Collapse Concreteness",
+        "Collapse Frequency & Rarity",
+        "Collapse Acquisition & Readability",
+        "Collapse Pronunciation, Syllables & Stress",
+        "Collapse Meter & Rhythm",
+        "Collapse Rhyme & Recurring Sound",
+        "Collapse Inherited Form Analysis",
+        "Collapse Language Profile",
+        "Collapse Lexical & Structural Measures",
+        "Collapse Token Evidence, Coverage & Diagnostics",
+        "Collapse Export Report & Data",
+        "Collapse Methodology & How to Read",
+    } <= {button.label for button in app.button}
     assert ("Lexicons analyzed", "3") in [
         (metric.label, metric.value) for metric in app.metric
     ]
@@ -675,6 +693,21 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     assert "Download poetry_id_summary.csv" in labels
     assert "Download poetry_id_report.docx" in labels
     assert not any(label.endswith(".json") for label in labels)
+    _button(app, "Collapse PoetryID").click()
+    app.run(timeout=60)
+    assert not app.exception
+    assert app.session_state[
+        "single_poem_report_section_poetry_id_collapse_epoch"
+    ] == 1
+    assert _section_navigation(app, "Report section").value == (
+        "Affective Evidence"
+    )
+    poetry_id_panel = next(
+        panel
+        for panel in app.expander
+        if panel.label.startswith("PoetryID")
+    )
+    assert not poetry_id_panel.proto.expanded
 
 
 def test_interface_runs_optional_lexical_style_without_a_resource() -> None:
