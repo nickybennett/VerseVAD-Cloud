@@ -140,8 +140,8 @@ def render_versemap(
                     "Poet",
                     "Title",
                     "Poem count",
-                    alt.Tooltip("Component 1:Q", format=".4f"),
-                    alt.Tooltip("Component 2:Q", format=".4f"),
+                    alt.Tooltip("Component 1:Q", format=".3f"),
+                    alt.Tooltip("Component 2:Q", format=".3f"),
                 ],
             )
             .properties(height=560)
@@ -171,7 +171,7 @@ def render_versemap(
                         ]
                     ),
                     column_config={
-                        "Distance": st.column_config.NumberColumn(format="%.4f"),
+                        "Distance": st.column_config.NumberColumn(format="%.3f"),
                         "Shared Evidence Weight": st.column_config.ProgressColumn(
                             min_value=0.0, max_value=1.0, format="%.1%%"
                         ),
@@ -196,7 +196,7 @@ def render_versemap(
                     ]
                 ),
                 column_config={
-                    "Distance": st.column_config.NumberColumn(format="%.4f"),
+                    "Distance": st.column_config.NumberColumn(format="%.3f"),
                     "Shared Evidence Weight": st.column_config.ProgressColumn(
                         min_value=0.0, max_value=1.0, format="%.1%%"
                     ),
@@ -228,9 +228,9 @@ def render_versemap(
                 ]
             ),
             column_config={
-                "Poem Value": st.column_config.NumberColumn(format="%.4f"),
-                "Reference Mean": st.column_config.NumberColumn(format="%.4f"),
-                "Reference SD": st.column_config.NumberColumn(format="%.4f"),
+                "Poem Value": st.column_config.NumberColumn(format="%.3f"),
+                "Reference Mean": st.column_config.NumberColumn(format="%.3f"),
+                "Reference SD": st.column_config.NumberColumn(format="%.3f"),
                 "Z Score": st.column_config.NumberColumn(format="%.3f"),
                 "Approx. Percentile": st.column_config.ProgressColumn(
                     min_value=0.0, max_value=1.0, format="%.1%%"

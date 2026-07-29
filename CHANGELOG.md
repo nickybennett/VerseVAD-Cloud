@@ -6,6 +6,16 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Bundled the checksum-pinned Lancaster Sensorimotor Norms CSV in the private
+  cloud repository so hosted sensorimotor analysis works without user setup;
+  the public/local repository continues to treat it as user-supplied data.
+- Reorganized **Compare Poems** to follow the Single Poem report map, with
+  familiar default-collapsed subsections, compact source/scale-specific
+  tables, automatically fitted side-by-side dot plots, and optional
+  zero-centered B-minus-A difference bars.
+- Standardized all front-end numeric presentation at no more than three
+  decimal places across workspaces, result tables, mixed-value cells, chart
+  axes, and tooltips while leaving CSV and Word export precision unchanged.
 - Added a session-only **Compare Poems** workspace that runs two poems under
   one shared configuration and reports source-specific values, within-poem
   dispersion, cumulative and length-normalized lexical loads, coverage,

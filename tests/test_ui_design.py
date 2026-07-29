@@ -18,6 +18,10 @@ from versevad.ui.design import (
     render_dataframe,
     stylesheet_for,
 )
+from versevad.ui.dataframes import (
+    heterogeneous_display_value,
+    rounded_display_data,
+)
 from versevad.ui.preferences import (
     AppearanceMode,
     UiPreferences,
@@ -66,14 +70,38 @@ def test_dataframe_renderer_pins_leftmost_data_column(monkeypatch) -> None:
         captured.update(kwargs)
 
     monkeypatch.setattr(design_services.st, "dataframe", fake_dataframe)
-    frame = pd.DataFrame({"Meaning": ["Valence"], "Value": [0.5]})
+    frame = pd.DataFrame(
+        {"Meaning": ["Valence"], "Value": [0.5123456789]}
+    )
 
     render_dataframe(frame, hide_index=True, width="stretch")
 
-    assert captured["data"] is frame
+    assert captured["data"] is not frame
+    assert captured["data"]["Value"].tolist() == [0.512]
+    assert frame["Value"].tolist() == [0.5123456789]
     assert captured["hide_index"] is True
     assert captured["width"] == "stretch"
     assert captured["column_config"]["Meaning"]["pinned"] is True
+
+
+def test_display_rounding_handles_stylers_and_mixed_values_without_mutation() -> None:
+    frame = pd.DataFrame(
+        {
+            "Metric": ["Mean", "Label"],
+            "Value": [0.123456789, "accentual-syllabic"],
+        }
+    )
+    styled = frame.style.format({"Value": lambda value: str(value)})
+
+    rounded = rounded_display_data(styled)
+
+    assert rounded is not styled
+    assert rounded.data["Value"].tolist() == [0.123, "accentual-syllabic"]
+    assert styled.data["Value"].tolist() == [0.123456789, "accentual-syllabic"]
+    assert heterogeneous_display_value(4.3438912) == "4.344"
+    assert heterogeneous_display_value(
+        {"distance": 0.4356789}
+    ) == '{"distance": 0.436}'
 
 
 def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:

@@ -134,6 +134,11 @@ declare a poem's imagery, embodiment, intention, or reader response. The same
 engine and CSV/Word audit artifacts are available to one-text, corpus, and
 Lexicon Explorer workflows.
 
+The private cloud deployment repository bundles the checksum-pinned Lancaster
+CSV under `resources/Lancaster_Sensorimotor_Norms/`, so hosted users do not
+need to install that resource. The public/local repository continues to omit
+the dataset and documents its user-supplied installation separately.
+
 **Compare Poems** provides a session-only contrastive workspace for two texts
 analyzed under one shared configuration. It places source-specific means,
 within-poem population standard deviations, cumulative and per-100 lexical
@@ -142,7 +147,13 @@ side by side when their modules are enabled. Every numeric difference is
 reported as Poem B minus Poem A with its source scale, denominator, and
 coverage. The CSV and narrative Word exports preserve missing values and do
 not present differences as significance tests, rankings, or substitutes for
-close reading.
+close reading. Its report navigation now mirrors Single Poem, with familiar
+default-collapsed subsections, automatically fitted side-by-side dot plots,
+and optional zero-centered B-minus-A difference bars.
+
+Across every workspace, interface tables, chart tooltips, and numeric result
+displays use at most three decimal places. This is a presentation rule only:
+CSV and Word exports retain the underlying analytical precision.
 
 Stage 15 adds **Inherited Form Analysis** to Sound & Form. Registry version
 2.0 contains 169 source-documented profiles spanning fixed forms, stanza

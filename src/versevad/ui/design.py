@@ -12,6 +12,7 @@ from streamlit.delta_generator import DeltaGenerator
 
 from versevad import __version__
 from versevad.deployment import cloud_deployment_enabled
+from versevad.ui.dataframes import rounded_display_data
 from versevad.ui.preferences import (
     AppearanceMode,
     UiPreferences,
@@ -267,7 +268,7 @@ def publication_chart(chart: alt.Chart) -> alt.Chart:
     """Apply a stable light publication treatment independent of UI appearance."""
 
     return (
-        chart.configure(background="#fffdf9")
+        chart.configure(background="#fffdf9", numberFormat=".3~f")
         .configure_view(stroke="#d9d3c8")
         .configure_axis(
             domainColor="#a9a197",
@@ -1452,9 +1453,14 @@ def render_section_intro(title: str, purpose: str, *, status: str = "Complete") 
 
 
 def render_dataframe(data: Any, **kwargs: Any) -> Any:
-    """Render a scrollable table with its first data column pinned."""
+    """Render a pinned table with interface-only three-decimal rounding."""
 
-    tabular_data = data if hasattr(data, "columns") else getattr(data, "data", None)
+    display_data = rounded_display_data(data)
+    tabular_data = (
+        display_data
+        if hasattr(display_data, "columns")
+        else getattr(display_data, "data", None)
+    )
     columns = getattr(tabular_data, "columns", ())
     if len(columns):
         first_column = columns[0]
@@ -1468,7 +1474,7 @@ def render_dataframe(data: Any, **kwargs: Any) -> Any:
         else:
             column_config[first_column] = st.column_config.Column(pinned=True)
         kwargs["column_config"] = column_config
-    return st.dataframe(data, **kwargs)
+    return st.dataframe(display_data, **kwargs)
 
 
 def render_stateful_section_navigation(

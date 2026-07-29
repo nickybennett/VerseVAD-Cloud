@@ -18,6 +18,7 @@
 # Checksum-pinned research data must remain byte-identical
 /source_lexicons/** -text
 /resources/pronunciation/** -text
+/resources/Lancaster_Sensorimotor_Norms/** -text
 
 # Preserve curated reference-poem bytes exactly on Windows and macOS.
 resources/VerseMap_Reference_Corpus/** -text

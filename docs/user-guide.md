@@ -144,19 +144,31 @@ method used.
    policy, resource set, and module configuration is applied to both poems.
 5. Click **Analyze Both Poems**, then choose one shared all-matched or
    stopword-excluded view and token or type weighting.
-6. Read each source/scale separately. **B minus A** is a descriptive
+6. Use the same report map as Single Poem: **Overview**, **Affective
+   Evidence**, **Lexical Character, Imagery & Embodiment**, **Sound & Form**,
+   **Structure**, **VerseMap**, **Evidence & Diagnostics**, and **Export &
+   Help**. Each analytical subsection starts collapsed.
+7. Within a subsection, select one compatible source/scale group. The
+   side-by-side dot plot automatically fits its axis around the observed
+   values; switch to **B − A Difference** for zero-centered diverging bars.
+8. Read each source/scale separately. **B minus A** is a descriptive
    difference: positive means B has the higher recorded value and negative
    means it has the lower value. It is not a significance test or ranking.
-7. Check each poem's denominator and coverage before interpreting its
+9. Check each poem's denominator and coverage before interpreting its
    difference. Missing evidence remains missing rather than being assigned a
    neutral value.
-8. Export either the complete comparison CSV or the narrative `.docx` report.
+10. Export either the complete comparison CSV or the narrative `.docx` report.
 
 Population standard deviation in this workspace describes dispersion among the
 matched normative ratings within each poem; it is not uncertainty in the mean.
 Raw cumulative lexical load preserves repetition and length under token
 weighting. Its per-100-observation counterpart is the appropriate
 length-normalized comparison prompt.
+
+VerseVAD rounds interface-only numerical displays to at most three decimal
+places throughout all workspaces. This includes tables and chart tooltips.
+Exports retain the underlying calculated precision so the downloadable
+research record is not rounded by the presentation layer.
 
 ## Read the result without drowning in CSVs
 

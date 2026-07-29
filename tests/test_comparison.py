@@ -15,7 +15,12 @@ from versevad.exports.comparison import (
 )
 from versevad.phase2_validation import phase2_synthetic_vad_lexicon
 from versevad.preprocessing import PreparedPoemPreprocessor, create_text_document
-from versevad.ui.comparison import _arrow_safe_display_frame
+from versevad.ui.comparison import (
+    _REPORT_SECTIONS,
+    _arrow_safe_display_frame,
+    _chart_domain,
+    _report_location,
+)
 
 
 def _workspace(preprocessor, *, identifier: str, title: str, text: str):
@@ -144,7 +149,7 @@ def test_comparison_display_values_are_arrow_safe() -> None:
             {
                 "Poem A": [0.5, "accentual-syllabic", None],
                 "Poem B": [0.6, "free verse", None],
-                "B minus A": [0.1, None, None],
+                "B − A Difference": [0.1, None, None],
             }
         )
     )
@@ -155,3 +160,36 @@ def test_comparison_display_values_are_arrow_safe() -> None:
         "—",
     ]
     assert pa.Table.from_pandas(display).num_rows == 3
+
+
+def test_comparison_report_map_matches_single_poem_structure() -> None:
+    assert _REPORT_SECTIONS == (
+        "Overview",
+        "Affective Evidence",
+        "Lexical Character, Imagery & Embodiment",
+        "Sound & Form",
+        "Structure",
+        "VerseMap",
+        "Evidence & Diagnostics",
+        "Export & Help",
+    )
+    assert _report_location("vad.source.valence.mean") == (
+        "Affective Evidence",
+        "VAD Profile",
+    )
+    assert _report_location("sensorimotor.visual.mean") == (
+        "Lexical Character, Imagery & Embodiment",
+        "Sensorimotor Imagery & Embodiment",
+    )
+    assert _report_location("meter.whole_poem_mean_fit") == (
+        "Sound & Form",
+        "Candidate Meter & Rhythmic Regularity",
+    )
+
+
+def test_comparison_value_chart_domain_is_fitted_around_observed_values() -> None:
+    domain = _chart_domain([4.2, 4.4])
+
+    assert domain[0] > 0
+    assert domain[0] < 4.2
+    assert domain[1] > 4.4

@@ -106,7 +106,7 @@ def _render_vad_scale(result: PoetryIDAnalysisResult, assignment) -> None:
                 "Dimension:N",
                 sort=["Valence", "Arousal", "Dominance"],
             ),
-            tooltip=["Dimension", alt.Tooltip("Score:Q", format=".4f"), "Level"],
+            tooltip=["Dimension", alt.Tooltip("Score:Q", format=".3f"), "Level"],
         )
     )
     boundaries = (
@@ -131,7 +131,7 @@ def _render_vad_scale(result: PoetryIDAnalysisResult, assignment) -> None:
             tooltip=[
                 "Dimension",
                 "Boundary kind",
-                alt.Tooltip("Boundary:Q", format=".4f"),
+                alt.Tooltip("Boundary:Q", format=".3f"),
             ],
         )
     )
@@ -306,7 +306,7 @@ def render_poetry_id(result: PoetryIDAnalysisResult | None) -> None:
             ]
         ).style.format(
             {
-                "Distance": "{:.4f}",
+                "Distance": "{:.3f}",
                 "Relative affinity": "{:.2%}",
             }
         ),
@@ -331,7 +331,7 @@ def render_poetry_id(result: PoetryIDAnalysisResult | None) -> None:
                 ]
             ).style.format(
                 {
-                    "Distance": "{:.4f}",
+                    "Distance": "{:.3f}",
                     "Relative affinity": "{:.2%}",
                 }
             ),

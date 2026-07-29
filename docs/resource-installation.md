@@ -13,6 +13,11 @@ Acquisition, pronunciation, meter, and rhyme/sound controls are disabled when
 their dependencies are unavailable.
 Resource-free lexical-style analysis remains available.
 
+> **Private cloud build:** the checksum-pinned Lancaster Sensorimotor Norms
+> CSV is bundled in `resources/Lancaster_Sensorimotor_Norms/`, so hosted users
+> do not need to supply it. The installation directions below continue to
+> apply to the public/local repository.
+
 VerseMap also requires its tracked reference model plus NRC VAD v2.1, NRC
 Emotion v0.92, concreteness, SUBTLEX-US, and AoA resources. Its control remains
 disabled until those sources are available. VerseMap does not require CMUdict

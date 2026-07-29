@@ -215,6 +215,7 @@ from versevad.ui.poetry_id import render_poetry_id
 from versevad.ui.inherited_form import render_inherited_form
 from versevad.ui.versemap import render_versemap
 from versevad.ui.sensorimotor import render_sensorimotor
+from versevad.ui.dataframes import rounded_display_data
 from versevad.versemap import VerseMapConfiguration
 from versevad.ui.stopwords import render_stopword_settings
 from versevad.ui.design import (
@@ -3508,7 +3509,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 },
             )
             st.bar_chart(
-                pos_frame.set_index("Part of speech")[["Share of lexical tokens"]],
+                rounded_display_data(
+                    pos_frame.set_index("Part of speech")[
+                        ["Share of lexical tokens"]
+                    ]
+                ),
                 height=320,
             )
             render_dataframe(
@@ -3731,7 +3736,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
             if not length_frame.empty:
                 st.bar_chart(
-                    length_frame.set_index("Alphabetic characters")[["Token count"]],
+                    rounded_display_data(
+                        length_frame.set_index("Alphabetic characters")[
+                            ["Token count"]
+                        ]
+                    ),
                     height=260,
                 )
                 render_dataframe(
@@ -3973,9 +3982,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     ]
                 )
                 st.line_chart(
-                    line_frame.set_index("Line")[
-                        ["Mean normative concreteness"]
-                    ],
+                    rounded_display_data(
+                        line_frame.set_index("Line")[
+                            ["Mean normative concreteness"]
+                        ]
+                    ),
                     height=280,
                 )
                 render_dataframe(
@@ -5405,9 +5416,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         with st.expander("Rhythmic trajectory"):
                             trajectory_frame = pd.DataFrame(trajectory_rows)
                             st.line_chart(
-                                trajectory_frame.set_index("Line")[
-                                    ["Realized score"]
-                                ],
+                                rounded_display_data(
+                                    trajectory_frame.set_index("Line")[
+                                        ["Realized score"]
+                                    ]
+                                ),
                                 height=240,
                             )
                             render_dataframe(
@@ -6456,7 +6469,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 },
             )
             st.bar_chart(
-                association_frame.set_index("Category")[["Rate per lexical token"]],
+                rounded_display_data(
+                    association_frame.set_index("Category")[
+                        ["Rate per lexical token"]
+                    ]
+                ),
                 height=300,
             )
             render_dataframe(
@@ -6488,7 +6505,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 },
             )
             st.bar_chart(
-                sentiment_frame.set_index("Sentiment")[["Rate per lexical token"]],
+                rounded_display_data(
+                    sentiment_frame.set_index("Sentiment")[
+                        ["Rate per lexical token"]
+                    ]
+                ),
                 height=220,
             )
             render_dataframe(

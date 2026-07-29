@@ -55,7 +55,10 @@ from versevad.poetry_id import (
     VadLevel,
 )
 from versevad.inherited_form import InheritedFormConfiguration
-from versevad.ui.dataframes import heterogeneous_display_value
+from versevad.ui.dataframes import (
+    heterogeneous_display_value,
+    rounded_display_data,
+)
 from versevad.ui.design import (
     MODULE_PRESETS,
     preset_widget_state,
@@ -309,8 +312,8 @@ def _render_versemap_tab(
                     "Poet",
                     "Title",
                     "Poem count",
-                    alt.Tooltip("Component 1:Q", format=".4f"),
-                    alt.Tooltip("Component 2:Q", format=".4f"),
+                    alt.Tooltip("Component 1:Q", format=".3f"),
+                    alt.Tooltip("Component 2:Q", format=".3f"),
                 ],
             )
             .properties(height=560)
@@ -329,7 +332,7 @@ def _render_versemap_tab(
             pd.DataFrame(project_neighbor_rows),
             column_config={
                 "Mean Work-to-Centroid Distance": (
-                    st.column_config.NumberColumn(format="%.4f")
+                    st.column_config.NumberColumn(format="%.3f")
                 )
             },
         )
@@ -341,7 +344,7 @@ def _render_versemap_tab(
         render_dataframe(
             pd.DataFrame(nearest_rows),
             column_config={
-                "Distance": st.column_config.NumberColumn(format="%.4f"),
+                "Distance": st.column_config.NumberColumn(format="%.3f"),
                 "Shared Evidence Weight": st.column_config.ProgressColumn(
                     min_value=0.0, max_value=1.0, format="%.1%%"
                 ),
@@ -881,7 +884,7 @@ def _render_profiles(metrics, total_works: int) -> None:
         value_name="Normalized mean",
     )
     st.bar_chart(
-        chart,
+        rounded_display_data(chart),
         x="Dimension",
         y="Normalized mean",
         color="Collection view",
@@ -947,8 +950,8 @@ def _render_corpus_modules(
                 ]
             ).style.format(
                 {
-                    "Equal-work mean": "{:.4f}",
-                    "Observation-weighted mean": "{:.4f}",
+                    "Equal-work mean": "{:.3f}",
+                    "Observation-weighted mean": "{:.3f}",
                 },
                 na_rep="—",
             ),
@@ -1029,7 +1032,9 @@ def _render_corpus_modules(
             if distribution_rows:
                 distribution_frame = pd.DataFrame(distribution_rows)
                 st.bar_chart(
-                    distribution_frame.set_index("Profile")[["Works"]],
+                    rounded_display_data(
+                        distribution_frame.set_index("Profile")[["Works"]]
+                    ),
                     height=260,
                 )
                 render_dataframe(
@@ -1103,7 +1108,7 @@ def _render_corpus_modules(
             if scatter_rows:
                 st.markdown("**Continuous work-level VAD positions**")
                 st.scatter_chart(
-                    pd.DataFrame(scatter_rows),
+                    rounded_display_data(pd.DataFrame(scatter_rows)),
                     x="Valence",
                     y="Arousal",
                     size="Dominance",
@@ -1131,8 +1136,8 @@ def _render_corpus_modules(
                 render_dataframe(
                     pd.DataFrame(comparison_rows).style.format(
                         {
-                            "Nearest distance": "{:.4f}",
-                            "Categorical distance": "{:.4f}",
+                            "Nearest distance": "{:.3f}",
+                            "Categorical distance": "{:.3f}",
                             "Valence": "{:.3f}",
                             "Arousal": "{:.3f}",
                             "Dominance": "{:.3f}",
@@ -2889,7 +2894,11 @@ def _render_part_of_speech_tab(
     ].copy()
     st.markdown("**All Works Combined**")
     st.bar_chart(
-        combined.set_index("Part of speech")[["Share of lexical tokens"]],
+        rounded_display_data(
+            combined.set_index("Part of speech")[
+                ["Share of lexical tokens"]
+            ]
+        ),
         height=320,
     )
     render_dataframe(

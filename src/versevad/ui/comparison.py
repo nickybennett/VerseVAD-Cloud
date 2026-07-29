@@ -55,12 +55,82 @@ _REPORT_SECTIONS = (
     "Overview",
     "Affective Evidence",
     "Lexical Character, Imagery & Embodiment",
-    "Cumulative Lexical Load",
-    "Structure & Sound",
-    "Comparative Context",
-    "Complete Evidence Table",
-    "Export & Interpretation",
+    "Sound & Form",
+    "Structure",
+    "VerseMap",
+    "Evidence & Diagnostics",
+    "Export & Help",
 )
+_PANEL_ORDER = {
+    "Affective Evidence": (
+        "VAD Profile",
+        "Emotion Association, Intensity & Sentiment",
+        "PoetryID",
+    ),
+    "Lexical Character, Imagery & Embodiment": (
+        "Concreteness",
+        "Sensorimotor Imagery & Embodiment",
+        "Frequency & Rarity",
+        "Acquisition & Readability",
+    ),
+    "Sound & Form": (
+        "Pronunciation, Syllables & Stress",
+        "Candidate Meter & Rhythmic Regularity",
+        "Rhyme & Recurring Sound",
+        "Inherited Form Analysis",
+    ),
+    "Structure": (
+        "Language Profile",
+        "Lexical & Structural Measures",
+    ),
+    "VerseMap": ("VerseMap Comparative Profile",),
+}
+_PANEL_NOTES = {
+    "VAD Profile": (
+        "Compare source-specific VAD means, within-poem lexical dispersion, "
+        "and cumulative lexical loads without merging lexicons."
+    ),
+    "Emotion Association, Intensity & Sentiment": (
+        "Compare NRC association/intensity evidence and VADER polarity under "
+        "their own definitions and denominators."
+    ),
+    "PoetryID": (
+        "Compare PoetryID candidates and distances as descriptive profile "
+        "evidence, not declarations of a poem's emotion or identity."
+    ),
+    "Concreteness": "Compare matched normative concreteness and its lexical load.",
+    "Sensorimotor Imagery & Embodiment": (
+        "Compare Lancaster perceptual-modality and action-effector evidence."
+    ),
+    "Frequency & Rarity": (
+        "Compare SUBTLEX-US Zipf frequency and the inverse rarity orientation."
+    ),
+    "Acquisition & Readability": (
+        "Compare normative AoA separately from prose-oriented readability formulas."
+    ),
+    "Pronunciation, Syllables & Stress": (
+        "Compare only pronunciation-supported document summaries; unresolved "
+        "words can reduce the available evidence."
+    ),
+    "Candidate Meter & Rhythmic Regularity": (
+        "Compare nearest configured metrical candidates and rhythmic evidence, "
+        "not definitive scansions."
+    ),
+    "Rhyme & Recurring Sound": (
+        "Compare pronunciation-supported rhyme and recurring-sound evidence."
+    ),
+    "Inherited Form Analysis": (
+        "Compare potential inherited-form matches, consistency, and evidence coverage."
+    ),
+    "Language Profile": "Compare model-assigned part-of-speech proportions.",
+    "Lexical & Structural Measures": (
+        "Compare lexical diversity, word length, and preserved line/stanza structure."
+    ),
+    "VerseMap Comparative Profile": (
+        "Compare the two Standard Profile 1.0 records; VerseMap itself retains "
+        "its fixed reference-corpus design."
+    ),
+}
 
 
 def _safe_filename(value: str) -> str:
@@ -91,6 +161,50 @@ def _apply_uploaded_text(side: str) -> None:
     st.session_state.pop(f"compare_{side}_upload_error", None)
 
 
+def _report_location(
+    metric_id: str,
+) -> tuple[str, str]:
+    prefix = metric_id.split(".", 1)[0]
+    if prefix == "vad":
+        return "Affective Evidence", "VAD Profile"
+    if prefix in {"emotion", "emotion_intensity", "vader"}:
+        return (
+            "Affective Evidence",
+            "Emotion Association, Intensity & Sentiment",
+        )
+    if prefix == "poetry_id":
+        return "Affective Evidence", "PoetryID"
+    if prefix == "concreteness":
+        return "Lexical Character, Imagery & Embodiment", "Concreteness"
+    if prefix == "sensorimotor":
+        return (
+            "Lexical Character, Imagery & Embodiment",
+            "Sensorimotor Imagery & Embodiment",
+        )
+    if prefix in {"frequency", "rarity"}:
+        return "Lexical Character, Imagery & Embodiment", "Frequency & Rarity"
+    if prefix in {"aoa", "readability"}:
+        return (
+            "Lexical Character, Imagery & Embodiment",
+            "Acquisition & Readability",
+        )
+    if prefix == "pronunciation":
+        return "Sound & Form", "Pronunciation, Syllables & Stress"
+    if prefix == "meter":
+        return "Sound & Form", "Candidate Meter & Rhythmic Regularity"
+    if prefix == "phonology":
+        return "Sound & Form", "Rhyme & Recurring Sound"
+    if prefix == "inherited_form":
+        return "Sound & Form", "Inherited Form Analysis"
+    if prefix == "pos":
+        return "Structure", "Language Profile"
+    if prefix == "lexical_style":
+        return "Structure", "Lexical & Structural Measures"
+    if prefix == "versemap":
+        return "VerseMap", "VerseMap Comparative Profile"
+    return "Evidence & Diagnostics", "Other Shared Evidence"
+
+
 def _comparison_frame(
     comparison: PoemComparison,
     *,
@@ -105,7 +219,7 @@ def _comparison_frame(
     data = pd.DataFrame([asdict(row) for row in rows])
     if data.empty:
         return data
-    return data.rename(
+    frame = data.rename(
         columns={
             "section": "Section",
             "source": "Source",
@@ -115,7 +229,7 @@ def _comparison_frame(
             "metric": "Metric",
             "value_a": "Poem A",
             "value_b": "Poem B",
-            "difference_b_minus_a": "B minus A",
+            "difference_b_minus_a": "B − A Difference",
             "absolute_difference": "Absolute Difference",
             "unit_or_scale": "Unit or Scale",
             "denominator_a": "Poem A Denominator",
@@ -125,6 +239,18 @@ def _comparison_frame(
             "note": "Interpretive Note",
         }
     )
+    locations = frame["Metric ID"].map(_report_location)
+    frame.insert(
+        0,
+        "Report Section",
+        [location[0] for location in locations],
+    )
+    frame.insert(
+        1,
+        "Report Panel",
+        [location[1] for location in locations],
+    )
+    return frame
 
 
 def _numeric(value: object) -> float | None:
@@ -149,34 +275,59 @@ def _arrow_safe_display_frame(frame: pd.DataFrame) -> pd.DataFrame:
     return display
 
 
-def _render_section_chart(
-    section_frame: pd.DataFrame,
-    *,
-    state_key: str,
-    title_a: str,
-    title_b: str,
-) -> None:
-    if section_frame.empty:
-        render_empty_state(
-            "No shared evidence is available in this section",
-            "Enable the relevant modules and analyze both poems again.",
-            "Return to Choose Shared Evidence and run the comparison again.",
-        )
-        return
-
-    numeric = section_frame.copy()
+def _numeric_chart_frame(panel_frame: pd.DataFrame) -> pd.DataFrame:
+    numeric = panel_frame.copy()
     numeric["Poem A Numeric"] = numeric["Poem A"].map(_numeric)
     numeric["Poem B Numeric"] = numeric["Poem B"].map(_numeric)
     numeric = numeric[
         numeric["Poem A Numeric"].notna() | numeric["Poem B Numeric"].notna()
     ]
-    if not numeric.empty:
-        numeric["Chart Group"] = (
-            numeric["Source"].fillna("")
-            + " · "
-            + numeric["Unit or Scale"].fillna("")
+    if numeric.empty:
+        return numeric
+    numeric["Chart Group"] = (
+        numeric["Source"].fillna("")
+        + " · "
+        + numeric["Unit or Scale"].fillna("")
+    )
+    duplicate_metrics = numeric["Metric"].duplicated(keep=False)
+    numeric["Chart Metric"] = numeric["Metric"]
+    numeric.loc[duplicate_metrics, "Chart Metric"] = (
+        numeric.loc[duplicate_metrics, "Metric"]
+        + " · "
+        + numeric.loc[duplicate_metrics, "Analysis View"]
+    )
+    return numeric
+
+
+def _chart_domain(values: list[float]) -> list[float]:
+    minimum = min(values)
+    maximum = max(values)
+    span = maximum - minimum
+    padding = (
+        span * 0.12
+        if span > 0
+        else max(abs(maximum) * 0.08, 0.05)
+    )
+    return [minimum - padding, maximum + padding]
+
+
+def _render_scale_aware_chart(
+    panel_frame: pd.DataFrame,
+    *,
+    state_key: str,
+    title_a: str,
+    title_b: str,
+) -> None:
+    numeric = _numeric_chart_frame(panel_frame)
+    if numeric.empty:
+        st.caption(
+            "This subsection contains categorical or unavailable evidence, so "
+            "its side-by-side table is more informative than a numeric chart."
         )
-        groups = tuple(dict.fromkeys(numeric["Chart Group"].tolist()))
+        return
+
+    groups = tuple(dict.fromkeys(numeric["Chart Group"].tolist()))
+    if len(groups) > 1:
         selected_group = st.selectbox(
             "Chart source and scale",
             options=groups,
@@ -187,67 +338,181 @@ def _render_section_chart(
                 "commensurate."
             ),
         )
-        chart_rows = numeric[numeric["Chart Group"] == selected_group].head(30)
+    else:
+        selected_group = groups[0]
+        st.caption(f"Chart scale: {selected_group}")
+
+    chart_rows = numeric[numeric["Chart Group"] == selected_group].head(16)
+    visualization = st.segmented_control(
+        "Visualization",
+        options=("Side-by-Side Values", "B − A Difference"),
+        default="Side-by-Side Values",
+        key=f"{state_key}_visualization",
+        help=(
+            "The values view uses an automatically fitted scale and has no zero "
+            "bar baseline. The difference view is centered on zero."
+        ),
+    )
+    if visualization == "B − A Difference":
+        differences = chart_rows[
+            chart_rows["Poem A Numeric"].notna()
+            & chart_rows["Poem B Numeric"].notna()
+        ].copy()
+        differences["Difference"] = (
+            differences["Poem B Numeric"]
+            - differences["Poem A Numeric"]
+        )
+        if differences.empty:
+            st.caption("No paired numeric values are available for this chart group.")
+            return
+        maximum = max(
+            float(differences["Difference"].abs().max()),
+            0.001,
+        )
+        domain = [-maximum * 1.12, maximum * 1.12]
+        zero_rule = (
+            alt.Chart(pd.DataFrame({"zero": [0.0]}))
+            .mark_rule(color="#777777", strokeWidth=1)
+            .encode(x=alt.X("zero:Q", scale=alt.Scale(domain=domain)))
+        )
+        bars = (
+            alt.Chart(differences)
+            .mark_bar(cornerRadiusEnd=3)
+            .encode(
+                y=alt.Y("Chart Metric:N", title=None, sort=None),
+                x=alt.X(
+                    "Difference:Q",
+                    title="B − A difference",
+                    scale=alt.Scale(domain=domain, nice=True),
+                ),
+                color=alt.condition(
+                    alt.datum.Difference >= 0,
+                    alt.value(PUBLICATION_CHART_COLORS[1]),
+                    alt.value(PUBLICATION_CHART_COLORS[0]),
+                ),
+                tooltip=[
+                    alt.Tooltip("Chart Metric:N", title="Metric"),
+                    alt.Tooltip("Difference:Q", title="B − A", format=".3f"),
+                    alt.Tooltip("Poem A Numeric:Q", title=title_a, format=".3f"),
+                    alt.Tooltip("Poem B Numeric:Q", title=title_b, format=".3f"),
+                ],
+            )
+        )
+        chart = (zero_rule + bars).properties(
+            height=max(220, min(600, len(differences) * 34))
+        )
+    else:
         long_rows = []
+        connector_rows = []
         for _, row in chart_rows.iterrows():
-            if pd.notna(row["Poem A Numeric"]):
+            value_a = row["Poem A Numeric"]
+            value_b = row["Poem B Numeric"]
+            if pd.notna(value_a):
                 long_rows.append(
                     {
-                        "Metric": row["Metric"],
+                        "Metric": row["Chart Metric"],
                         "Poem": title_a,
-                        "Value": row["Poem A Numeric"],
+                        "Value": value_a,
                     }
                 )
-            if pd.notna(row["Poem B Numeric"]):
+            if pd.notna(value_b):
                 long_rows.append(
                     {
-                        "Metric": row["Metric"],
+                        "Metric": row["Chart Metric"],
                         "Poem": title_b,
-                        "Value": row["Poem B Numeric"],
+                        "Value": value_b,
                     }
                 )
-        if long_rows:
-            chart = (
-                alt.Chart(pd.DataFrame(long_rows))
-                .mark_bar(cornerRadiusEnd=3)
+            if pd.notna(value_a) and pd.notna(value_b):
+                connector_rows.append(
+                    {
+                        "Metric": row["Chart Metric"],
+                        "Poem A": value_a,
+                        "Poem B": value_b,
+                    }
+                )
+        values = [float(row["Value"]) for row in long_rows]
+        domain = _chart_domain(values)
+        points = (
+            alt.Chart(pd.DataFrame(long_rows))
+            .mark_point(filled=True, size=115)
+            .encode(
+                y=alt.Y("Metric:N", title=None, sort=None),
+                x=alt.X(
+                    "Value:Q",
+                    title=selected_group.split(" · ", 1)[-1],
+                    scale=alt.Scale(domain=domain, zero=False, nice=True),
+                ),
+                color=alt.Color(
+                    "Poem:N",
+                    scale=alt.Scale(range=PUBLICATION_CHART_COLORS[:2]),
+                    legend=alt.Legend(orient="top"),
+                ),
+                tooltip=[
+                    alt.Tooltip("Poem:N"),
+                    alt.Tooltip("Metric:N"),
+                    alt.Tooltip("Value:Q", format=".3f"),
+                ],
+            )
+        )
+        if connector_rows:
+            connectors = (
+                alt.Chart(pd.DataFrame(connector_rows))
+                .mark_rule(color="#8b8b8b", opacity=0.5)
                 .encode(
                     y=alt.Y("Metric:N", title=None, sort=None),
-                    x=alt.X("Value:Q", title=selected_group.split(" · ", 1)[-1]),
-                    yOffset="Poem:N",
-                    color=alt.Color(
-                        "Poem:N",
-                        scale=alt.Scale(range=PUBLICATION_CHART_COLORS[:2]),
-                        legend=alt.Legend(orient="top"),
+                    x=alt.X(
+                        "Poem A:Q",
+                        scale=alt.Scale(domain=domain, zero=False, nice=True),
                     ),
-                    tooltip=[
-                        alt.Tooltip("Poem:N"),
-                        alt.Tooltip("Metric:N"),
-                        alt.Tooltip("Value:Q", format=".4f"),
-                    ],
+                    x2="Poem B:Q",
                 )
-                .properties(height=max(220, min(720, len(chart_rows) * 34)))
             )
-            st.altair_chart(publication_chart(chart), width="stretch")
+            chart = connectors + points
+        else:
+            chart = points
+        chart = chart.properties(
+            height=max(220, min(600, len(chart_rows) * 34))
+        )
+    st.altair_chart(publication_chart(chart), width="stretch")
 
-    display_columns = (
-        "Source",
-        "Metric",
-        "Poem A",
-        "Poem B",
-        "B minus A",
-        "Unit or Scale",
-        "Poem A Denominator",
-        "Poem B Denominator",
-        "Poem A Coverage",
-        "Poem B Coverage",
-        "Interpretive Note",
-    )
-    render_dataframe(
-        _arrow_safe_display_frame(section_frame[list(display_columns)]),
-        hide_index=True,
-        width="stretch",
-        height=min(640, max(180, 38 * (len(section_frame) + 1))),
-    )
+
+def _render_comparison_panel(
+    label: str,
+    panel_frame: pd.DataFrame,
+    *,
+    state_key: str,
+    title_a: str,
+    title_b: str,
+) -> None:
+    with st.expander(label, expanded=False):
+        st.caption(_PANEL_NOTES.get(label, "Shared comparison evidence."))
+        _render_scale_aware_chart(
+            panel_frame,
+            state_key=state_key,
+            title_a=title_a,
+            title_b=title_b,
+        )
+
+        display_columns = (
+            "Source",
+            "Metric",
+            "Poem A",
+            "Poem B",
+            "B − A Difference",
+            "Unit or Scale",
+            "Poem A Denominator",
+            "Poem B Denominator",
+            "Poem A Coverage",
+            "Poem B Coverage",
+            "Interpretive Note",
+        )
+        render_dataframe(
+            _arrow_safe_display_frame(panel_frame[list(display_columns)]),
+            hide_index=True,
+            width="stretch",
+            height=min(560, max(180, 38 * (len(panel_frame) + 1))),
+        )
 
 
 @st.fragment
@@ -308,7 +573,9 @@ def _render_comparison_results(comparison: PoemComparison) -> None:
         cards[1].metric("Poem B", title_b)
         cards[2].metric("Shared Metrics", f"{len(frame):,}")
         comparable = (
-            int(frame["B minus A"].notna().sum()) if not frame.empty else 0
+            int(frame["B − A Difference"].notna().sum())
+            if not frame.empty
+            else 0
         )
         cards[3].metric("Numeric Differences", f"{comparable:,}")
         if frame.empty:
@@ -318,45 +585,85 @@ def _render_comparison_results(comparison: PoemComparison) -> None:
                 "Return to Choose Shared Evidence and run the comparison again.",
             )
         else:
-            overview = (
-                frame[frame["B minus A"].notna()]
-                .sort_values("Absolute Difference", ascending=False)
-                .head(20)
+            core_metric_ids = (
+                r"^vad\..*\.mean$|^concreteness\.mean$|^rarity\.mean$|"
+                r"^aoa\.mean$|^lexical_style\..*statistics\.mean$|"
+                r"^lexical_style\.mean_alphabetic_characters_per_token$"
             )
-            st.markdown("#### Largest Recorded Numeric Differences")
+            overview = frame[
+                frame["Metric ID"].str.contains(
+                    core_metric_ids,
+                    regex=True,
+                    na=False,
+                )
+            ].head(14)
+            st.markdown("#### Core Comparison Snapshot")
             st.caption(
-                "This orientation table mixes scales and therefore must not be "
-                "read as a ranking of importance. Use the source-specific sections "
-                "for interpretation."
+                "A compact orientation only. Open the matching report subsection "
+                "for its chart, dispersion, cumulative load, coverage, and cautions."
             )
             render_dataframe(
-                overview[
-                    [
-                        "Section",
-                        "Source",
-                        "Metric",
-                        "Poem A",
-                        "Poem B",
-                        "B minus A",
-                        "Unit or Scale",
+                _arrow_safe_display_frame(
+                    overview[
+                        [
+                            "Source",
+                            "Metric",
+                            "Poem A",
+                            "Poem B",
+                            "B − A Difference",
+                            "Unit or Scale",
+                        ]
                     ]
-                ],
+                ),
                 hide_index=True,
                 width="stretch",
                 height=min(620, max(180, 38 * (len(overview) + 1))),
             )
+            with st.expander("Shared Analysis Design", expanded=False):
+                st.write(
+                    f"Token scope: **{scope_label}**  \n"
+                    f"Weighting: **{weighting.title()} weighted**  \n"
+                    f"Comparison ID: `{comparison.comparison_id}`"
+                )
+                st.caption(
+                    "Both poems were analyzed with the same sources, matching "
+                    "policy, stopword policy, and enabled-module configurations."
+                )
 
-    for section in _REPORT_SECTIONS[1:-2]:
+    for section, panel_order in _PANEL_ORDER.items():
         with containers[section]:
             st.subheader(section)
-            _render_section_chart(
-                frame[frame["Section"] == section] if not frame.empty else frame,
-                state_key=f"compare_{section.lower().replace(' ', '_').replace('&', 'and')}",
-                title_a=title_a,
-                title_b=title_b,
+            section_frame = (
+                frame[frame["Report Section"] == section]
+                if not frame.empty
+                else frame
             )
+            for panel_index, panel in enumerate(panel_order):
+                panel_frame = (
+                    section_frame[section_frame["Report Panel"] == panel]
+                    if not section_frame.empty
+                    else section_frame
+                )
+                if panel_frame.empty:
+                    with st.expander(panel, expanded=False):
+                        st.info(
+                            "No shared result is available for this subsection. "
+                            "Enable its required sources/modules and analyze both "
+                            "poems again."
+                        )
+                    continue
+                _render_comparison_panel(
+                    panel,
+                    panel_frame,
+                    state_key=(
+                        f"compare_{section.lower().replace(' ', '_').replace('&', 'and')}"
+                        f"_{panel_index}"
+                    ),
+                    title_a=title_a,
+                    title_b=title_b,
+                )
 
-    with containers["Complete Evidence Table"]:
+    with containers["Evidence & Diagnostics"]:
         st.subheader("Complete Shared Evidence")
         st.caption(
             "The table preserves source, scale, method, coverage, denominator, "
@@ -369,8 +676,8 @@ def _render_comparison_results(comparison: PoemComparison) -> None:
             height=700,
         )
 
-    with containers["Export & Interpretation"]:
-        st.subheader("Export & Interpretation")
+    with containers["Export & Help"]:
+        st.subheader("Export & Help")
         st.write(
             "Download the complete machine-readable comparison or a narrative "
             "Word report. Both retain the selected shared scope and weighting."

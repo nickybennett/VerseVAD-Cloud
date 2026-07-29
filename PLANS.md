@@ -1,5 +1,16 @@
 # VerseVAD Implementation Plan
 
+## Completed comparison-presentation and display-precision refinement
+
+- [x] Align Compare Poems with the eight-section Single Poem report map and
+  default-collapse its familiar analytical subsections.
+- [x] Replace zero-baseline raw-value bars with automatically fitted
+  side-by-side dot plots and offer zero-centered B-minus-A difference bars.
+- [x] Limit front-end tables, mixed-value displays, chart axes, and tooltips to
+  at most three decimals without rounding analytical engines or exports.
+- [x] Cover report routing, fitted chart domains, mixed table serialization,
+  display-only rounding, and export independence with regression tests.
+
 ## Completed contrastive poem evaluation
 
 - [x] Add a session-only **Compare Poems** workspace outside the single-poem
