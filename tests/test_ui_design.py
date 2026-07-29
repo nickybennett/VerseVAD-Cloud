@@ -117,6 +117,7 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert '[class*="st-key-versevad_header_icon__"]' in sheet
         assert 'button > div > div[aria-hidden="true"]' in sheet
         assert '[data-testid="stIconMaterial"]' in sheet
+        assert "transform: translateX(.09375rem)" in sheet
         assert "width: 2.25rem" in sheet
         assert '[data-testid="stMetricValue"] > div' in sheet
         assert "container-type: inline-size" in sheet
@@ -128,8 +129,10 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert "::placeholder" in sheet
         assert '[data-testid="stFileUploaderDropzone"]' in sheet
         assert '[data-testid="stSelectbox"] [role="group"]' in sheet
+        assert '[data-baseweb="tag"]' in sheet
         assert '[data-baseweb="popover"]' in sheet
         assert '[data-baseweb="tooltip"]' in sheet
+        assert '[data-testid="stTooltipContent"]' in sheet
         assert '[role="listbox"]' in sheet
         assert "prefers-color-scheme: dark" not in sheet
         assert (

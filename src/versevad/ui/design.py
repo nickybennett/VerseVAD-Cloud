@@ -497,6 +497,25 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       color: var(--color-text-primary) !important;
       -webkit-text-fill-color: var(--color-text-primary) !important;
     }}
+    [data-baseweb="tag"] {{
+      background: var(--color-accent-strong) !important;
+      border-color: var(--color-accent-strong) !important;
+      color: var(--color-text-inverse) !important;
+      -webkit-text-fill-color: var(--color-text-inverse) !important;
+    }}
+    [data-baseweb="tag"]:hover {{
+      background: var(--color-accent) !important;
+      border-color: var(--color-accent) !important;
+      color: var(--color-text-inverse) !important;
+      -webkit-text-fill-color: var(--color-text-inverse) !important;
+    }}
+    [data-baseweb="tag"] *,
+    [data-baseweb="tag"] svg {{
+      color: inherit !important;
+      fill: currentColor !important;
+      stroke: currentColor !important;
+      -webkit-text-fill-color: inherit !important;
+    }}
     [data-baseweb="popover"],
     [data-baseweb="popover"] > div,
     [data-baseweb="menu"],
@@ -526,15 +545,18 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       color: var(--color-accent-strong) !important;
     }}
     [data-baseweb="tooltip"],
+    [data-testid="stTooltipContent"],
     [role="tooltip"] {{
-      background: var(--color-text-primary) !important;
-      border-color: var(--color-text-primary) !important;
-      color: var(--color-surface-raised) !important;
+      background: var(--color-accent-strong) !important;
+      border-color: var(--color-accent-strong) !important;
+      box-shadow: 0 .3rem .8rem var(--color-shadow) !important;
+      color: var(--color-text-inverse) !important;
     }}
     [data-baseweb="tooltip"] *,
+    [data-testid="stTooltipContent"] *,
     [role="tooltip"] * {{
-      color: var(--color-surface-raised) !important;
-      -webkit-text-fill-color: var(--color-surface-raised) !important;
+      color: var(--color-text-inverse) !important;
+      -webkit-text-fill-color: var(--color-text-inverse) !important;
     }}
     /*
      * Streamlit uses distinct test IDs for ordinary, form-submit, and
@@ -964,10 +986,24 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       button > div > div[aria-hidden="true"] {{
       display: none !important;
     }}
+    [class*="st-key-versevad_header_icon__"] button > div {{
+      align-items: center !important;
+      display: flex !important;
+      height: 100% !important;
+      justify-content: center !important;
+      width: 100% !important;
+    }}
     [class*="st-key-versevad_header_icon__"]
       button [data-testid="stIconMaterial"] {{
+      align-items: center !important;
+      display: inline-flex !important;
       font-size: 1.25rem !important;
+      height: 1.25rem !important;
+      justify-content: center !important;
+      line-height: 1 !important;
       margin: 0 !important;
+      transform: translateX(.09375rem);
+      width: 1.25rem !important;
     }}
     .versevad-kicker {{
       color: var(--color-accent);
