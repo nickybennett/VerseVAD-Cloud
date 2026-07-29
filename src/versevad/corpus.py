@@ -43,6 +43,13 @@ from versevad.prosody import MeterConfiguration, PronunciationConfiguration
 from versevad.poetry_id import PoetryIDConfiguration
 from versevad.inherited_form import InheritedFormConfiguration
 from versevad.stopwords import DEFAULT_PROTECTED_WORDS
+from versevad.versemap import (
+    VerseMapConfiguration,
+    standard_aoa_configuration,
+    standard_concreteness_configuration,
+    standard_frequency_configuration,
+    standard_lexical_style_configuration,
+)
 
 
 MAX_CORPUS_FILES = 5_000
@@ -157,17 +164,19 @@ class CorpusAnalysisConfiguration:
     inherited_form_configuration: InheritedFormConfiguration = (
         InheritedFormConfiguration()
     )
+    include_versemap: bool = False
+    versemap_configuration: VerseMapConfiguration = VerseMapConfiguration()
     analysis_cache_enabled: bool = True
     performance_diagnostics: bool = True
 
     @property
     def module_names(self) -> tuple[str, ...]:
         names = ["vader_sentiment", "readability"]
-        if self.include_concreteness:
+        if self.include_concreteness or self.include_versemap:
             names.append("concreteness")
-        if self.include_frequency:
+        if self.include_frequency or self.include_versemap:
             names.append("lexical_frequency")
-        if self.include_aoa:
+        if self.include_aoa or self.include_versemap:
             names.append("age_of_acquisition")
         if (
             self.include_pronunciation
@@ -180,12 +189,14 @@ class CorpusAnalysisConfiguration:
             names.append("candidate_meter_and_rhythmic_regularity")
         if self.include_phonology or self.include_inherited_form:
             names.append("rhyme_and_phonological_patterns")
-        if self.include_lexical_style:
+        if self.include_lexical_style or self.include_versemap:
             names.append("lexical_style")
         if self.include_poetry_id:
             names.append("poetry_id")
         if self.include_inherited_form:
             names.append("inherited_form")
+        if self.include_versemap:
+            names.append("versemap")
         return tuple(names)
 
     @property
@@ -206,19 +217,31 @@ class CorpusAnalysisConfiguration:
                 ),
             ),
             (
-                self.include_concreteness,
+                self.include_concreteness or self.include_versemap,
                 "concreteness",
-                self.concreteness_configuration,
+                (
+                    standard_concreteness_configuration()
+                    if self.include_versemap
+                    else self.concreteness_configuration
+                ),
             ),
             (
-                self.include_frequency,
+                self.include_frequency or self.include_versemap,
                 "lexical_frequency",
-                self.frequency_configuration,
+                (
+                    standard_frequency_configuration()
+                    if self.include_versemap
+                    else self.frequency_configuration
+                ),
             ),
             (
-                self.include_aoa,
+                self.include_aoa or self.include_versemap,
                 "age_of_acquisition",
-                self.aoa_configuration,
+                (
+                    standard_aoa_configuration()
+                    if self.include_versemap
+                    else self.aoa_configuration
+                ),
             ),
             (
                 (
@@ -241,9 +264,13 @@ class CorpusAnalysisConfiguration:
                 self.phonological_configuration,
             ),
             (
-                self.include_lexical_style,
+                self.include_lexical_style or self.include_versemap,
                 "lexical_style",
-                self.lexical_style_configuration,
+                (
+                    standard_lexical_style_configuration()
+                    if self.include_versemap
+                    else self.lexical_style_configuration
+                ),
             ),
             (
                 self.include_poetry_id,
@@ -254,6 +281,11 @@ class CorpusAnalysisConfiguration:
                 self.include_inherited_form,
                 "inherited_form",
                 self.inherited_form_configuration,
+            ),
+            (
+                self.include_versemap,
+                "versemap",
+                self.versemap_configuration,
             ),
         )
         return {
@@ -1103,6 +1135,10 @@ def analyze_corpus(
                     ),
                     inherited_form_configuration=(
                         module_configuration.inherited_form_configuration
+                    ),
+                    include_versemap=module_configuration.include_versemap,
+                    versemap_configuration=(
+                        module_configuration.versemap_configuration
                     ),
                     analysis_cache_enabled=(
                         module_configuration.analysis_cache_enabled

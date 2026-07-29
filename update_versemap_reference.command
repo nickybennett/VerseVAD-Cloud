@@ -25,12 +25,12 @@ export UV_NO_MODIFY_PATH=1
 export UV_PYTHON_PREFERENCE=only-managed
 
 cd "$PROJECT_ROOT"
-echo "Updating the VerseMap reference-corpus manifest..."
+echo "Updating the VerseMap reference corpus and analytical index..."
 "$UV_EXECUTABLE" run --frozen --offline versevad-update-versemap
 STATUS=$?
 echo
 if [ "$STATUS" -eq 0 ]; then
-  echo "The reference release is ready for review and source control."
+  echo "The reference release and analytical index are ready for review and source control."
 else
   echo "The updater found a problem. Review the messages above."
 fi

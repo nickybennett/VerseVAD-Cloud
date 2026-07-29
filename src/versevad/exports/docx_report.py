@@ -137,6 +137,19 @@ REPORT_PROFILES: Mapping[str, NarrativeReportProfile] = {
             "Volta, kigo, semantic autonomy, and other interpretive features are not guessed when they cannot be scored defensibly.",
         ),
     ),
+    "versemap": NarrativeReportProfile(
+        "VerseMap Comparative Profile Report",
+        "This report positions the analyzed poem relative to the versioned "
+        "VerseMap public-domain reference corpus under Standard Profile 1.0.",
+        "Nearby poems and poet centroids have smaller weighted standardized "
+        "distances across shared evidence. The two plotted axes are PCA "
+        "composites, not independently named literary traits.",
+        (
+            "Similarity is descriptive and is not evidence of authorship, influence, quality, or meaning.",
+            "Missing evidence remains missing and reduces shared-evidence coverage rather than receiving a neutral score.",
+            "Nearest-neighbor ranking uses the full registered feature space, not only the two-dimensional display.",
+        ),
+    ),
     "lexicon_explorer": NarrativeReportProfile(
         "Lexicon Explorer Report",
         "This report records one local word-or-phrase lookup across the installed "

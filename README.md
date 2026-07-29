@@ -140,6 +140,18 @@ limitations, and poem-specific evidence. Single Poem and Project / Corpus
 share the same engine, persisted metrics, six CSV audit tables, and one
 narrative Word report.
 
+VerseMap adds an optional, versioned comparative space to **Single Poem** and
+**Project / Corpus**. Standard Profile 1.0 compares content-word VAD means and
+dispersion, emotion-association prevalence, concreteness, SUBTLEX rarity, AoA,
+lexical diversity and word length, content-POS proportions, and normalized
+line/stanza structure. It intentionally excludes all pronunciation and Sound &
+Form evidence. Single Poem maps the analyzed poem alongside reference poems
+and poet centroids; corpus projects map their works against reference poet
+centroids and report work-level plus equal-work project proximity. Map axes are
+weighted PCA composites, while neighbor ranking uses the complete,
+coverage-aware feature space. Results include CSV data and a narrative Word
+report and never make authorship, influence, quality, or meaning claims.
+
 State-backed report and project-section navigation preserves the selected
 section across Streamlit refreshes. Changing a view, weighting, lexicon, or
 token scope therefore keeps the current report family active, and preparing
@@ -207,6 +219,7 @@ See:
 - [Stage 15 inherited-form analysis](docs/inherited-form-stage15.md)
 - [Stage 15 inherited-form validation](docs/inherited-form-stage15-validation.md)
 - [VerseMap reference-corpus maintainer workflow](docs/versemap-reference-corpus.md)
+- [VerseMap Standard Profile 1.0](docs/versemap-standard-profile.md)
 - [Public resource installation guide](docs/resource-installation.md)
 - [macOS installation and browser guide](docs/macos-installation.md)
 - [Safe in-place update guide](docs/updating.md)

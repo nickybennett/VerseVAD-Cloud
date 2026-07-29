@@ -4,6 +4,7 @@
 !/resources/README.md
 !/resources/VerseMap_Reference_Corpus/
 !/resources/VerseMap_Reference_Corpus/**
+/resources/VerseMap_Reference_Corpus/_versemap_profiles.work.csv
 
 # Private literary texts and runtime data
 /corpora/

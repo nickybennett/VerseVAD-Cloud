@@ -32,8 +32,8 @@ ignores non-`.txt` files.
    punctuation, stanza breaks, and lineation.
 3. Run the updater.
 4. Review its errors and warnings.
-5. Review `git status`, then commit and push the poet folder, manifest, and
-   release record together.
+5. Review `git status`, then commit and push the poet folder, source release,
+   and derived Standard Profile index together.
 
 The ordinary VerseVAD launcher does not rebuild the reference release.
 Updating is an explicit maintainer action.
@@ -89,18 +89,28 @@ The updater:
 - flags identical text, repeated titles, unusually short fragments, and
   unusually long possible collections;
 - writes a deterministic CSV manifest and a short deterministic release
-  record.
+  record;
+- extracts the pinned, sound-free
+  [VerseMap Standard Profile 1.0](versemap-standard-profile.md) for each poem;
+- reuses an unchanged poem profile by stable poem ID and source SHA-256;
+- checkpoints every 25 poems so an interrupted build can resume;
+- fits deterministic weighted PCA display coordinates; and
+- creates per-poet centroids with exact model and coverage metadata.
 
 It creates or updates:
 
 ```text
 resources/VerseMap_Reference_Corpus/_versemap_manifest.csv
 resources/VerseMap_Reference_Corpus/_versemap_release.txt
+resources/VerseMap_Reference_Corpus/_versemap_profiles.csv
+resources/VerseMap_Reference_Corpus/_versemap_poet_profiles.csv
+resources/VerseMap_Reference_Corpus/_versemap_model.csv
 ```
 
-The updater never edits, renames, or analyzes a source poem. It normalizes only
-line-ending differences in a separate in-memory representation when computing
-the release identity. Original spelling, Unicode, punctuation, and lineation
+The updater never edits or renames a source poem. It normalizes only line-ending
+differences in a separate in-memory representation when computing the release
+identity. Standard Profile extraction reads the shared processing
+representation while original spelling, Unicode, punctuation, and lineation
 remain unchanged.
 
 Errors stop the update without changing the generated release files. Warnings
@@ -114,12 +124,12 @@ tokenizer.
 
 ## Local and cloud repositories
 
-The source folders and the two generated release files are ordinary tracked
+The source folders and five generated release/index files are ordinary tracked
 repository files. Once the same commit is present in the public local-use
 repository and the private cloud repository, both deployments see the same
 reference release. No absolute computer path is stored.
 
-Later VerseMap analytical vectors and map coordinates should be built from this
-release ID and the pinned VerseMap Standard Profile. They belong in a separate,
-versioned derived-data layer so source inventory, analytical methodology, and
-user/private corpus data never become conflated.
+The derived analytical files are tied to the release ID and pinned profile.
+They do not contain the installed research lexicons themselves. User poems,
+personal corpora, projects, and project databases remain local and are never
+added to the reference release.

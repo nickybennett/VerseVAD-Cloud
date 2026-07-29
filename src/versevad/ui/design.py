@@ -555,6 +555,21 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
     [data-testid="stMetricLabel"], [data-testid="stMetricValue"] {{
       color: var(--color-text-primary);
     }}
+    [data-testid="stMetricLabel"] {{
+      width: 100%;
+      min-width: 0;
+    }}
+    [data-testid="stMetricLabel"] p,
+    [data-testid="stMetricLabel"] * {{
+      max-width: 100%;
+      font-size: clamp(.68rem, 5.5cqi, .9rem) !important;
+      line-height: 1.2 !important;
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }}
     [data-testid="stMetricValue"] {{
       width: 100%;
       min-width: 0;

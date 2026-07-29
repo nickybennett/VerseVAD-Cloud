@@ -985,3 +985,44 @@ in a no-match view:
 - `inherited_form_report.docx`.
 
 No inherited-form JSON export is produced.
+
+## VerseMap
+
+Enable **VerseMap comparative profile** in the default-collapsed
+**Additional Optional Models** panel, then analyze the poem. The control is
+available when the tracked reference index and its NRC VAD v2.1, NRC Emotion
+v0.92, concreteness, SUBTLEX-US, and AoA sources are installed.
+
+Open **VerseMap** in the Report Section dropdown. Its default-collapsed panels
+provide:
+
+- an interactive map of the analyzed poem, reference poems, and reference poet
+  centroids;
+- the ten nearest reference poems and poet centroids;
+- every registered feature with the poem value, reference mean and SD,
+  z-score, approximate percentile, weight, eligible count, matched count, and
+  coverage; and
+- exact profile, corpus release, model, distance, and PCA methodology.
+
+The two map axes are composite PCA display coordinates. Neighbors are ranked
+in the complete registered feature space, not by visible two-dimensional map
+distance. Lower full-space distance means nearer under Standard Profile 1.0;
+it is not a probability, attribution, influence claim, or quality judgment.
+
+VerseMap is token-weighted, retains repeated content words, removes stopwords
+under its pinned policy, uses POS-aware normalized lemmas for diversity, and
+preserves original line and stanza structure. It uses no pronunciation,
+syllable, stress, meter, rhyme, refrain, alliteration, assonance, consonance,
+or other Sound & Form result.
+
+In **Project / Corpus**, select VerseMap in **Analyze & Compare**, run a
+complete batch, and then open the dedicated **VerseMap** project section.
+Reference poet centroids, project works, and the equal-work project map
+centroid appear together. The project-level ranking averages each work's
+full-space poet-centroid distance; the work-by-work table keeps each nearest
+reference poet and coverage visible.
+
+Exports contain CSV summary, feature, neighbor, map-point, methodology, and
+manifest data plus a narrative Word report. No VerseMap JSON export is
+produced. See [VerseMap Standard Profile 1.0](versemap-standard-profile.md) for
+the exact registry and equations.

@@ -52,6 +52,7 @@ from versevad.exports.pronunciation import export_pronunciation_bundle
 from versevad.exports.poetry_id import export_poetry_id_bundle
 from versevad.exports.readability import export_readability_bundle
 from versevad.exports.sentiment import export_vader_sentiment_bundle
+from versevad.exports.versemap import export_versemap_bundle
 from versevad.lexical_semantic.concreteness import (
     ConcretenessAnalysisResult,
     ConcretenessConfiguration,
@@ -145,6 +146,18 @@ from versevad.poetry_id import (
     vad_evidence_from_results,
 )
 from versevad.stopwords import DEFAULT_PROTECTED_WORDS, build_stopword_policy
+from versevad.versemap import (
+    VerseMapAnalysisResult,
+    VerseMapConfiguration,
+    VerseMapReferenceIndex,
+    analyze_profile,
+    extract_standard_profile,
+    load_reference_index,
+    standard_aoa_configuration,
+    standard_concreteness_configuration,
+    standard_frequency_configuration,
+    standard_lexical_style_configuration,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -247,6 +260,10 @@ RESOURCE_DOWNLOAD_PAGES = {
     "cmudict-dictionary": "https://github.com/cmusphinx/cmudict",
     "cmudict-phone-inventory": "https://github.com/cmusphinx/cmudict",
     "cmudict-symbol-inventory": "https://github.com/cmusphinx/cmudict",
+    "versemap": (
+        "https://github.com/nickybennett/VerseVAD/blob/main/"
+        "docs/versemap-reference-corpus.md"
+    ),
 }
 
 
@@ -259,6 +276,7 @@ class ResourceReadiness:
     frequency: ResourceStatus
     aoa: ResourceStatus
     pronunciation: tuple[ResourceStatus, ...]
+    versemap: ResourceStatus
 
     @property
     def all_statuses(self) -> tuple[ResourceStatus, ...]:
@@ -268,6 +286,7 @@ class ResourceReadiness:
             self.frequency,
             self.aoa,
             *self.pronunciation,
+            self.versemap,
         )
 
     @property
@@ -299,6 +318,16 @@ class ResourceReadiness:
             installed.extend(
                 ("pronunciation", "meter", "phonology", "inherited_form")
             )
+        if (
+            self.versemap.available
+            and self.concreteness.available
+            and self.frequency.available
+            and self.aoa.available
+            and {"nrc_vad_v2_1", "nrc_emotion_v0_92"}.issubset(
+                self.available_lexicon_ids
+            )
+        ):
+            installed.append("versemap")
         return tuple(installed)
 
 
@@ -339,6 +368,15 @@ def installed_resource_readiness(
     frequency_module = FrequencyModule(resource_root)
     aoa_module = AoAModule(resource_root)
     pronunciation_module = PronunciationModule(resource_root)
+    versemap_spec = ResourceSpec(
+        resource_id="versemap",
+        display_name="VerseMap reference model",
+        relative_path=(
+            Path("VerseMap_Reference_Corpus") / "_versemap_model.csv"
+        ),
+        version="standard-profile-1.0",
+        minimum_bytes=100,
+    )
 
     return ResourceReadiness(
         affective_lexicons=validate_affective_resources(source_root),
@@ -350,6 +388,7 @@ def installed_resource_readiness(
         pronunciation=supplementary_manager.validate_many(
             pronunciation_module.resource_specs
         ),
+        versemap=supplementary_manager.validate(versemap_spec),
     )
 
 
@@ -400,6 +439,8 @@ class AnalysisRequest:
     inherited_form_configuration: InheritedFormConfiguration = (
         InheritedFormConfiguration()
     )
+    include_versemap: bool = False
+    versemap_configuration: VerseMapConfiguration = VerseMapConfiguration()
     analysis_cache_enabled: bool = True
     performance_diagnostics: bool = True
 
@@ -422,6 +463,7 @@ class WorkspaceAnalysis:
     lexical_style: LexicalStyleAnalysisResult | None = None
     poetry_id: PoetryIDAnalysisResult | None = None
     inherited_form: InheritedFormAnalysisResult | None = None
+    versemap: VerseMapAnalysisResult | None = None
     performance: AnalysisPerformanceReport | None = None
 
 
@@ -861,6 +903,7 @@ def run_workspace_analysis(
     lexical_style_module: LexicalStyleModule | None = None,
     poetry_id_engine: PoetryIDEngine | None = None,
     inherited_form_engine: InheritedFormEngine | None = None,
+    versemap_index: VerseMapReferenceIndex | None = None,
     vader_sentiment_module: VaderSentimentModule | None = None,
     readability_module: ReadabilityModule | None = None,
 ) -> WorkspaceAnalysis:
@@ -956,6 +999,10 @@ def run_workspace_analysis(
     )
     prepared_processor = PreparedPoemPreprocessor(poem_document)
     module_input = ModuleInput.from_poem_document(poem_document)
+    concreteness_configuration = request.concreteness_configuration
+    frequency_configuration = request.frequency_configuration
+    aoa_configuration = request.aoa_configuration
+    lexical_style_configuration = request.lexical_style_configuration
     sentiment_engine = vader_sentiment_module or VaderSentimentModule()
     vader_sentiment = cached_operation(
         "vader_sentiment",
@@ -1040,6 +1087,52 @@ def run_workspace_analysis(
             )
         )
     results = tuple(result_rows)
+    versemap_source_results: tuple[Phase2AnalysisResult, ...] = ()
+    if request.include_versemap:
+        fixed_stopword_policy = build_stopword_policy(
+            mode=StopwordMode.STANDARD,
+            protected_words=DEFAULT_PROTECTED_WORDS,
+            custom_additions=(),
+            custom_removals=(),
+        )
+        versemap_rows = []
+        for lexicon_id in ("nrc_vad_v2_1", "nrc_emotion_v0_92"):
+            spec = LEXICON_SPEC_BY_ID[lexicon_id]
+            versemap_rows.append(
+                cached_operation(
+                    f"versemap_affective_lexicon:{lexicon_id}",
+                    {
+                        "text_version_id": document.text_version_id,
+                        "text_sha256": document.text_sha256,
+                        "preprocessing": poem_document.preprocessing,
+                        "lexicon_id": lexicon_id,
+                        "source_sha256": spec.expected_sha256,
+                        "source_root": source_root.resolve(),
+                        "phrase_policy": PhrasePolicy.PHRASE_PREFERRED,
+                        "minimum_match_requirement": 1,
+                        "stopword_policy": fixed_stopword_policy,
+                        "scenario_id": "versemap-standard-profile-1.0",
+                    },
+                    lambda lexicon_id=lexicon_id: analyze_lexicon(
+                        document,
+                        load_lexicon(
+                            lexicon_id,
+                            str(source_root.resolve()),
+                        ),
+                        prepared_processor,
+                        phrase_policy=PhrasePolicy.PHRASE_PREFERRED,
+                        minimum_match_requirement=1,
+                        stopword_policy=fixed_stopword_policy,
+                        scenario_id="versemap-standard-profile-1.0",
+                    ),
+                    validator=lambda value: (
+                        isinstance(value, Phase2AnalysisResult)
+                        and value.document.text_version_id
+                        == document.text_version_id
+                    ),
+                )
+            )
+        versemap_source_results = tuple(versemap_rows)
     if results:
         comparison = cached_operation(
             "cross_lexicon_comparison",
@@ -1083,13 +1176,41 @@ def run_workspace_analysis(
                     "text_sha256": document.text_sha256,
                     "text_version_id": document.text_version_id,
                     "preprocessing": poem_document.preprocessing,
-                    "configuration": request.concreteness_configuration,
+                    "configuration": concreteness_configuration,
                     "module_version": module.version,
                     "resource_root": resource_root.resolve(),
                 },
                 lambda: module.analyze_detailed(
                     module_input,
-                    request.concreteness_configuration,
+                    concreteness_configuration,
+                ),
+                validator=lambda value: (
+                    isinstance(value, ConcretenessAnalysisResult)
+                    and value.module_result.text_version_id
+                    == document.text_version_id
+                ),
+                enabled=concreteness_module is None,
+            )
+        except ConcretenessModuleError as error:
+            raise WorkspaceAnalysisError(str(error)) from error
+    versemap_concreteness = None
+    if request.include_versemap:
+        module = concreteness_module or ConcretenessModule(resource_root)
+        versemap_concreteness_configuration = standard_concreteness_configuration()
+        try:
+            versemap_concreteness = cached_operation(
+                "versemap_concreteness",
+                {
+                    "text_sha256": document.text_sha256,
+                    "text_version_id": document.text_version_id,
+                    "preprocessing": poem_document.preprocessing,
+                    "configuration": versemap_concreteness_configuration,
+                    "module_version": module.version,
+                    "resource_root": resource_root.resolve(),
+                },
+                lambda: module.analyze_detailed(
+                    module_input,
+                    versemap_concreteness_configuration,
                 ),
                 validator=lambda value: (
                     isinstance(value, ConcretenessAnalysisResult)
@@ -1110,13 +1231,41 @@ def run_workspace_analysis(
                     "text_sha256": document.text_sha256,
                     "text_version_id": document.text_version_id,
                     "preprocessing": poem_document.preprocessing,
-                    "configuration": request.frequency_configuration,
+                    "configuration": frequency_configuration,
                     "module_version": module.version,
                     "resource_root": resource_root.resolve(),
                 },
                 lambda: module.analyze_detailed(
                     module_input,
-                    request.frequency_configuration,
+                    frequency_configuration,
+                ),
+                validator=lambda value: (
+                    isinstance(value, FrequencyAnalysisResult)
+                    and value.module_result.text_version_id
+                    == document.text_version_id
+                ),
+                enabled=frequency_module is None,
+            )
+        except FrequencyModuleError as error:
+            raise WorkspaceAnalysisError(str(error)) from error
+    versemap_frequency = None
+    if request.include_versemap:
+        module = frequency_module or FrequencyModule(resource_root)
+        versemap_frequency_configuration = standard_frequency_configuration()
+        try:
+            versemap_frequency = cached_operation(
+                "versemap_frequency",
+                {
+                    "text_sha256": document.text_sha256,
+                    "text_version_id": document.text_version_id,
+                    "preprocessing": poem_document.preprocessing,
+                    "configuration": versemap_frequency_configuration,
+                    "module_version": module.version,
+                    "resource_root": resource_root.resolve(),
+                },
+                lambda: module.analyze_detailed(
+                    module_input,
+                    versemap_frequency_configuration,
                 ),
                 validator=lambda value: (
                     isinstance(value, FrequencyAnalysisResult)
@@ -1137,13 +1286,13 @@ def run_workspace_analysis(
                     "text_sha256": document.text_sha256,
                     "text_version_id": document.text_version_id,
                     "preprocessing": poem_document.preprocessing,
-                    "configuration": request.aoa_configuration,
+                    "configuration": aoa_configuration,
                     "module_version": module.version,
                     "resource_root": resource_root.resolve(),
                 },
                 lambda: module.analyze_detailed(
                     module_input,
-                    request.aoa_configuration,
+                    aoa_configuration,
                 ),
                 validator=lambda value: (
                     isinstance(value, AoAAnalysisResult)
@@ -1168,6 +1317,34 @@ def run_workspace_analysis(
                     value,
                     AoAAnalysisResult,
                 ),
+            )
+        except AoAModuleError as error:
+            raise WorkspaceAnalysisError(str(error)) from error
+    versemap_aoa = None
+    if request.include_versemap:
+        module = aoa_module or AoAModule(resource_root)
+        versemap_aoa_configuration = standard_aoa_configuration()
+        try:
+            versemap_aoa = cached_operation(
+                "versemap_age_of_acquisition",
+                {
+                    "text_sha256": document.text_sha256,
+                    "text_version_id": document.text_version_id,
+                    "preprocessing": poem_document.preprocessing,
+                    "configuration": versemap_aoa_configuration,
+                    "module_version": module.version,
+                    "resource_root": resource_root.resolve(),
+                },
+                lambda: module.analyze_detailed(
+                    module_input,
+                    versemap_aoa_configuration,
+                ),
+                validator=lambda value: (
+                    isinstance(value, AoAAnalysisResult)
+                    and value.module_result.text_version_id
+                    == document.text_version_id
+                ),
+                enabled=aoa_module is None,
             )
         except AoAModuleError as error:
             raise WorkspaceAnalysisError(str(error)) from error
@@ -1280,12 +1457,39 @@ def run_workspace_analysis(
                     "text_sha256": document.text_sha256,
                     "text_version_id": document.text_version_id,
                     "preprocessing": poem_document.preprocessing,
-                    "configuration": request.lexical_style_configuration,
+                    "configuration": lexical_style_configuration,
                     "module_version": module.version,
                 },
                 lambda: module.analyze_detailed(
                     module_input,
-                    request.lexical_style_configuration,
+                    lexical_style_configuration,
+                ),
+                validator=lambda value: (
+                    isinstance(value, LexicalStyleAnalysisResult)
+                    and value.module_result.text_version_id
+                    == document.text_version_id
+                ),
+                enabled=lexical_style_module is None,
+            )
+        except LexicalStyleModuleError as error:
+            raise WorkspaceAnalysisError(str(error)) from error
+    versemap_lexical_style = None
+    if request.include_versemap:
+        module = lexical_style_module or LexicalStyleModule()
+        versemap_lexical_style_configuration = standard_lexical_style_configuration()
+        try:
+            versemap_lexical_style = cached_operation(
+                "versemap_lexical_style",
+                {
+                    "text_sha256": document.text_sha256,
+                    "text_version_id": document.text_version_id,
+                    "preprocessing": poem_document.preprocessing,
+                    "configuration": versemap_lexical_style_configuration,
+                    "module_version": module.version,
+                },
+                lambda: module.analyze_detailed(
+                    module_input,
+                    versemap_lexical_style_configuration,
                 ),
                 validator=lambda value: (
                     isinstance(value, LexicalStyleAnalysisResult)
@@ -1366,6 +1570,59 @@ def run_workspace_analysis(
             ),
             enabled=inherited_form_engine is None,
         )
+    versemap = None
+    if request.include_versemap:
+        reference_root = resource_root / "VerseMap_Reference_Corpus"
+        try:
+            profile = extract_standard_profile(
+                WorkspaceAnalysis(
+                    request=request,
+                    document=document,
+                    results=versemap_source_results,
+                    comparison=comparison,
+                    poem_document=poem_document,
+                    vader_sentiment=vader_sentiment,
+                    readability=readability,
+                    concreteness=versemap_concreteness,
+                    frequency=versemap_frequency,
+                    aoa=versemap_aoa,
+                    pronunciation=pronunciation,
+                    meter=meter,
+                    phonology=phonology,
+                    lexical_style=versemap_lexical_style,
+                    poetry_id=poetry_id,
+                    inherited_form=inherited_form,
+                )
+            )
+            index = versemap_index or load_reference_index(reference_root)
+            versemap = cached_operation(
+                "versemap",
+                {
+                    "text_sha256": document.text_sha256,
+                    "text_version_id": document.text_version_id,
+                    "configuration": request.versemap_configuration,
+                    "reference_release_id": index.reference_release_id,
+                    "model_id": index.model_id,
+                    "profile_values": profile.values,
+                },
+                lambda: analyze_profile(
+                    module_input,
+                    profile,
+                    index,
+                    request.versemap_configuration,
+                ),
+                validator=lambda value: (
+                    isinstance(value, VerseMapAnalysisResult)
+                    and value.module_result.text_version_id
+                    == document.text_version_id
+                ),
+                enabled=versemap_index is None,
+            )
+        except (OSError, ValueError) as error:
+            raise WorkspaceAnalysisError(
+                "VerseMap could not load its versioned reference index. Run the "
+                f"VerseMap reference updater. Technical detail: {error}"
+            ) from error
     performance_report = (
         AnalysisPerformanceReport(
             enabled=True,
@@ -1393,6 +1650,7 @@ def run_workspace_analysis(
         lexical_style=lexical_style,
         poetry_id=poetry_id,
         inherited_form=inherited_form,
+        versemap=versemap,
         performance=performance_report,
     )
 
@@ -4241,6 +4499,7 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
             (workspace.lexical_style, export_lexical_style_bundle),
             (workspace.poetry_id, export_poetry_id_bundle),
             (workspace.inherited_form, export_inherited_form_bundle),
+            (workspace.versemap, export_versemap_bundle),
         )
         for result, exporter in optional_results:
             if result is not None:
@@ -4277,6 +4536,7 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
             workspace.lexical_style,
             workspace.poetry_id,
             workspace.inherited_form,
+            workspace.versemap,
         ):
             if optional_result is not None:
                 warning_messages.extend(
@@ -4334,6 +4594,7 @@ def detailed_export_zip(
         _module_result_id(workspace.lexical_style),
         _module_result_id(workspace.poetry_id),
         _module_result_id(workspace.inherited_form),
+        _module_result_id(workspace.versemap),
     )
     content, _lookup = EXPORT_CACHE.get_or_compute(
         key,

@@ -13,9 +13,20 @@ All notable VerseVAD changes will be recorded here.
   no-write freshness checks.
 - Added one-click Windows and macOS VerseMap reference updaters plus a
   maintainer guide for adding a poet, validating the corpus, and committing
-  the same portable release to local and cloud repositories. The updater
-  inventories source only; it never rewrites poems or substitutes its rough
-  word estimate for VerseVAD's analytical tokenizer.
+  the same portable release to local and cloud repositories.
+- Completed the public-facing VerseMap analytical layer in Single Poem and
+  Project / Corpus: pinned Standard Profile 1.0 extraction, coverage-aware
+  feature weighting, deterministic PCA map coordinates, reference-poem and
+  reference-poet neighbors, project/work comparisons, schema-4 persistence,
+  CSV audit data, and a narrative Word report.
+- Removed pronunciation and every Sound & Form measure from VerseMap at the
+  scholar's direction. Syllables, stress, meter, rhyme, refrain, alliteration,
+  assonance, and consonance remain independent VerseVAD analyses and cannot
+  affect VerseMap positions.
+- Extended the reference updater to build and verify per-poem profiles, poet
+  centroids, and model metadata, reuse unchanged poem hashes, and checkpoint
+  every 25 poems for resumable maintainer updates. It never rewrites source
+  poems or substitutes its rough inventory count for the shared tokenizer.
 - Added a private-repository `streamlit_app.py` entrypoint and cloud-safe
   configuration for Streamlit Community Cloud. Hosted Project/Corpus data is
   isolated to an unguessable browser-session database, clearly labeled as

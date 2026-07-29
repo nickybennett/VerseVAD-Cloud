@@ -29,6 +29,7 @@ from versevad.exports.poetry_id import export_poetry_id_bundle
 from versevad.exports.inherited_form import export_inherited_form_bundle
 from versevad.exports.readability import export_readability_bundle
 from versevad.exports.sentiment import export_vader_sentiment_bundle
+from versevad.exports.versemap import export_versemap_bundle
 from versevad.models import (
     MatchMethod,
     MatchSelection,
@@ -1789,6 +1790,7 @@ class ProjectRepository:
             (workspace.lexical_style, export_lexical_style_bundle),
             (workspace.poetry_id, export_poetry_id_bundle),
             (workspace.inherited_form, export_inherited_form_bundle),
+            (workspace.versemap, export_versemap_bundle),
         )
         return tuple(
             (result, exporter)
@@ -1819,19 +1821,31 @@ class ProjectRepository:
                 ),
             ),
             (
-                request.include_concreteness,
+                workspace.concreteness is not None,
                 "concreteness",
-                request.concreteness_configuration,
+                (
+                    workspace.concreteness.configuration
+                    if workspace.concreteness is not None
+                    else None
+                ),
             ),
             (
-                request.include_frequency,
+                workspace.frequency is not None,
                 "lexical_frequency",
-                request.frequency_configuration,
+                (
+                    workspace.frequency.configuration
+                    if workspace.frequency is not None
+                    else None
+                ),
             ),
             (
-                request.include_aoa,
+                workspace.aoa is not None,
                 "age_of_acquisition",
-                request.aoa_configuration,
+                (
+                    workspace.aoa.configuration
+                    if workspace.aoa is not None
+                    else None
+                ),
             ),
             (
                 (
@@ -1854,9 +1868,13 @@ class ProjectRepository:
                 request.phonological_configuration,
             ),
             (
-                request.include_lexical_style,
+                workspace.lexical_style is not None,
                 "lexical_style",
-                request.lexical_style_configuration,
+                (
+                    workspace.lexical_style.configuration
+                    if workspace.lexical_style is not None
+                    else None
+                ),
             ),
             (
                 request.include_poetry_id,
@@ -1867,6 +1885,11 @@ class ProjectRepository:
                 request.include_inherited_form,
                 "inherited_form",
                 request.inherited_form_configuration,
+            ),
+            (
+                request.include_versemap,
+                "versemap",
+                request.versemap_configuration,
             ),
         )
         return {

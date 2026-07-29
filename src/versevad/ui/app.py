@@ -110,8 +110,14 @@ if _application_was_reloaded:
         "versevad.exports.inherited_form",
         "versevad.exports.sentiment",
         "versevad.exports.readability",
+        "versevad.versemap.profile",
+        "versevad.versemap.model",
+        "versevad.versemap.reference",
+        "versevad.versemap",
+        "versevad.exports.versemap",
         "versevad.ui.poetry_id",
         "versevad.ui.inherited_form",
+        "versevad.ui.versemap",
     ):
         _module = importlib.import_module(_module_name)
         importlib.reload(_module)
@@ -201,6 +207,8 @@ from versevad.poetry_id import (
 )
 from versevad.ui.poetry_id import render_poetry_id
 from versevad.ui.inherited_form import render_inherited_form
+from versevad.ui.versemap import render_versemap
+from versevad.versemap import VerseMapConfiguration
 from versevad.ui.stopwords import render_stopword_settings
 from versevad.ui.design import (
     MODULE_PRESETS,
@@ -1031,6 +1039,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "include_meter": not pronunciation_available,
             "include_phonology": not pronunciation_available,
             "include_inherited_form": not pronunciation_available,
+            "include_versemap": (
+                "versemap" not in resource_readiness.available_module_ids
+            ),
         }
         for module_key in (
             "include_concreteness",
@@ -1042,6 +1053,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "include_lexical_style",
             "include_poetry_id",
             "include_inherited_form",
+            "include_versemap",
         ):
             if unavailable_modules.get(module_key, False):
                 st.session_state[module_key] = False
@@ -1362,6 +1374,33 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "pronunciation, performance-aware meter, and graded rhyme "
                     "modules. Its candidate tooltip explains the traditional "
                     "definition and the poem's agreements and departures."
+                )
+
+            st.markdown("#### VerseMap")
+            include_versemap = st.checkbox(
+                "VerseMap comparative profile",
+                disabled=(
+                    "versemap" not in resource_readiness.available_module_ids
+                ),
+                key="include_versemap",
+                help=(
+                    "Positions the poem relative to the versioned public-domain "
+                    "reference corpus using the pinned VerseMap Standard Profile "
+                    "1.0. Supporting lexical and structural modules run "
+                    "automatically; pronunciation and Sound & Form evidence are "
+                    "not used."
+                ),
+            )
+            if "versemap" in resource_readiness.available_module_ids:
+                st.caption(
+                    "Optional and off by default. Uses token-weighted, "
+                    "stopword-excluded content-word lexical evidence plus "
+                    "normalized structural measures."
+                )
+            else:
+                st.info(
+                    "The VerseMap analytical index is unavailable. Run the "
+                    "VerseMap reference updater, then restart VerseVAD."
                 )
             _render_bottom_collapse_button(
                 "Additional Optional Models",
@@ -2164,6 +2203,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             st.warning(poetry_id_configuration_error)
 
     inherited_form_configuration = InheritedFormConfiguration()
+    versemap_configuration = VerseMapConfiguration()
 
     pronunciation_configuration_error = ""
     try:
@@ -2289,6 +2329,8 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 inherited_form_configuration=(
                     inherited_form_configuration
                 ),
+                include_versemap=include_versemap,
+                versemap_configuration=versemap_configuration,
                 include_pronunciation=include_pronunciation,
                 pronunciation_configuration=pronunciation_configuration,
                 include_meter=include_meter,
@@ -2334,6 +2376,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     st.write(
                         "Ranking the inherited-form registry from completed "
                         "sound and structural evidence."
+                    )
+                if include_versemap:
+                    st.write(
+                        "Projecting Standard Profile 1.0 into the versioned "
+                        "VerseMap reference space."
                     )
                 st.session_state["workspace"] = run_workspace_analysis(
                     request, preprocessor=_preprocessor()
@@ -2397,6 +2444,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
         or include_poetry_id != workspace.request.include_poetry_id
         or include_inherited_form
         != workspace.request.include_inherited_form
+        or include_versemap != workspace.request.include_versemap
         or (
             include_concreteness
             and concreteness_configuration
@@ -2476,6 +2524,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
         "Lexical Character",
         "Sound & Form",
         "Structure",
+        "VerseMap",
         "Evidence & Diagnostics",
         "Export & Help",
     )
@@ -2501,6 +2550,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
     lexical_tab = report_containers["Lexical Character"]
     sound_tab = report_containers["Sound & Form"]
     structure_tab = report_containers["Structure"]
+    versemap_report_tab = report_containers["VerseMap"]
     evidence_diagnostics_tab = report_containers["Evidence & Diagnostics"]
     export_help_tab = report_containers["Export & Help"]
 
@@ -2593,6 +2643,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
             ),
             state_key=f"{report_state_key}_lexical_structure",
             collapse_label="Lexical & Structural Measures",
+        )
+    with versemap_report_tab:
+        versemap_tab = _bottom_collapsible_expander(
+            _section_label("VerseMap", workspace.versemap is not None),
+            state_key=f"{report_state_key}_versemap",
+            collapse_label="VerseMap",
         )
     with evidence_diagnostics_tab:
         evidence_tab = _bottom_collapsible_expander(
@@ -2781,6 +2837,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
 
     with inherited_form_tab:
         render_inherited_form(workspace.inherited_form)
+
+    with versemap_tab:
+        render_versemap(
+            workspace.versemap,
+            show_poem_neighbors=True,
+            export_key=report_state_key,
+        )
 
     with overview_tab:
         coverage = coverage_views(workspace)
@@ -6571,6 +6634,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         (
                             workspace.inherited_form.module_result.result_id
                             if workspace.inherited_form
+                            else ""
+                        ),
+                        (
+                            workspace.versemap.module_result.result_id
+                            if workspace.versemap
                             else ""
                         ),
                     )

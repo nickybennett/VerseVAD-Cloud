@@ -12,6 +12,11 @@ Concreteness, frequency, Age of Acquisition, pronunciation, meter, and
 rhyme/sound controls are disabled when their dependencies are unavailable.
 Resource-free lexical-style analysis remains available.
 
+VerseMap also requires its tracked reference model plus NRC VAD v2.1, NRC
+Emotion v0.92, concreteness, SUBTLEX-US, and AoA resources. Its control remains
+disabled until those sources are available. VerseMap does not require CMUdict
+and does not use pronunciation or Sound & Form evidence.
+
 ## Installation procedure
 
 1. Finish the normal VerseVAD software setup.

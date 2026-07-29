@@ -15,7 +15,7 @@ if not exist "%VERSEVAD_UV%" (
   exit /b 1
 )
 
-echo Updating the VerseMap reference-corpus manifest...
+echo Updating the VerseMap reference corpus and analytical index...
 "%VERSEVAD_UV%" run --frozen --offline versevad-update-versemap
 set "VERSEMAP_STATUS=%ERRORLEVEL%"
 
@@ -23,7 +23,7 @@ echo.
 if not "%VERSEMAP_STATUS%"=="0" (
   echo The updater found a problem. Review the messages above.
 ) else (
-  echo The reference release is ready for review and source control.
+  echo The reference release and analytical index are ready for review and source control.
 )
 echo.
 pause

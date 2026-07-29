@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
 from versevad.application import (
     LEXICON_SPECS,
+    RESOURCE_ROOT,
     ResourceReadiness,
     TextImportError,
     WorkspaceAnalysisError,
@@ -59,10 +61,12 @@ from versevad.ui.design import (
     preset_widget_state,
     render_dataframe,
     render_empty_state,
+    publication_chart,
     render_stateful_section_navigation,
     render_workspace_header,
 )
 from versevad.ui.stopwords import render_stopword_settings
+from versevad.versemap import VerseMapConfiguration, load_reference_index
 
 
 def _safe_filename(value: str) -> str:
@@ -75,6 +79,290 @@ def _safe_filename(value: str) -> str:
 
 def _records_frame(records) -> pd.DataFrame:
     return pd.DataFrame([asdict(record) for record in records])
+
+
+def _render_versemap_tab(
+    repository: ProjectRepository,
+    project_id: str,
+) -> None:
+    st.subheader("VerseMap")
+    st.write(
+        "Compare the project works with reference poet centroids under the pinned "
+        "VerseMap Standard Profile 1.0. Distances are descriptive and are not "
+        "authorship, influence, quality, or meaning claims."
+    )
+    metrics = tuple(
+        row
+        for row in repository.list_latest_module_metrics(project_id)
+        if row.module_name == "versemap"
+    )
+    if not metrics:
+        st.info(
+            "No completed VerseMap corpus batch is available. In Analyze & Compare, "
+            "select VerseMap comparative profile and analyze the corpus."
+        )
+        return
+    try:
+        index = load_reference_index(
+            RESOURCE_ROOT / "VerseMap_Reference_Corpus"
+        )
+    except (OSError, ValueError) as error:
+        st.error(f"The versioned VerseMap reference index could not be loaded: {error}")
+        return
+
+    by_work: dict[str, dict[str, object]] = {}
+    for row in metrics:
+        work = by_work.setdefault(
+            row.text_id,
+            {
+                "text_id": row.text_id,
+                "title": row.title,
+                "author": row.author,
+                "coordinate_1": None,
+                "coordinate_2": None,
+                "coverage": None,
+                "poet_neighbors": {},
+                "features": {},
+            },
+        )
+        if row.metric_id == "versemap.coordinate_1":
+            work["coordinate_1"] = row.value
+        elif row.metric_id == "versemap.coordinate_2":
+            work["coordinate_2"] = row.value
+        elif row.metric_id == "versemap.evidence_weight_coverage":
+            work["coverage"] = row.value
+        elif (
+            row.scope == "poet_neighbor"
+            and row.metric_id in {
+                "versemap.neighbor_name",
+                "versemap.neighbor_distance",
+                "versemap.neighbor_shared_weight",
+            }
+        ):
+            values = work["poet_neighbors"].setdefault(row.scope_id, {})
+            values[row.metric_id] = row.value
+        elif row.metric_id.startswith("versemap.") and row.scope == "document":
+            work["features"][row.metric_id.removeprefix("versemap.")] = row.value
+
+    complete_works = [
+        row
+        for row in by_work.values()
+        if row["coordinate_1"] is not None and row["coordinate_2"] is not None
+    ]
+    if not complete_works:
+        st.warning("The completed batch contains no projectable VerseMap coordinates.")
+        return
+    centroid_x = sum(float(row["coordinate_1"]) for row in complete_works) / len(
+        complete_works
+    )
+    centroid_y = sum(float(row["coordinate_2"]) for row in complete_works) / len(
+        complete_works
+    )
+
+    nearest_rows = []
+    poet_distances: dict[str, list[float]] = {}
+    for work in complete_works:
+        ranked = []
+        for scope_id, values in work["poet_neighbors"].items():
+            if (
+                "versemap.neighbor_name" not in values
+                or "versemap.neighbor_distance" not in values
+            ):
+                continue
+            rank = int(scope_id.rsplit(":", 1)[-1])
+            ranked.append((rank, values))
+            poet_distances.setdefault(
+                str(values["versemap.neighbor_name"]), []
+            ).append(float(values["versemap.neighbor_distance"]))
+        ranked.sort(key=lambda item: item[0])
+        if ranked:
+            _, values = ranked[0]
+            nearest_rows.append(
+                {
+                    "Work": work["title"],
+                    "Author Metadata": work["author"] or "Not recorded",
+                    "Nearest Reference Poet": values["versemap.neighbor_name"],
+                    "Distance": values["versemap.neighbor_distance"],
+                    "Shared Evidence Weight": values.get(
+                        "versemap.neighbor_shared_weight"
+                    ),
+                    "Profile Weight Available": work["coverage"],
+                }
+            )
+    project_neighbor_rows = sorted(
+        (
+            {
+                "Rank": 0,
+                "Reference Poet": poet,
+                "Mean Work-to-Centroid Distance": sum(values) / len(values),
+                "Works Compared": len(values),
+            }
+            for poet, values in poet_distances.items()
+        ),
+        key=lambda row: row["Mean Work-to-Centroid Distance"],
+    )
+    for rank, row in enumerate(project_neighbor_rows, start=1):
+        row["Rank"] = rank
+
+    summary_columns = st.columns(4)
+    summary_columns[0].metric("Mapped project works", f"{len(complete_works):,}")
+    summary_columns[1].metric("Reference poets", f"{len(index.poets):,}")
+    summary_columns[2].metric(
+        "Mean profile weight",
+        (
+            f"{sum(float(row['coverage']) for row in complete_works if row['coverage'] is not None) / max(sum(row['coverage'] is not None for row in complete_works), 1):.1%}"
+        ),
+    )
+    summary_columns[3].metric(
+        "Nearest project-level poet",
+        (
+            project_neighbor_rows[0]["Reference Poet"]
+            if project_neighbor_rows
+            else "Insufficient evidence"
+        ),
+    )
+
+    with st.expander("Corpus VerseMap Space", expanded=False):
+        map_rows = [
+            {
+                "Kind": "Reference poet centroid",
+                "Poet": item.poet_name,
+                "Title": item.poet_name,
+                "Component 1": item.coordinate_1,
+                "Component 2": item.coordinate_2,
+                "Poem count": item.poem_count,
+            }
+            for item in index.poets
+        ]
+        map_rows.extend(
+            {
+                "Kind": "Project work",
+                "Poet": row["author"] or "",
+                "Title": row["title"],
+                "Component 1": row["coordinate_1"],
+                "Component 2": row["coordinate_2"],
+                "Poem count": 1,
+            }
+            for row in complete_works
+        )
+        map_rows.append(
+            {
+                "Kind": "Project centroid",
+                "Poet": "",
+                "Title": "Project centroid",
+                "Component 1": centroid_x,
+                "Component 2": centroid_y,
+                "Poem count": len(complete_works),
+            }
+        )
+        frame = pd.DataFrame(map_rows).dropna(
+            subset=["Component 1", "Component 2"]
+        )
+        chart = (
+            alt.Chart(frame)
+            .mark_circle(opacity=0.72)
+            .encode(
+                x=alt.X(
+                    "Component 1:Q",
+                    title=(
+                        "Component 1 "
+                        f"({index.explained_variance_1:.1%} reference variance)"
+                    ),
+                ),
+                y=alt.Y(
+                    "Component 2:Q",
+                    title=(
+                        "Component 2 "
+                        f"({index.explained_variance_2:.1%} reference variance)"
+                    ),
+                ),
+                color=alt.Color(
+                    "Kind:N",
+                    scale=alt.Scale(
+                        domain=[
+                            "Reference poet centroid",
+                            "Project work",
+                            "Project centroid",
+                        ],
+                        range=["#705d8f", "#326b78", "#9f4528"],
+                    ),
+                ),
+                size=alt.Size(
+                    "Kind:N",
+                    sort=[
+                        "Reference poet centroid",
+                        "Project work",
+                        "Project centroid",
+                    ],
+                    scale=alt.Scale(
+                        domain=[
+                            "Reference poet centroid",
+                            "Project work",
+                            "Project centroid",
+                        ],
+                        range=[150, 75, 260],
+                    ),
+                    legend=None,
+                ),
+                tooltip=[
+                    "Kind",
+                    "Poet",
+                    "Title",
+                    "Poem count",
+                    alt.Tooltip("Component 1:Q", format=".4f"),
+                    alt.Tooltip("Component 2:Q", format=".4f"),
+                ],
+            )
+            .properties(height=560)
+            .interactive()
+        )
+        st.altair_chart(publication_chart(chart), width="stretch")
+        st.caption(
+            "The project centroid is the mean map position of its completed works. "
+            "The nearest-poet tables below use full-space standardized distances, "
+            "not only this two-dimensional display."
+        )
+
+    with st.expander("Nearest Reference Poets", expanded=False):
+        st.markdown("#### Project-level pattern")
+        render_dataframe(
+            pd.DataFrame(project_neighbor_rows),
+            column_config={
+                "Mean Work-to-Centroid Distance": (
+                    st.column_config.NumberColumn(format="%.4f")
+                )
+            },
+        )
+        st.caption(
+            "Project ranking averages each work's full-space distance to a reference "
+            "poet centroid. It does not collapse the project into a fictional single poem."
+        )
+        st.markdown("#### Work-by-work")
+        render_dataframe(
+            pd.DataFrame(nearest_rows),
+            column_config={
+                "Distance": st.column_config.NumberColumn(format="%.4f"),
+                "Shared Evidence Weight": st.column_config.ProgressColumn(
+                    min_value=0.0, max_value=1.0, format="%.1%%"
+                ),
+                "Profile Weight Available": st.column_config.ProgressColumn(
+                    min_value=0.0, max_value=1.0, format="%.1%%"
+                ),
+            },
+        )
+
+    with st.expander("Methodology and Coverage", expanded=False):
+        st.markdown(
+            f"**{index.profile_id}** | {index.profile_build_id} | "
+            f"{index.reference_release_id} | {index.model_id}"
+        )
+        st.write(
+            "Every project work is analyzed independently under the same pinned "
+            "profile as the reference poems. Repeated content-word occurrences are "
+            "retained, stopwords are removed for lexical measures, and missing "
+            "evidence remains missing. All corpus exports retain the VerseMap "
+            "module metrics, coverage, warnings, and per-work CSV/Word artifacts."
+        )
 
 
 def _poetry_id_work_comparison_rows(
@@ -1118,6 +1406,7 @@ def _render_analysis_tab(
         ),
         "poetry_id": "PoetryID lexical-affective profiles",
         "inherited_form": "Inherited Form Analysis (comprehensive profile registry)",
+        "versemap": "VerseMap comparative profile",
     }
     module_labels = {
         module_id: label
@@ -1183,6 +1472,7 @@ def _render_analysis_tab(
             "include_lexical_style": "lexical_style",
             "include_poetry_id": "poetry_id",
             "include_inherited_form": "inherited_form",
+            "include_versemap": "versemap",
         }
         if preset_state is not None:
             st.session_state[f"analysis_lexicons_{project_id}"] = (
@@ -1634,6 +1924,8 @@ def _render_analysis_tab(
                 inherited_form_configuration=(
                     InheritedFormConfiguration()
                 ),
+                include_versemap="versemap" in selected_modules,
+                versemap_configuration=VerseMapConfiguration(),
                 analysis_cache_enabled=st.session_state.get(
                     "analysis_cache_enabled",
                     True,
@@ -2852,6 +3144,7 @@ def render_corpus_workspace(
         "Works & Metadata",
         "Language Profile",
         "Analyze & Compare",
+        "VerseMap",
         "Review & Scenarios",
         "Export",
         "Project Settings",
@@ -2871,6 +3164,7 @@ def render_corpus_workspace(
     texts_tab = project_containers["Works & Metadata"]
     language_tab = project_containers["Language Profile"]
     analysis_tab = project_containers["Analyze & Compare"]
+    versemap_tab = project_containers["VerseMap"]
     review_tab = project_containers["Review & Scenarios"]
     export_tab = project_containers["Export"]
     settings_tab = project_containers["Project Settings"]
@@ -2886,6 +3180,8 @@ def render_corpus_workspace(
             preprocessor,
             resource_readiness,
         )
+    with versemap_tab:
+        _render_versemap_tab(repository, project_id)
     with review_tab:
         _render_review_tab(repository, project_id)
     with export_tab:

@@ -18,7 +18,7 @@ import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 SCHEMA_VERSION = "1.0"
 SOURCE_DIRECTORY = Path("resources") / "VerseMap_Reference_Corpus"
@@ -47,6 +47,7 @@ SHORT_LINE_THRESHOLD = 4
 LONG_WORD_THRESHOLD = 5_000
 LONG_LINE_THRESHOLD = 500
 DISPLAYED_ISSUE_LIMIT = 50
+PROFILE_DRAFT_FILENAME = "_versemap_profiles.work.csv"
 _WORD_PATTERN = re.compile(r"[^\W\d_]+(?:['’\-][^\W\d_]+)*", re.UNICODE)
 _NON_ID_PATTERN = re.compile(r"[^a-z0-9]+")
 
@@ -98,6 +99,17 @@ class BuildResult:
     @property
     def warnings(self) -> tuple[ValidationIssue, ...]:
         return tuple(issue for issue in self.issues if issue.level == "warning")
+
+
+@dataclass(frozen=True)
+class ProfileBuildResult:
+    """Status for the derived, versioned Standard Profile reference index."""
+
+    model_id: str
+    analyzed_count: int
+    reused_count: int
+    poem_count: int
+    current: bool
 
 
 def _project_root() -> Path:
@@ -506,6 +518,226 @@ def _matches(path: Path, expected: bytes) -> bool:
     return path.is_file() and path.read_bytes() == expected
 
 
+def _manifest_rows(payload: bytes) -> tuple[dict[str, str], ...]:
+    return tuple(
+        csv.DictReader(io.StringIO(payload.decode("utf-8-sig"), newline=""))
+    )
+
+
+def _existing_profile_rows(source_root: Path) -> dict[tuple[str, str], dict[str, str]]:
+    from versevad.versemap.model import PROFILE_FILENAME
+    from versevad.versemap.profile import PROFILE_BUILD_ID, PROFILE_ID
+
+    draft = source_root / PROFILE_DRAFT_FILENAME
+    path = draft if draft.is_file() else source_root / PROFILE_FILENAME
+    if not path.is_file():
+        return {}
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = tuple(csv.DictReader(handle))
+    return {
+        (row.get("poem_id", ""), row.get("source_sha256", "")): row
+        for row in rows
+        if row.get("profile_id") == PROFILE_ID
+        and row.get("profile_build_id", "") in ("", PROFILE_BUILD_ID)
+    }
+
+
+def _raw_profile_row(manifest_row: dict[str, str], profile) -> dict[str, object]:
+    from versevad.versemap.profile import PROFILE_BUILD_ID
+
+    row: dict[str, object] = {
+        **manifest_row,
+        "profile_build_id": PROFILE_BUILD_ID,
+        "content_token_count": profile.content_token_count,
+    }
+    for observation in profile.observations:
+        row[observation.feature_id] = (
+            "" if observation.value is None else f"{observation.value:.12g}"
+        )
+        row[f"{observation.feature_id}__eligible"] = observation.eligible_count
+        row[f"{observation.feature_id}__matched"] = observation.matched_count
+    return row
+
+
+def _write_profile_draft(
+    source_root: Path,
+    rows: Sequence[dict[str, object]],
+) -> None:
+    if not rows:
+        return
+    fields = tuple(rows[0])
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(
+        output,
+        fieldnames=fields,
+        extrasaction="ignore",
+        lineterminator="\n",
+    )
+    writer.writeheader()
+    writer.writerows(rows)
+    _atomic_write(
+        source_root / PROFILE_DRAFT_FILENAME,
+        output.getvalue().encode("utf-8"),
+    )
+
+
+def _index_is_current(result: BuildResult) -> tuple[bool, str]:
+    from versevad.versemap.model import (
+        MODEL_FILENAME,
+        POET_PROFILE_FILENAME,
+        PROFILE_FILENAME,
+    )
+    from versevad.versemap.profile import PROFILE_BUILD_ID, PROFILE_ID
+
+    paths = (
+        result.source_root / PROFILE_FILENAME,
+        result.source_root / POET_PROFILE_FILENAME,
+        result.source_root / MODEL_FILENAME,
+    )
+    if not all(path.is_file() for path in paths):
+        return False, ""
+    try:
+        with paths[2].open("r", encoding="utf-8-sig", newline="") as handle:
+            model_rows = tuple(csv.DictReader(handle))
+        with paths[0].open("r", encoding="utf-8-sig", newline="") as handle:
+            profile_rows = tuple(csv.DictReader(handle))
+    except (OSError, csv.Error):
+        return False, ""
+    if not model_rows:
+        return False, ""
+    header = model_rows[0]
+    manifest = _manifest_rows(result.manifest_bytes)
+    current_sources = {
+        (row["poem_id"], row["source_sha256"]) for row in manifest
+    }
+    indexed_sources = {
+        (row.get("poem_id", ""), row.get("source_sha256", ""))
+        for row in profile_rows
+    }
+    current = (
+        header.get("profile_id") == PROFILE_ID
+        and header.get("profile_build_id") == PROFILE_BUILD_ID
+        and header.get("reference_release_id") == result.release_id
+        and header.get("reference_release_sha256") == _sha256(result.release_bytes)
+        and current_sources == indexed_sources
+        and all(
+            row.get("profile_build_id") == PROFILE_BUILD_ID
+            for row in profile_rows
+        )
+    )
+    return current, header.get("model_id", "")
+
+
+def update_reference_profiles(
+    result: BuildResult,
+    *,
+    check: bool = False,
+    progress: Callable[[int, int, str], None] | None = None,
+) -> ProfileBuildResult:
+    """Build the analytical index while reusing unchanged poem profiles."""
+
+    from versevad.application import AnalysisRequest, run_workspace_analysis
+    from versevad.models import PhrasePolicy, StopwordMode
+    from versevad.preprocessing import SpacyEnglishPreprocessor
+    from versevad.versemap.model import (
+        MODEL_FILENAME,
+        POET_PROFILE_FILENAME,
+        PROFILE_FILENAME,
+        build_reference_model_bytes,
+    )
+    from versevad.versemap.profile import (
+        PROFILE_BUILD_ID,
+        extract_standard_profile,
+        standard_aoa_configuration,
+        standard_concreteness_configuration,
+        standard_frequency_configuration,
+        standard_lexical_style_configuration,
+    )
+
+    current, current_model_id = _index_is_current(result)
+    if check or current:
+        return ProfileBuildResult(
+            model_id=current_model_id,
+            analyzed_count=0,
+            reused_count=result.poem_count if current else 0,
+            poem_count=result.poem_count,
+            current=current,
+        )
+
+    manifest = _manifest_rows(result.manifest_bytes)
+    existing = _existing_profile_rows(result.source_root)
+    rows: list[dict[str, object]] = []
+    processor = SpacyEnglishPreprocessor()
+    analyzed = reused = 0
+    for position, manifest_row in enumerate(manifest, start=1):
+        cache_key = (manifest_row["poem_id"], manifest_row["source_sha256"])
+        cached = existing.get(cache_key)
+        if cached is not None:
+            migrated = dict(cached)
+            migrated["profile_build_id"] = PROFILE_BUILD_ID
+            rows.append(migrated)
+            reused += 1
+        else:
+            poem_path = result.source_root / Path(manifest_row["relative_path"])
+            text = poem_path.read_text(encoding="utf-8-sig")
+            workspace = run_workspace_analysis(
+                AnalysisRequest(
+                    project_name="VerseMap Reference Corpus",
+                    title=manifest_row["title"],
+                    original_text=text,
+                    text_id=manifest_row["poem_id"],
+                    lexicon_ids=("nrc_vad_v2_1", "nrc_emotion_v0_92"),
+                    phrase_policy=PhrasePolicy.PHRASE_PREFERRED,
+                    minimum_match_requirement=1,
+                    stopword_mode=StopwordMode.STANDARD,
+                    scenario_id="versemap-reference-profile-1.0",
+                    include_concreteness=True,
+                    concreteness_configuration=(
+                        standard_concreteness_configuration()
+                    ),
+                    include_frequency=True,
+                    frequency_configuration=standard_frequency_configuration(),
+                    include_aoa=True,
+                    aoa_configuration=standard_aoa_configuration(),
+                    include_lexical_style=True,
+                    lexical_style_configuration=(
+                        standard_lexical_style_configuration()
+                    ),
+                    analysis_cache_enabled=False,
+                    performance_diagnostics=False,
+                ),
+                preprocessor=processor,
+            )
+            rows.append(
+                _raw_profile_row(
+                    manifest_row,
+                    extract_standard_profile(workspace),
+                )
+            )
+            analyzed += 1
+        if progress is not None:
+            progress(position, len(manifest), manifest_row["title"])
+        if position % 25 == 0:
+            _write_profile_draft(result.source_root, rows)
+
+    profile_bytes, poet_bytes, model_bytes, model_id = build_reference_model_bytes(
+        rows,
+        reference_release_id=result.release_id,
+        reference_release_sha256=_sha256(result.release_bytes),
+    )
+    _atomic_write(result.source_root / PROFILE_FILENAME, profile_bytes)
+    _atomic_write(result.source_root / POET_PROFILE_FILENAME, poet_bytes)
+    _atomic_write(result.source_root / MODEL_FILENAME, model_bytes)
+    (result.source_root / PROFILE_DRAFT_FILENAME).unlink(missing_ok=True)
+    return ProfileBuildResult(
+        model_id=model_id,
+        analyzed_count=analyzed,
+        reused_count=reused,
+        poem_count=len(rows),
+        current=False,
+    )
+
+
 def update_reference_release(
     source_root: Path | str | None = None,
     *,
@@ -568,6 +800,14 @@ def _argument_parser() -> argparse.ArgumentParser:
         help="Verify that generated release files are current without changing them.",
     )
     parser.add_argument(
+        "--source-only",
+        action="store_true",
+        help=(
+            "Update only the source inventory. Maintainer launchers normally "
+            "build both the inventory and Standard Profile reference index."
+        ),
+    )
+    parser.add_argument(
         "--strict-warnings",
         action="store_true",
         help="Return a failure status when non-blocking inventory warnings exist.",
@@ -602,7 +842,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Manifest: {result.source_root / MANIFEST_FILENAME}")
     print(f"Release record: {result.source_root / RELEASE_FILENAME}")
 
-    if arguments.check and not current:
+    profile_result = None
+    if not arguments.source_only:
+        if not arguments.check:
+            print()
+            print("Building VerseMap Standard Profile 1.0 reference index...")
+
+        def report_progress(completed: int, total: int, title: str) -> None:
+            if completed == 1 or completed == total or completed % 25 == 0:
+                print(f"  {completed:,}/{total:,} profiles ready - {title}")
+
+        profile_result = update_reference_profiles(
+            result,
+            check=arguments.check,
+            progress=report_progress,
+        )
+        if arguments.check:
+            print(
+                "Analytical index: "
+                + ("current" if profile_result.current else "stale or missing")
+            )
+        else:
+            print(f"Model: {profile_result.model_id}")
+            print(f"Profiles analyzed: {profile_result.analyzed_count}")
+            print(f"Profiles reused: {profile_result.reused_count}")
+
+    if arguments.check and (
+        not current
+        or (profile_result is not None and not profile_result.current)
+    ):
         print()
         print(
             "The generated files are stale. Run versevad-update-versemap "

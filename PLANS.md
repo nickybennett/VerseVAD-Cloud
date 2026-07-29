@@ -1,6 +1,6 @@
 # VerseVAD Implementation Plan
 
-## Completed VerseMap reference-corpus source pipeline
+## Completed VerseMap comparative module and reference pipeline
 
 - [x] Establish a narrowly tracked
   `resources/VerseMap_Reference_Corpus/<Poet Name>/*.txt` convention without
@@ -15,6 +15,17 @@
   synthetic regression tests, and a tracked-corpus freshness test.
 - [x] Document the add-folder, update, review, commit, and push workflow for
   synchronized local and cloud repositories.
+- [x] Pin Standard Profile 1.0 with content-word VAD, emotion associations,
+  concreteness, SUBTLEX rarity, AoA, lexical character, content POS, and
+  normalized line/stanza structure.
+- [x] Exclude pronunciation and all Sound & Form evidence from VerseMap so
+  dictionary alternatives cannot affect its coordinates or distances.
+- [x] Build per-poem profiles, poet centroids, weighted PCA display
+  coordinates, full-space neighbor distances, coverage, and resumable
+  hash-based update checkpoints.
+- [x] Add optional Single Poem and Project / Corpus report sections with
+  responsive maps, nearest comparisons, methodology, CSV data, Word reports,
+  and schema-4 project persistence.
 
 ## Completed private Streamlit Community Cloud preparation
 
