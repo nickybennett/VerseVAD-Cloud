@@ -45,6 +45,16 @@ from versevad.lexical_semantic.sentiment import (
     VaderSentimentConfiguration,
     VaderSentimentModule,
 )
+from versevad.lexical_semantic.sensorimotor import (
+    LANCASTER_SENSORIMOTOR_RELATIVE_PATH,
+    LANCASTER_SENSORIMOTOR_SHA256,
+    SENSORIMOTOR_DIMENSIONS,
+    SensorimotorAnalysisResult,
+    SensorimotorConfiguration,
+    SensorimotorMatchMethod,
+    SensorimotorModule,
+    SensorimotorModuleError,
+)
 
 __all__ = [
     "AOA_CONTENT_WORD_POS",
@@ -52,6 +62,8 @@ __all__ = [
     "BRYSBAERT_CONCRETENESS_SHA256",
     "KUPERMAN_AOA_FILENAME",
     "KUPERMAN_AOA_SHA256",
+    "LANCASTER_SENSORIMOTOR_RELATIVE_PATH",
+    "LANCASTER_SENSORIMOTOR_SHA256",
     "AoAAnalysisResult",
     "AoAConfiguration",
     "AoAMatchMethod",
@@ -75,6 +87,12 @@ __all__ = [
     "ReadabilityModule",
     "ReadabilitySummary",
     "ReadabilityWordAudit",
+    "SENSORIMOTOR_DIMENSIONS",
+    "SensorimotorAnalysisResult",
+    "SensorimotorConfiguration",
+    "SensorimotorMatchMethod",
+    "SensorimotorModule",
+    "SensorimotorModuleError",
     "VADER_CITATION",
     "VaderScore",
     "VaderSegmentScore",

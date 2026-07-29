@@ -6,6 +6,29 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Added a session-only **Compare Poems** workspace that runs two poems under
+  one shared configuration and reports source-specific values, within-poem
+  dispersion, cumulative and length-normalized lexical loads, coverage,
+  denominators, and explicit Poem-B-minus-Poem-A differences. It reuses
+  installed affective, sensorimotor, lexical, structure, sound, PoetryID,
+  inherited-form, and VerseMap engines and exports CSV plus narrative Word
+  reports.
+- Updated presets so **Essential** and **Sound and Form** include
+  sensorimotor imagery, while **Complete** includes both sensorimotor imagery
+  and VerseMap. Literary continues to include sensorimotor evidence.
+- Added optional **Sensorimotor Imagery & Embodiment** from the verified
+  Lancaster Sensorimotor Norms: six perceptual modalities, five action
+  effectors, source SDs, published composites, exclusivity, dominant
+  dimensions, token/type and stopword scopes, cumulative/per-100 loads,
+  line/stanza trajectories, coverage, provenance, CSV audit files, and a
+  narrative Word report.
+- Extended the same sensorimotor engine to Project / Corpus and Personal
+  Corpus persistence and comparison, and expanded Lexicon Explorer with every
+  available Lancaster field rather than a reduced summary.
+- Renamed the one-text report family to **Lexical Character, Imagery &
+  Embodiment** and added definitions and cautions that distinguish
+  context-free lexical norms from contextual imagery, intention, and reader
+  response.
 - Replaced the Light/System appearance choices with six persistent,
   contrast-tested themes: **Classic**, **Dark**, **Lavender**, **Ocean**,
   **Crimson**, and **Forest**. Existing Light and System preferences migrate

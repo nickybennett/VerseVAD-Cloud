@@ -18,6 +18,10 @@ from versevad.exports.concreteness import (
     export_concreteness_terms_csv,
     export_concreteness_token_audit_csv,
 )
+from versevad.exports.comparison import (
+    export_poem_comparison_csv,
+    export_poem_comparison_docx,
+)
 from versevad.exports.csv_export import export_analysis_csv
 from versevad.exports.frequency import (
     export_frequency_bundle,
@@ -92,6 +96,15 @@ from versevad.exports.sentiment import (
     export_vader_sentiment_bundle,
     export_vader_sentiment_summary_csv,
 )
+from versevad.exports.sensorimotor import (
+    export_sensorimotor_bundle,
+    export_sensorimotor_by_structure_csv,
+    export_sensorimotor_dominance_csv,
+    export_sensorimotor_observations_csv,
+    export_sensorimotor_summary_csv,
+    export_sensorimotor_terms_csv,
+    export_sensorimotor_unmatched_csv,
+)
 
 __all__ = [
     "export_analysis_csv",
@@ -109,6 +122,8 @@ __all__ = [
     "export_concreteness_summary_csv",
     "export_concreteness_terms_csv",
     "export_concreteness_token_audit_csv",
+    "export_poem_comparison_csv",
+    "export_poem_comparison_docx",
     "export_frequency_bundle",
     "export_frequency_by_pos_csv",
     "export_frequency_by_structure_csv",
@@ -161,6 +176,13 @@ __all__ = [
     "export_readability_bundle",
     "export_readability_summary_csv",
     "export_readability_word_audit_csv",
+    "export_sensorimotor_bundle",
+    "export_sensorimotor_by_structure_csv",
+    "export_sensorimotor_dominance_csv",
+    "export_sensorimotor_observations_csv",
+    "export_sensorimotor_summary_csv",
+    "export_sensorimotor_terms_csv",
+    "export_sensorimotor_unmatched_csv",
     "export_vader_sentence_scores_csv",
     "export_vader_sentiment_bundle",
     "export_vader_sentiment_summary_csv",

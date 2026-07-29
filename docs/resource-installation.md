@@ -8,8 +8,9 @@ uploads, edits, or redistributes these files.
 
 The app remains usable when only some resources are installed. Affective
 sources that fail validation are removed from the available-source selector.
-Concreteness, frequency, Age of Acquisition, pronunciation, meter, and
-rhyme/sound controls are disabled when their dependencies are unavailable.
+Concreteness, sensorimotor imagery and embodiment, frequency, Age of
+Acquisition, pronunciation, meter, and rhyme/sound controls are disabled when
+their dependencies are unavailable.
 Resource-free lexical-style analysis remains available.
 
 VerseMap also requires its tracked reference model plus NRC VAD v2.1, NRC
@@ -73,6 +74,7 @@ Install these under `resources/`.
 | Concreteness | [Brysbaert, Warriner, and Kuperman article and supplement](https://link.springer.com/article/10.3758/s13428-013-0403-5) | `resources/brysbaert_warriner_kuperman_concreteness_DATA.xlsx` | `1673ead761e28833a40e82c0d20f10782955ced9366d600eafeefee0f2254545` |
 | SUBTLEX-US Zipf frequency | [Ghent University SUBTLEX-US page](https://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus) | `resources/subtlex-us/SUBTLEX-US frequency list with PoS and Zipf information.xlsx` | `3a8cb93a4e28988c2ce722a63f6b8d394acdc42ebe2ab6e1f0e484ee0d4167a7` |
 | Kuperman retrospective Age of Acquisition | [Official erratum and ESM 1 supplement](https://link.springer.com/article/10.3758/s13428-013-0348-8) | `resources/kuperman_2013_erratum_ESM1_official.xlsx` | `3f69a1332359de1cd4a7ccd3c4c3c2e39b388eeb171d6e90544709c3dc1a8a6e` |
+| Lancaster Sensorimotor Norms | [Official OSF project and download](https://osf.io/7emr6/) | `resources/Lancaster_Sensorimotor_Norms/Lancaster_sensorimotor_norms_for_39707_words.csv` | `445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5` |
 
 The article PDFs are useful local methodological references but are not
 runtime dependencies. If retained, the filenames used in this development
@@ -83,6 +85,15 @@ workspace are:
 
 Review the publisher or source-page terms before downloading or using any
 supplement. The GPL license for VerseVAD does not change those terms.
+
+The Lancaster data accompanies Lynott, Connell, Brysbaert, Brand, and Carney
+(2020), *The Lancaster Sensorimotor Norms: multidimensional measures of
+perceptual and action strength for 40,000 English words*,
+<https://doi.org/10.3758/s13428-019-01316-z>. The published resource identifies
+the data as CC BY 4.0. Retain the citation and license, and verify the exact
+source-page terms applicable to your use. VerseVAD reads all eleven published
+means and SDs plus the supplied composites, exclusivity, dominant-dimension,
+and percent-known fields without rewriting the CSV.
 
 ## CMU Pronouncing Dictionary
 

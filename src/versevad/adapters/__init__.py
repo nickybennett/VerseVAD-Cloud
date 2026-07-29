@@ -20,6 +20,14 @@ from versevad.adapters.kuperman_aoa import (
     KupermanAoALexicon,
     KupermanAoAValidation,
 )
+from versevad.adapters.lancaster_sensorimotor import (
+    LancasterSensorimotorAdapter,
+    LancasterSensorimotorAdapterError,
+    LancasterSensorimotorLexicon,
+    LancasterSensorimotorValidation,
+    SensorimotorEntry,
+    SensorimotorVector,
+)
 from versevad.adapters.cmudict import (
     CMUDictAdapter,
     CMUDictAdapterError,
@@ -55,6 +63,10 @@ __all__ = [
     "KupermanAoAEntry",
     "KupermanAoALexicon",
     "KupermanAoAValidation",
+    "LancasterSensorimotorAdapter",
+    "LancasterSensorimotorAdapterError",
+    "LancasterSensorimotorLexicon",
+    "LancasterSensorimotorValidation",
     "CMUDictAdapter",
     "CMUDictAdapterError",
     "CMUDictEntry",
@@ -71,6 +83,8 @@ __all__ = [
     "SubtlexUsEntry",
     "SubtlexUsLexicon",
     "SubtlexUsValidation",
+    "SensorimotorEntry",
+    "SensorimotorVector",
     "VadLexiconAdapter",
     "WarrinerVadAdapter",
 ]

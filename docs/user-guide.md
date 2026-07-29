@@ -2,8 +2,9 @@
 
 ## What is available now
 
-VerseVAD provides four local workspaces: **Single Poem**, **Project / Corpus**,
-**Other Text**, and **Lexicon Explorer**. Single-text analyses remain temporary
+VerseVAD provides five local workspaces: **Single Poem**, **Compare Poems**,
+**Project / Corpus**, **Other Text**, and **Lexicon Explorer**. Single-text and
+two-poem comparison analyses remain temporary
 unless downloaded.
 Corpus projects, preserved text versions, metadata, completed results, and
 versioned review scenarios persist in the local `projects` database. Single-text
@@ -106,12 +107,18 @@ Classic. Exported charts remain publication-light.
    or choose **Essential**, **Literary**, **Sound and Form**, or **Complete** and
    click **Apply preset**. A preset changes module selections only; it does not
    overwrite advanced thresholds or other methodology.
+   **Essential** includes sensorimotor imagery when its Lancaster resource is
+   installed. **Sound and Form** also includes sensorimotor imagery alongside
+   pronunciation, meter, rhyme/sound, inherited form, and structure.
+   **Complete** includes both sensorimotor imagery and VerseMap when their
+   dependencies are installed.
 4. Leave all five lexicons selected for a broad first look, or remove sources
    that are outside the current question.
 5. Under **Additional Optional Models**, optionally enable **Normative lexical
-   concreteness**, **Frequency & rarity profile (SUBTLEX-US Zipf)**, and/or
-   **Age of Acquisition profile (Kuperman et al. ratings)**. Any can run with
-   the affective sources or by itself.
+   concreteness**, **Sensorimotor imagery & embodiment (Lancaster norms)**,
+   **Frequency & rarity profile (SUBTLEX-US Zipf)**, and/or **Age of
+   Acquisition profile (Kuperman et al. ratings)**. Any can run with the
+   affective sources or by itself.
 6. Leave **Analysis configuration and methodology** closed for the default
    phrase-preferred and standard stopword analysis. Open it when you
    deliberately want a different phrase policy, sparse-result threshold, or
@@ -124,6 +131,33 @@ The app never assigns an unmatched token a neutral score. It attempts an exact
 normalized surface match before a POS-sensitive lemma fallback and records the
 method used.
 
+## Compare two poems
+
+1. Choose **Compare Poems** in the workspace navigation.
+2. Paste or upload Poem A and Poem B. Titles are working labels and may be
+   changed before analysis.
+3. Choose the affective sources and additional modules. Sensorimotor imagery,
+   lexical measures, and other installed lexical modules are selected by
+   default; pronunciation-dependent sound/form evidence remains available when
+   CMUdict is installed.
+4. If needed, open the shared stopword settings. One phrase policy, stopword
+   policy, resource set, and module configuration is applied to both poems.
+5. Click **Analyze Both Poems**, then choose one shared all-matched or
+   stopword-excluded view and token or type weighting.
+6. Read each source/scale separately. **B minus A** is a descriptive
+   difference: positive means B has the higher recorded value and negative
+   means it has the lower value. It is not a significance test or ranking.
+7. Check each poem's denominator and coverage before interpreting its
+   difference. Missing evidence remains missing rather than being assigned a
+   neutral value.
+8. Export either the complete comparison CSV or the narrative `.docx` report.
+
+Population standard deviation in this workspace describes dispersion among the
+matched normative ratings within each poem; it is not uncertainty in the mean.
+Raw cumulative lexical load preserves repetition and length under token
+weighting. Its per-100-observation counterpart is the appropriate
+length-normalized comparison prompt.
+
 ## Read the result without drowning in CSVs
 
 Use this order:
@@ -134,9 +168,10 @@ Use this order:
 2. **Affective Evidence** — open the VAD, emotion association/intensity/
    sentiment, Lexical Trajectory, and PoetryID sections. Each large section is
    collapsible and reports whether it is complete or was not selected.
-3. **Lexical Character** — open concreteness, SUBTLEX-US frequency/rarity, and
-   Acquisition & Readability. Readability is always available; normative AoA
-   appears there when enabled.
+3. **Lexical Character, Imagery & Embodiment** — open concreteness, Lancaster
+   sensorimotor evidence, SUBTLEX-US frequency/rarity, and Acquisition &
+   Readability. Readability is always available; normative AoA appears there
+   when enabled.
 4. **Sound & Form** — open pronunciation/syllables/stress, candidate meter, and
    rhyme/recurring-sound evidence.
 5. **Structure** — inspect the shared language profile plus lexical diversity,
@@ -301,6 +336,41 @@ tokens. It does not measure imagery quality, readability, cognition, or
 whether the poem itself is abstract or concrete. Always read coverage,
 dispersion, terms, and line/stanza evidence before interpreting the mean.
 Unmatched tokens remain missing.
+
+### Sensorimotor imagery and embodiment
+
+Under **Additional Optional Models**, enable **Sensorimotor imagery &
+embodiment (Lancaster norms)** to compare matched words and published
+multiword concepts with the Lancaster Sensorimotor Norms. The dedicated
+section reports:
+
+- separate means, population SDs, cumulative lexical loads, and loads per 100
+  observations for auditory, gustatory, haptic, interoceptive, olfactory,
+  visual, foot/leg, hand/arm, head, mouth/throat, and torso dimensions;
+- the source's published Minkowski-3 perceptual, action, and overall
+  sensorimotor composites;
+- perceptual, action, and overall exclusivity, where higher values indicate
+  concentration in fewer dimensions;
+- the distribution and normalized diversity of each concept's strongest
+  dimension;
+- token- and type-weighted versions of both all-matched and
+  stopword-excluded evidence;
+- line and stanza trajectories with coverage; and
+- complete matched-concept, source-row, source-SD, stopword, and unmatched
+  audit evidence.
+
+Token weighting retains repetition; type weighting gives each distinct
+matched Lancaster entry one observation. Published source phrases remain
+intact. Cumulative load is deliberately length- and repetition-sensitive,
+while load per 100 observations is its length-normalized counterpart.
+Unmatched concepts remain missing rather than receiving zero.
+
+These are context-free normative lexical associations. A high visual mean,
+for example, identifies vocabulary that norming participants associated
+strongly with seeing; it does not prove that the poem produces successful
+visual imagery, that a particular reader visualizes it, or that the poet
+intended that effect. Read coverage, matched counts, dispersion, terms, and
+the poem's language together.
 
 ### Corpus-relative lexical frequency and rarity
 
@@ -566,9 +636,11 @@ version and decision revisions used, so the baseline is never overwritten.
    including available evidence, comparisons, notices, and source provenance.
 
 The **Additional Lexical Evidence** section searches installed concreteness,
-SUBTLEX-US, Kuperman AoA, and CMUdict resources. It reports source-supplied
-ratings and response fields, Zipf and accompanying frequency/contextual-
-diversity fields, and every exact pronunciation candidate with ARPAbet phones,
+Lancaster sensorimotor, SUBTLEX-US, Kuperman AoA, and CMUdict resources. It
+reports all eleven Lancaster means and source SDs, published composites,
+exclusivity, dominant dimensions and percent-known values; other source
+ratings and response fields; Zipf and accompanying frequency/contextual-
+diversity fields; and every exact pronunciation candidate with ARPAbet phones,
 syllable count, and lexical-stress digits. Available-but-unmatched,
 source-entry-without-numeric-rating, and resource-unavailable are distinct
 states. Missing evidence never becomes zero or neutral.

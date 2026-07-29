@@ -28,6 +28,7 @@ from versevad.exports.pronunciation import export_pronunciation_bundle
 from versevad.exports.poetry_id import export_poetry_id_bundle
 from versevad.exports.inherited_form import export_inherited_form_bundle
 from versevad.exports.readability import export_readability_bundle
+from versevad.exports.sensorimotor import export_sensorimotor_bundle
 from versevad.exports.sentiment import export_vader_sentiment_bundle
 from versevad.exports.versemap import export_versemap_bundle
 from versevad.models import (
@@ -1782,6 +1783,7 @@ class ProjectRepository:
             (workspace.vader_sentiment, export_vader_sentiment_bundle),
             (workspace.readability, export_readability_bundle),
             (workspace.concreteness, export_concreteness_bundle),
+            (workspace.sensorimotor, export_sensorimotor_bundle),
             (workspace.frequency, export_frequency_bundle),
             (workspace.aoa, export_aoa_bundle),
             (workspace.pronunciation, export_pronunciation_bundle),
@@ -1826,6 +1828,15 @@ class ProjectRepository:
                 (
                     workspace.concreteness.configuration
                     if workspace.concreteness is not None
+                    else None
+                ),
+            ),
+            (
+                workspace.sensorimotor is not None,
+                "sensorimotor_imagery_and_embodiment",
+                (
+                    workspace.sensorimotor.configuration
+                    if workspace.sensorimotor is not None
                     else None
                 ),
             ),

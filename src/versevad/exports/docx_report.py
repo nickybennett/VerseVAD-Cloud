@@ -81,6 +81,20 @@ REPORT_PROFILES: Mapping[str, NarrativeReportProfile] = {
             "Out-of-dictionary syllables use an explicitly labeled orthographic heuristic unless a session override is supplied.",
         ),
     ),
+    "sensorimotor imagery and embodiment": NarrativeReportProfile(
+        "Sensorimotor Imagery and Embodiment Report",
+        "This report summarizes Lancaster Sensorimotor Norms evidence for matched "
+        "words and published multiword concepts across six perceptual modalities "
+        "and five action effectors.",
+        "Higher source ratings indicate stronger context-free normative "
+        "associations with a sensory modality or bodily action. They identify "
+        "lexical affordances for interpretation, not imagery guaranteed by the "
+        "poem or an individual reader's experience.",
+        (
+            "Unmatched items remain missing rather than receiving a neutral or zero rating.",
+            "Coverage, weighting, stopword treatment, and eligible-token counts should accompany comparisons.",
+        ),
+    ),
     "pronunciation": NarrativeReportProfile(
         "Pronunciation and Stress Report",
         "This report summarizes dictionary-supported syllable and stress evidence "
@@ -182,6 +196,20 @@ REPORT_PROFILES: Mapping[str, NarrativeReportProfile] = {
         "Corpus comparisons are descriptive and are most defensible when the works "
         "share compatible configurations, resources, and coverage.",
         ("Use the companion CSV files for complete work-level and audit data.",),
+    ),
+    "compare_poems": NarrativeReportProfile(
+        "VerseVAD Contrastive Evaluation Report",
+        "This report places two poems side by side under one shared analytical "
+        "configuration and records both values, B minus A differences, "
+        "denominators, and coverage.",
+        "The differences are descriptive prompts for contrastive close reading. "
+        "They do not rank the poems, establish statistical significance, or "
+        "reduce either poem to a single score.",
+        (
+            "Interpret only like-for-like source scales and methods.",
+            "Coverage and eligible-token counts can differ between poems even when the configuration is shared.",
+            "Missing evidence remains missing rather than receiving a neutral value.",
+        ),
     ),
 }
 

@@ -12,6 +12,7 @@ from versevad.ui.design import (
     MODULE_PRESETS,
     OCEAN_TOKENS,
     THEME_TOKENS,
+    WORKSPACES,
     collapse_control_html,
     preset_widget_state,
     render_dataframe,
@@ -287,6 +288,7 @@ def test_presets_change_only_module_selection_not_advanced_settings() -> None:
         ),
     )
     assert state["include_poetry_id"] is True
+    assert state["include_sensorimotor"] is True
     assert state["include_meter"] is False
     assert "frequency_rare_threshold" not in state
     assert "poetry_id_low_threshold" not in state
@@ -301,3 +303,26 @@ def test_presets_change_only_module_selection_not_advanced_settings() -> None:
         "Complete",
         "Custom",
     }
+    assert "Compare Poems" in WORKSPACES
+
+
+def test_presets_include_sensorimotor_and_versemap_as_documented() -> None:
+    essential = preset_widget_state(
+        "Essential",
+        available_lexicon_ids=("nrc_vad_v2_1",),
+    )
+    sound_and_form = preset_widget_state(
+        "Sound and Form",
+        available_lexicon_ids=(),
+    )
+    complete = preset_widget_state(
+        "Complete",
+        available_lexicon_ids=("nrc_vad_v2_1",),
+    )
+
+    assert essential["include_sensorimotor"] is True
+    assert essential["include_versemap"] is False
+    assert sound_and_form["include_sensorimotor"] is True
+    assert sound_and_form["include_versemap"] is False
+    assert complete["include_sensorimotor"] is True
+    assert complete["include_versemap"] is True

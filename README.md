@@ -20,7 +20,7 @@ GPL-3.0-only licensing and root-level citation metadata for scholarly reuse.
 Research lexicons and private texts remain local and excluded from source
 control.
 
-**Phase 5: the local one-poem, corpus, review, and Lexicon Explorer workspaces
+**Phase 5: the local one-poem, comparison, corpus, review, and Lexicon Explorer workspaces
 are complete.** The one-poem path now explains VAD, shows token/type weighting,
 top contributors, and cumulative normative lexical loads. Persistent projects
 can import an entire folder as separate works, preserve text versions and
@@ -124,6 +124,26 @@ Word report. The one-text and corpus interfaces request both token scopes by
 default, and the one-text result provides independent VAD source, token-scope,
 and weighting selectors.
 
+The optional **Sensorimotor Imagery & Embodiment** module reads the verified
+Lancaster Sensorimotor Norms in place and reports six perceptual modalities,
+five action effectors, source SDs, published composites, exclusivity, dominant
+dimensions, token/type and stopword views, cumulative and length-normalized
+loads, structural trajectories, and complete match coverage. These
+context-free lexical norms support questions for close reading; they do not
+declare a poem's imagery, embodiment, intention, or reader response. The same
+engine and CSV/Word audit artifacts are available to one-text, corpus, and
+Lexicon Explorer workflows.
+
+**Compare Poems** provides a session-only contrastive workspace for two texts
+analyzed under one shared configuration. It places source-specific means,
+within-poem population standard deviations, cumulative and per-100 lexical
+loads, sensorimotor evidence, structure, sound, PoetryID, and VerseMap evidence
+side by side when their modules are enabled. Every numeric difference is
+reported as Poem B minus Poem A with its source scale, denominator, and
+coverage. The CSV and narrative Word exports preserve missing values and do
+not present differences as significance tests, rankings, or substitutes for
+close reading.
+
 Stage 15 adds **Inherited Form Analysis** to Sound & Form. Registry version
 2.0 contains 169 source-documented profiles spanning fixed forms, stanza
 forms, refrain and linked forms, syllabic and accentual structures, historical
@@ -166,7 +186,8 @@ published phrase matches intact. Neither view assigns a value to unmatched
 tokens.
 
 Lexicon Explorer searches all installed affective sources plus concreteness,
-SUBTLEX-US, Kuperman AoA, and CMUdict for exact entries, phrases, explicitly
+Lancaster sensorimotor norms, SUBTLEX-US, Kuperman AoA, and CMUdict for exact
+entries, phrases, explicitly
 labeled lemma-derived or user-mapped lookups, ratings, frequency fields,
 pronunciation/stress candidates, emotion associations/intensities, Warriner
 uncertainty fields, source provenance, and derived normalized comparisons. It

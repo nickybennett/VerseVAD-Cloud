@@ -51,6 +51,7 @@ from versevad.exports.poem_document_csv import export_poem_document_csv_bundle
 from versevad.exports.pronunciation import export_pronunciation_bundle
 from versevad.exports.poetry_id import export_poetry_id_bundle
 from versevad.exports.readability import export_readability_bundle
+from versevad.exports.sensorimotor import export_sensorimotor_bundle
 from versevad.exports.sentiment import export_vader_sentiment_bundle
 from versevad.exports.versemap import export_versemap_bundle
 from versevad.lexical_semantic.concreteness import (
@@ -76,6 +77,12 @@ from versevad.lexical_semantic.readability import (
     ReadabilityAnalysisResult,
     ReadabilityConfiguration,
     ReadabilityModule,
+)
+from versevad.lexical_semantic.sensorimotor import (
+    SensorimotorAnalysisResult,
+    SensorimotorConfiguration,
+    SensorimotorModule,
+    SensorimotorModuleError,
 )
 from versevad.lexical_semantic.sentiment import (
     VaderSentimentAnalysisResult,
@@ -257,6 +264,7 @@ RESOURCE_DOWNLOAD_PAGES = {
     "kuperman-aoa-2012-erratum-supplement": (
         "https://link.springer.com/article/10.3758/s13428-013-0348-8"
     ),
+    "lancaster-sensorimotor-2020": "https://osf.io/7emr6/",
     "cmudict-dictionary": "https://github.com/cmusphinx/cmudict",
     "cmudict-phone-inventory": "https://github.com/cmusphinx/cmudict",
     "cmudict-symbol-inventory": "https://github.com/cmusphinx/cmudict",
@@ -275,6 +283,7 @@ class ResourceReadiness:
     concreteness: ResourceStatus
     frequency: ResourceStatus
     aoa: ResourceStatus
+    sensorimotor: ResourceStatus
     pronunciation: tuple[ResourceStatus, ...]
     versemap: ResourceStatus
 
@@ -285,6 +294,7 @@ class ResourceReadiness:
             self.concreteness,
             self.frequency,
             self.aoa,
+            self.sensorimotor,
             *self.pronunciation,
             self.versemap,
         )
@@ -314,6 +324,8 @@ class ResourceReadiness:
             installed.append("frequency")
         if self.aoa.available:
             installed.append("aoa")
+        if self.sensorimotor.available:
+            installed.append("sensorimotor")
         if self.pronunciation_available:
             installed.extend(
                 ("pronunciation", "meter", "phonology", "inherited_form")
@@ -367,6 +379,7 @@ def installed_resource_readiness(
     concreteness_module = ConcretenessModule(resource_root)
     frequency_module = FrequencyModule(resource_root)
     aoa_module = AoAModule(resource_root)
+    sensorimotor_module = SensorimotorModule(resource_root)
     pronunciation_module = PronunciationModule(resource_root)
     versemap_spec = ResourceSpec(
         resource_id="versemap",
@@ -385,6 +398,9 @@ def installed_resource_readiness(
         ),
         frequency=supplementary_manager.validate(frequency_module.resource_spec),
         aoa=supplementary_manager.validate(aoa_module.resource_spec),
+        sensorimotor=supplementary_manager.validate(
+            sensorimotor_module.resource_spec
+        ),
         pronunciation=supplementary_manager.validate_many(
             pronunciation_module.resource_specs
         ),
@@ -417,6 +433,10 @@ class AnalysisRequest:
     frequency_configuration: FrequencyConfiguration = FrequencyConfiguration()
     include_aoa: bool = False
     aoa_configuration: AoAConfiguration = AoAConfiguration()
+    include_sensorimotor: bool = False
+    sensorimotor_configuration: SensorimotorConfiguration = (
+        SensorimotorConfiguration()
+    )
     include_pronunciation: bool = False
     pronunciation_configuration: PronunciationConfiguration = (
         PronunciationConfiguration()
@@ -457,6 +477,7 @@ class WorkspaceAnalysis:
     concreteness: ConcretenessAnalysisResult | None = None
     frequency: FrequencyAnalysisResult | None = None
     aoa: AoAAnalysisResult | None = None
+    sensorimotor: SensorimotorAnalysisResult | None = None
     pronunciation: PronunciationAnalysisResult | None = None
     meter: MeterAnalysisResult | None = None
     phonology: PhonologicalAnalysisResult | None = None
@@ -897,6 +918,7 @@ def run_workspace_analysis(
     concreteness_module: ConcretenessModule | None = None,
     frequency_module: FrequencyModule | None = None,
     aoa_module: AoAModule | None = None,
+    sensorimotor_module: SensorimotorModule | None = None,
     pronunciation_module: PronunciationModule | None = None,
     meter_module: MeterModule | None = None,
     phonological_module: PhonologicalModule | None = None,
@@ -1002,6 +1024,13 @@ def run_workspace_analysis(
     concreteness_configuration = request.concreteness_configuration
     frequency_configuration = request.frequency_configuration
     aoa_configuration = request.aoa_configuration
+    sensorimotor_configuration = replace(
+        request.sensorimotor_configuration,
+        stopword_mode=request.stopword_mode,
+        protected_stopwords=request.protected_stopwords,
+        custom_stopword_additions=request.custom_stopword_additions,
+        custom_stopword_removals=request.custom_stopword_removals,
+    )
     lexical_style_configuration = request.lexical_style_configuration
     sentiment_engine = vader_sentiment_module or VaderSentimentModule()
     vader_sentiment = cached_operation(
@@ -1192,6 +1221,33 @@ def run_workspace_analysis(
                 enabled=concreteness_module is None,
             )
         except ConcretenessModuleError as error:
+            raise WorkspaceAnalysisError(str(error)) from error
+    sensorimotor = None
+    if request.include_sensorimotor:
+        module = sensorimotor_module or SensorimotorModule(resource_root)
+        try:
+            sensorimotor = cached_operation(
+                "sensorimotor_imagery_and_embodiment",
+                {
+                    "text_sha256": document.text_sha256,
+                    "text_version_id": document.text_version_id,
+                    "preprocessing": poem_document.preprocessing,
+                    "configuration": sensorimotor_configuration,
+                    "module_version": module.version,
+                    "resource_root": resource_root.resolve(),
+                },
+                lambda: module.analyze_detailed(
+                    module_input,
+                    sensorimotor_configuration,
+                ),
+                validator=lambda value: (
+                    isinstance(value, SensorimotorAnalysisResult)
+                    and value.module_result.text_version_id
+                    == document.text_version_id
+                ),
+                enabled=sensorimotor_module is None,
+            )
+        except SensorimotorModuleError as error:
             raise WorkspaceAnalysisError(str(error)) from error
     versemap_concreteness = None
     if request.include_versemap:
@@ -1584,6 +1640,7 @@ def run_workspace_analysis(
                     vader_sentiment=vader_sentiment,
                     readability=readability,
                     concreteness=versemap_concreteness,
+                    sensorimotor=None,
                     frequency=versemap_frequency,
                     aoa=versemap_aoa,
                     pronunciation=pronunciation,
@@ -1642,6 +1699,7 @@ def run_workspace_analysis(
         vader_sentiment=vader_sentiment,
         readability=readability,
         concreteness=concreteness,
+        sensorimotor=sensorimotor,
         frequency=frequency,
         aoa=aoa,
         pronunciation=pronunciation,
@@ -2592,6 +2650,13 @@ def overview_notes(workspace: WorkspaceAnalysis) -> tuple[str, ...]:
             "the source 1-5 scale. They do not measure imagery success, "
             "readability, literary quality, intelligence, or comprehension."
         )
+    if workspace.sensorimotor is not None:
+        notes.append(
+            "Sensorimotor results describe context-free Lancaster norms for "
+            "matched lexical concepts across sensory modalities and bodily "
+            "actions. They reveal interpretive affordances, not guaranteed "
+            "imagery, authorial intention, or an individual reader's experience."
+        )
     if workspace.frequency is not None:
         notes.append(
             "Frequency results describe how represented word forms are distributed "
@@ -3078,6 +3143,125 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                     ),
                 }
             )
+    if workspace.sensorimotor is not None:
+        sensorimotor = workspace.sensorimotor
+        for profile in sensorimotor.profiles:
+            denominator = (
+                f"{profile.matched_observation_count} matched "
+                f"{profile.weighting}-weighted observations"
+            )
+            for dimension in profile.dimensions:
+                for metric, value, unit, note in (
+                    (
+                        f"Mean normative {dimension.label}",
+                        dimension.statistics.mean,
+                        "source 0-5",
+                        "Context-free normative association strength.",
+                    ),
+                    (
+                        f"{dimension.label} population standard deviation",
+                        dimension.statistics.population_standard_deviation,
+                        "source-scale points",
+                        "Dispersion across matched source means.",
+                    ),
+                    (
+                        f"{dimension.label} cumulative lexical load",
+                        dimension.cumulative_load,
+                        "summed source ratings",
+                        "Length- and repetition-sensitive in the token-weighted view.",
+                    ),
+                    (
+                        f"{dimension.label} load per 100 observations",
+                        dimension.load_per_100_observations,
+                        "summed ratings per 100 observations",
+                        "Length-normalized cumulative lexical load.",
+                    ),
+                ):
+                    rows.append(
+                        {
+                            "section": "Sensorimotor imagery and embodiment",
+                            "lexicon": sensorimotor.resource_status.display_name,
+                            "analysis_view": (
+                                f"{profile.analysis_view}; "
+                                f"{profile.weighting}-weighted"
+                            ),
+                            "metric": metric,
+                            "value": value if value is not None else "",
+                            "unit_or_scale": unit,
+                            "denominator": denominator,
+                            "plain_language_note": note,
+                        }
+                    )
+            for metric, statistics_value, unit, note in (
+                (
+                    "Mean published perceptual composite",
+                    profile.perceptual_strength,
+                    "published Minkowski-3 composite",
+                    "Combines the six perceptual modalities.",
+                ),
+                (
+                    "Mean published action composite",
+                    profile.action_strength,
+                    "published Minkowski-3 composite",
+                    "Combines the five action effectors.",
+                ),
+                (
+                    "Mean published overall sensorimotor composite",
+                    profile.overall_sensorimotor_strength,
+                    "published Minkowski-3 composite",
+                    "Combines all eleven dimensions.",
+                ),
+                (
+                    "Mean sensorimotor exclusivity",
+                    profile.sensorimotor_exclusivity,
+                    "proportion",
+                    "Higher values indicate concentration in fewer dimensions.",
+                ),
+            ):
+                rows.append(
+                    {
+                        "section": "Sensorimotor imagery and embodiment",
+                        "lexicon": sensorimotor.resource_status.display_name,
+                        "analysis_view": (
+                            f"{profile.analysis_view}; "
+                            f"{profile.weighting}-weighted"
+                        ),
+                        "metric": metric,
+                        "value": (
+                            statistics_value.mean
+                            if statistics_value.mean is not None
+                            else ""
+                        ),
+                        "unit_or_scale": unit,
+                        "denominator": denominator,
+                        "plain_language_note": note,
+                    }
+                )
+            rows.append(
+                {
+                    "section": "Sensorimotor imagery and embodiment",
+                    "lexicon": sensorimotor.resource_status.display_name,
+                    "analysis_view": (
+                        f"{profile.analysis_view}; {profile.weighting}-weighted"
+                    ),
+                    "metric": "Matched-token coverage",
+                    "value": (
+                        profile.token_coverage
+                        if profile.token_coverage is not None
+                        else ""
+                    ),
+                    "unit_or_scale": "proportion",
+                    "denominator": (
+                        f"{profile.matched_token_count} of "
+                        f"{profile.eligible_token_count} eligible tokens"
+                    ),
+                    "plain_language_note": (
+                        "Unmatched concepts remain missing rather than receiving "
+                        "a neutral or zero rating."
+                    ),
+                }
+            )
+    if workspace.concreteness is not None:
         for metric, value, denominator, note in (
             (
                 "Rated-token coverage",
@@ -4106,6 +4290,90 @@ def csv_reading_guide() -> bytes:
             "important_caution": "Phrase components share a match_group_id; unmatched and ineligible rows carry no rating.",
         },
         {
+            "file": "sensorimotor_summary.csv",
+            "what_it_answers": (
+                "How strongly does the matched vocabulary associate with six "
+                "perceptual modalities and five bodily action effectors?"
+            ),
+            "start_with": (
+                "analysis view, weighting, dimension means and dispersion, "
+                "cumulative loads, composites, exclusivity, and coverage."
+            ),
+            "important_caution": (
+                "These are context-free normative lexical associations, not "
+                "guaranteed imagery, reader experience, or authorial intention."
+            ),
+        },
+        {
+            "file": "sensorimotor_dominant_dimensions.csv",
+            "what_it_answers": (
+                "Which single strongest Lancaster dimension is most often "
+                "associated with the matched concepts?"
+            ),
+            "start_with": "category, count, proportion, analysis view, and weighting.",
+            "important_caution": (
+                "A dominant dimension is the largest source rating for a concept; "
+                "it does not erase meaningful secondary dimensions."
+            ),
+        },
+        {
+            "file": "sensorimotor_by_structure.csv",
+            "what_it_answers": (
+                "How do sensorimotor dimension means vary by preserved line and stanza?"
+            ),
+            "start_with": (
+                "scope, ordinal, source text, coverage, observation count, and "
+                "the eleven mean columns."
+            ),
+            "important_caution": (
+                "A blank structural mean means that no retained concept matched "
+                "there; it is not a zero-strength result."
+            ),
+        },
+        {
+            "file": "sensorimotor_terms.csv",
+            "what_it_answers": (
+                "Which matched source concepts contribute each normative "
+                "sensorimotor profile?"
+            ),
+            "start_with": (
+                "source term, occurrence count, eleven means, dominant dimension, "
+                "overall composite, and exclusivity."
+            ),
+            "important_caution": (
+                "Published multiword concepts are retained as source expressions "
+                "rather than decomposed into invented ratings."
+            ),
+        },
+        {
+            "file": "sensorimotor_observations.csv",
+            "what_it_answers": (
+                "Which exact token or phrase occurrence supplied each retained "
+                "Lancaster rating?"
+            ),
+            "start_with": (
+                "surface form, match method, source term and row, stopword status, "
+                "eleven source means and SDs, and context."
+            ),
+            "important_caution": (
+                "Source SDs describe the norming responses for a concept; they "
+                "are not the poem-level dispersion shown in summary rows."
+            ),
+        },
+        {
+            "file": "sensorimotor_unmatched.csv",
+            "what_it_answers": (
+                "Which eligible lexical tokens had no defensible Lancaster match?"
+            ),
+            "start_with": (
+                "surface form, normalized form, lemma, POS, location, reason, and context."
+            ),
+            "important_caution": (
+                "Unmatched items remain missing and are never assigned a neutral "
+                "or zero sensorimotor value."
+            ),
+        },
+        {
             "file": "frequency_summary.csv",
             "what_it_answers": "What is the poem's corpus-relative lexical-frequency profile?",
             "start_with": "median Zipf, matched-token coverage, analysis scope, mean, and dispersion.",
@@ -4491,6 +4759,7 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
             (workspace.vader_sentiment, export_vader_sentiment_bundle),
             (workspace.readability, export_readability_bundle),
             (workspace.concreteness, export_concreteness_bundle),
+            (workspace.sensorimotor, export_sensorimotor_bundle),
             (workspace.frequency, export_frequency_bundle),
             (workspace.aoa, export_aoa_bundle),
             (workspace.pronunciation, export_pronunciation_bundle),
@@ -4528,6 +4797,7 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
             workspace.vader_sentiment,
             workspace.readability,
             workspace.concreteness,
+            workspace.sensorimotor,
             workspace.frequency,
             workspace.aoa,
             workspace.pronunciation,
@@ -4586,6 +4856,7 @@ def detailed_export_zip(
         _module_result_id(workspace.vader_sentiment),
         _module_result_id(workspace.readability),
         _module_result_id(workspace.concreteness),
+        _module_result_id(workspace.sensorimotor),
         _module_result_id(workspace.frequency),
         _module_result_id(workspace.aoa),
         _module_result_id(workspace.pronunciation),

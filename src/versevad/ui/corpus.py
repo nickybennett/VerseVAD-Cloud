@@ -1398,6 +1398,7 @@ def _render_analysis_tab(
         "concreteness": "Concreteness",
         "frequency": "SUBTLEX-US frequency and rarity",
         "aoa": "Age of acquisition",
+        "sensorimotor": "Sensorimotor imagery and embodiment",
         "pronunciation": "Pronunciation and lexical stress",
         "meter": "Candidate meter and rhythmic regularity",
         "phonology": "Rhyme and phonological patterns",
@@ -1466,6 +1467,7 @@ def _render_analysis_tab(
             "include_concreteness": "concreteness",
             "include_frequency": "frequency",
             "include_aoa": "aoa",
+            "include_sensorimotor": "sensorimotor",
             "include_pronunciation": "pronunciation",
             "include_meter": "meter",
             "include_phonology": "phonology",
@@ -1890,6 +1892,7 @@ def _render_analysis_tab(
                 aoa_configuration=AoAConfiguration(
                     content_words_only=aoa_content_words_only
                 ),
+                include_sensorimotor="sensorimotor" in selected_modules,
                 include_pronunciation="pronunciation" in selected_modules,
                 include_meter="meter" in selected_modules,
                 meter_configuration=MeterConfiguration(

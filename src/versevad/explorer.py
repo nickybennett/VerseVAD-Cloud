@@ -17,6 +17,10 @@ from versevad.adapters.kuperman_aoa import (
     KupermanAoAAdapter,
     KupermanAoAEntry,
 )
+from versevad.adapters.lancaster_sensorimotor import (
+    LancasterSensorimotorAdapter,
+    SensorimotorEntry,
+)
 from versevad.adapters.subtlex_us import SubtlexUsAdapter, SubtlexUsEntry
 from versevad.application import (
     LEXICON_SPECS,
@@ -32,6 +36,11 @@ from versevad.lexical_semantic.concreteness import (
 from versevad.lexical_semantic.frequency import (
     FrequencyModule,
     SUBTLEX_US_SPEC,
+)
+from versevad.lexical_semantic.sensorimotor import (
+    LANCASTER_SENSORIMOTOR_SPEC,
+    SENSORIMOTOR_DIMENSIONS,
+    SensorimotorModule,
 )
 from versevad.lexical_semantic.readability import (
     ReadabilityAnalysisResult,
@@ -433,6 +442,120 @@ def _aoa_evidence(
     )
 
 
+def _sensorimotor_evidence(
+    resource: SupplementaryExplorerResource,
+    entry: SensorimotorEntry,
+    method: str,
+) -> SupplementaryExplorerEntry:
+    values: list[SupplementaryEvidenceValue] = []
+    for dimension in SENSORIMOTOR_DIMENSIONS:
+        values.extend(
+            (
+                SupplementaryEvidenceValue(
+                    f"{dimension.label} mean",
+                    getattr(entry.means, dimension.dimension_id),
+                    "source 0-5",
+                    dimension.definition,
+                ),
+                SupplementaryEvidenceValue(
+                    f"{dimension.label} source standard deviation",
+                    getattr(
+                        entry.source_standard_deviations,
+                        dimension.dimension_id,
+                    ),
+                    "source-scale points",
+                    "Dispersion among source norming responses.",
+                ),
+            )
+        )
+    values.extend(
+        (
+            SupplementaryEvidenceValue(
+                "Maximum perceptual strength",
+                entry.max_perceptual_strength,
+                "source 0-5",
+            ),
+            SupplementaryEvidenceValue(
+                "Minkowski-3 perceptual strength",
+                entry.minkowski3_perceptual_strength,
+                "published composite",
+            ),
+            SupplementaryEvidenceValue(
+                "Perceptual exclusivity",
+                entry.perceptual_exclusivity,
+                "proportion",
+            ),
+            SupplementaryEvidenceValue(
+                "Dominant perceptual modality",
+                entry.dominant_perceptual,
+            ),
+            SupplementaryEvidenceValue(
+                "Maximum action strength",
+                entry.max_action_strength,
+                "source 0-5",
+            ),
+            SupplementaryEvidenceValue(
+                "Minkowski-3 action strength",
+                entry.minkowski3_action_strength,
+                "published composite",
+            ),
+            SupplementaryEvidenceValue(
+                "Action exclusivity",
+                entry.action_exclusivity,
+                "proportion",
+            ),
+            SupplementaryEvidenceValue(
+                "Dominant action effector",
+                entry.dominant_action,
+            ),
+            SupplementaryEvidenceValue(
+                "Maximum overall sensorimotor strength",
+                entry.max_sensorimotor_strength,
+                "source 0-5",
+            ),
+            SupplementaryEvidenceValue(
+                "Minkowski-3 overall sensorimotor strength",
+                entry.minkowski3_sensorimotor_strength,
+                "published composite",
+            ),
+            SupplementaryEvidenceValue(
+                "Overall sensorimotor exclusivity",
+                entry.sensorimotor_exclusivity,
+                "proportion",
+            ),
+            SupplementaryEvidenceValue(
+                "Dominant overall sensorimotor dimension",
+                entry.dominant_sensorimotor,
+            ),
+            SupplementaryEvidenceValue(
+                "Percent known: perceptual ratings",
+                entry.percent_known_perceptual,
+                "proportion",
+            ),
+            SupplementaryEvidenceValue(
+                "Percent known: action ratings",
+                entry.percent_known_action,
+                "proportion",
+            ),
+            SupplementaryEvidenceValue(
+                "Published multiword concept",
+                entry.is_multiword,
+            ),
+        )
+    )
+    return _supplementary_entry(
+        resource,
+        status="matched",
+        status_message=(
+            "A Lancaster context-free normative sensorimotor entry was found."
+        ),
+        matched_term=entry.source_term,
+        match_method=method,
+        source_rows=(entry.source_row,),
+        values=tuple(values),
+    )
+
+
 def _pronunciation_evidence(
     resource: SupplementaryExplorerResource,
     entry: CMUDictEntry,
@@ -527,6 +650,8 @@ def _lookup_supplementary_resources(
             rows.append(_frequency_evidence(resource, entry, method))
         elif isinstance(entry, KupermanAoAEntry):
             rows.append(_aoa_evidence(resource, entry, method))
+        elif isinstance(entry, SensorimotorEntry):
+            rows.append(_sensorimotor_evidence(resource, entry, method))
         elif isinstance(entry, CMUDictEntry):
             rows.extend(_pronunciation_evidence(resource, entry, method))
         else:
@@ -608,6 +733,29 @@ def load_supplementary_explorer_resources(
             version=KUPERMAN_AOA_SPEC.version,
             adapter_version=KupermanAoAAdapter.adapter_version,
             citation=KUPERMAN_AOA_SPEC.citation,
+        )
+    )
+
+    sensorimotor_module = SensorimotorModule(root)
+    sensorimotor_status = sensorimotor_module.validate_resources()[0]
+    sensorimotor_lexicon = (
+        sensorimotor_module._available()[1]
+        if sensorimotor_status.available
+        else None
+    )
+    resources.append(
+        SupplementaryExplorerResource(
+            resource_id=LANCASTER_SENSORIMOTOR_SPEC.resource_id,
+            resource=LANCASTER_SENSORIMOTOR_SPEC.display_name,
+            construct="sensorimotor imagery and embodiment",
+            state=sensorimotor_status.state.value,
+            status_message=sensorimotor_status.message,
+            lexicon=sensorimotor_lexicon,
+            source_file=str(sensorimotor_status.configured_path),
+            source_sha256=sensorimotor_status.source_sha256,
+            version=LANCASTER_SENSORIMOTOR_SPEC.version,
+            adapter_version=LancasterSensorimotorAdapter.adapter_version,
+            citation=LANCASTER_SENSORIMOTOR_SPEC.citation,
         )
     )
 

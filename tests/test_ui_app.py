@@ -14,7 +14,7 @@ CLOUD_APP_PATH = Path(__file__).parents[1] / "streamlit_app.py"
 REPORT_SECTIONS = [
     "Overview",
     "Affective Evidence",
-    "Lexical Character",
+    "Lexical Character, Imagery & Embodiment",
     "Sound & Form",
     "Structure",
     "VerseMap",
@@ -63,6 +63,9 @@ def test_interface_starts_with_beginner_input_workflow() -> None:
     assert "Appearance" in [field.label for field in app.selectbox]
     assert "Run self-test" in [button.label for button in app.button]
     assert "Concreteness profile (Brysbaert et al. ratings)" in [
+        field.label for field in app.checkbox
+    ]
+    assert "Sensorimotor imagery & embodiment (Lancaster norms)" in [
         field.label for field in app.checkbox
     ]
     assert "Frequency & rarity profile (SUBTLEX-US Zipf)" in [
@@ -257,6 +260,27 @@ def test_interface_opens_persistent_corpus_workspace(tmp_path, monkeypatch) -> N
     assert [title.value for title in app.title] == ["Project / Corpus"]
     assert "Project title" in [field.label for field in app.text_input]
     assert "Create project" in [button.label for button in app.button]
+
+
+def test_interface_opens_compare_poems_workspace() -> None:
+    app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
+    navigation = app.get("button_group")[0]
+    navigation.set_value("Compare Poems")
+    app.run(timeout=30)
+
+    assert not app.exception
+    assert [title.value for title in app.title] == ["Compare Poems"]
+    assert [area.label for area in app.text_area].count(
+        "Paste the poem exactly as it should be analyzed"
+    ) == 2
+    assert "Analyze Both Poems" in [button.label for button in app.button]
+    module_selector = next(
+        field
+        for field in app.multiselect
+        if field.label == "Additional modules"
+    )
+    if "sensorimotor" in module_selector.options:
+        assert "sensorimotor" in module_selector.value
 
 
 def test_corpus_workspace_exposes_phase5_review_scenarios(
@@ -786,6 +810,49 @@ def test_interface_runs_optional_concreteness_profile_if_resource_is_present() -
     assert ("Lexicons analyzed", "0") in [
         (metric.label, metric.value) for metric in app.metric
     ]
+
+
+def test_interface_runs_sensorimotor_profile_if_resource_is_present() -> None:
+    resource = (
+        APP_PATH.parents[3]
+        / "resources"
+        / "Lancaster_Sensorimotor_Norms"
+        / "Lancaster_sensorimotor_norms_for_39707_words.csv"
+    )
+    if not resource.is_file():
+        return
+
+    app = AppTest.from_file(str(APP_PATH), default_timeout=120).run()
+    title = next(
+        field
+        for field in app.text_input
+        if field.label == "Poem title or working label"
+    )
+    title.input("Sensorimotor interface validation")
+    app.text_area[0].input("Stone sings in the dark night.\nHands touch water.")
+    app.multiselect[0].set_value([])
+    sensorimotor = next(
+        field
+        for field in app.checkbox
+        if field.label == "Sensorimotor imagery & embodiment (Lancaster norms)"
+    )
+    assert not sensorimotor.disabled
+    sensorimotor.set_value(True)
+    app.run(timeout=120)
+    _button(app, "Analyze Poem").click()
+    app.run(timeout=120)
+
+    assert not app.exception
+    navigation = _section_navigation(app, "Report section")
+    navigation.set_value("Lexical Character, Imagery & Embodiment")
+    app.run(timeout=120)
+    assert any(
+        heading.value == "Sensorimotor Imagery & Embodiment"
+        for heading in app.subheader
+    )
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics["Coverage"] != "—"
+    assert metrics["Matched Observations"] != "0"
 
 
 def test_interface_runs_optional_frequency_profile_and_content_scope_if_present() -> None:

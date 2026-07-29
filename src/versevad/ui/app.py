@@ -43,6 +43,7 @@ _application_was_reloaded = (
             "RESOURCE_ROOT",
             "FrequencyConfiguration",
             "AoAConfiguration",
+            "SensorimotorConfiguration",
             "PronunciationConfiguration",
             "MeterConfiguration",
             "PhonologicalConfiguration",
@@ -77,12 +78,14 @@ if _application_was_reloaded:
         "versevad.adapters.concreteness",
         "versevad.adapters.subtlex_us",
         "versevad.adapters.kuperman_aoa",
+        "versevad.adapters.lancaster_sensorimotor",
         "versevad.adapters.cmudict",
         "versevad.adapters",
         "versevad.analysis.phase2",
         "versevad.lexical_semantic.concreteness",
         "versevad.lexical_semantic.frequency",
         "versevad.lexical_semantic.aoa",
+        "versevad.lexical_semantic.sensorimotor",
         "versevad.lexical_semantic.sentiment",
         "versevad.lexical_semantic.readability",
         "versevad.prosody.pronunciation",
@@ -102,6 +105,7 @@ if _application_was_reloaded:
         "versevad.exports.concreteness",
         "versevad.exports.frequency",
         "versevad.exports.aoa",
+        "versevad.exports.sensorimotor",
         "versevad.exports.pronunciation",
         "versevad.exports.meter",
         "versevad.exports.phonology",
@@ -118,6 +122,7 @@ if _application_was_reloaded:
         "versevad.ui.poetry_id",
         "versevad.ui.inherited_form",
         "versevad.ui.versemap",
+        "versevad.ui.sensorimotor",
     ):
         _module = importlib.import_module(_module_name)
         importlib.reload(_module)
@@ -172,6 +177,7 @@ from versevad.lexical_semantic.aoa import AoAConfiguration
 from versevad.lexical_semantic.frequency import (
     FrequencyConfiguration,
 )
+from versevad.lexical_semantic.sensorimotor import SensorimotorConfiguration
 from versevad.lexical_style import LexicalStyleConfiguration
 from versevad.inherited_form import InheritedFormConfiguration
 from versevad.models import PhrasePolicy
@@ -208,6 +214,7 @@ from versevad.poetry_id import (
 from versevad.ui.poetry_id import render_poetry_id
 from versevad.ui.inherited_form import render_inherited_form
 from versevad.ui.versemap import render_versemap
+from versevad.ui.sensorimotor import render_sensorimotor
 from versevad.versemap import VerseMapConfiguration
 from versevad.ui.stopwords import render_stopword_settings
 from versevad.ui.design import (
@@ -799,6 +806,8 @@ def _render_resource_setup_notice(readiness: ResourceReadiness) -> None:
         affected_modules.append("frequency")
     if not readiness.aoa.available:
         affected_modules.append("Age of Acquisition")
+    if not readiness.sensorimotor.available:
+        affected_modules.append("sensorimotor imagery and embodiment")
     if not readiness.pronunciation_available:
         affected_modules.extend(("pronunciation", "meter", "rhyme/sound"))
     consequences: list[str] = []
@@ -850,6 +859,10 @@ def _render_resource_setup_notice(readiness: ResourceReadiness) -> None:
 workspace_page, _appearance_mode = render_app_shell()
 resource_readiness = installed_resource_readiness()
 _render_resource_setup_notice(resource_readiness)
+if workspace_page == "Compare Poems":
+    from versevad.ui.comparison import render_compare_poems_workspace
+
+    render_compare_poems_workspace(_preprocessor(), resource_readiness)
 if workspace_page == "Project / Corpus":
     from versevad.ui.corpus import render_corpus_workspace
 
@@ -1029,12 +1042,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
         concreteness_status = resource_readiness.concreteness
         frequency_status = resource_readiness.frequency
         aoa_status = resource_readiness.aoa
+        sensorimotor_status = resource_readiness.sensorimotor
         pronunciation_statuses = resource_readiness.pronunciation
         pronunciation_available = resource_readiness.pronunciation_available
         unavailable_modules = {
             "include_concreteness": not concreteness_status.available,
             "include_frequency": not frequency_status.available,
             "include_aoa": not aoa_status.available,
+            "include_sensorimotor": not sensorimotor_status.available,
             "include_pronunciation": not pronunciation_available,
             "include_meter": not pronunciation_available,
             "include_phonology": not pronunciation_available,
@@ -1047,6 +1062,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "include_concreteness",
             "include_frequency",
             "include_aoa",
+            "include_sensorimotor",
             "include_pronunciation",
             "include_meter",
             "include_phonology",
@@ -1141,7 +1157,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "Choose Additional Optional Models",
             state_key="additional_optional_models",
         ):
-            st.markdown("#### Lexical Character")
+            st.markdown("#### Lexical Character, Imagery & Embodiment")
             include_concreteness = st.checkbox(
                 "Concreteness profile (Brysbaert et al. ratings)",
                 disabled=not concreteness_status.available,
@@ -1158,6 +1174,24 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
             else:
                 st.info(concreteness_status.message)
+
+            include_sensorimotor = st.checkbox(
+                "Sensorimotor imagery & embodiment (Lancaster norms)",
+                disabled=not sensorimotor_status.available,
+                key="include_sensorimotor",
+                help=(
+                    "Reports six perceptual modalities and five bodily action "
+                    "effectors, source dispersion, published composites, "
+                    "exclusivity, dominant dimensions, and structural trajectories."
+                ),
+            )
+            if sensorimotor_status.available:
+                st.caption(
+                    "Available locally. VerseVAD reads the verified Lancaster CSV "
+                    "in place, records its SHA-256, and keeps it out of source control."
+                )
+            else:
+                st.info(sensorimotor_status.message)
 
             include_frequency = st.checkbox(
                 "Frequency & rarity profile (SUBTLEX-US Zipf)",
@@ -1490,6 +1524,42 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "The extreme bands and coverage caution are configurable "
                 "VerseVAD orientation aids, not categories or validity cutoffs "
                 "defined by the source paper."
+            )
+            st.markdown("**Sensorimotor imagery & embodiment settings**")
+            sensorimotor_policy_columns = st.columns(2)
+            exclude_sensorimotor_proper_nouns = sensorimotor_policy_columns[
+                0
+            ].checkbox(
+                "Exclude sensorimotor proper nouns",
+                value=True,
+                key="sensorimotor_exclude_proper",
+                disabled=not include_sensorimotor,
+            )
+            activate_sensorimotor_phrases = sensorimotor_policy_columns[
+                1
+            ].checkbox(
+                "Activate published multiword concepts",
+                value=True,
+                key="sensorimotor_phrases",
+                disabled=not include_sensorimotor,
+                help=(
+                    "Uses the longest exact published source expression within "
+                    "one preserved physical line before unigram matching."
+                ),
+            )
+            sensorimotor_top_terms = st.number_input(
+                "Sensorimotor terms retained for compact rankings",
+                min_value=3,
+                max_value=100,
+                value=12,
+                step=1,
+                key="sensorimotor_top_terms",
+                disabled=not include_sensorimotor,
+            )
+            st.caption(
+                "The module always calculates separate token/type-weighted and "
+                "all-token/stopword-excluded profiles. Unmatched concepts remain "
+                "missing rather than receiving a neutral or zero rating."
             )
             st.markdown("**Frequency & rarity settings**")
             frequency_threshold_columns = st.columns(4)
@@ -2111,6 +2181,20 @@ if workspace_page in {"Single Poem", "Other Text"}:
         if include_concreteness:
             st.warning(concreteness_configuration_error)
 
+    sensorimotor_configuration_error = ""
+    try:
+        sensorimotor_configuration = SensorimotorConfiguration(
+            include_phrases=activate_sensorimotor_phrases,
+            exclude_proper_nouns=exclude_sensorimotor_proper_nouns,
+            minimum_match_requirement=int(minimum_matches),
+            top_term_count=int(sensorimotor_top_terms),
+        )
+    except ValueError as error:
+        sensorimotor_configuration_error = str(error)
+        sensorimotor_configuration = SensorimotorConfiguration()
+        if include_sensorimotor:
+            st.warning(sensorimotor_configuration_error)
+
     frequency_configuration_error = ""
     try:
         frequency_configuration = FrequencyConfiguration(
@@ -2290,6 +2374,8 @@ if workspace_page in {"Single Poem", "Other Text"}:
         try:
             if concreteness_configuration_error:
                 raise ValueError(concreteness_configuration_error)
+            if sensorimotor_configuration_error:
+                raise ValueError(sensorimotor_configuration_error)
             if frequency_configuration_error:
                 raise ValueError(frequency_configuration_error)
             if aoa_configuration_error:
@@ -2317,6 +2403,8 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 custom_stopword_removals=stopword_settings.custom_removals,
                 include_concreteness=include_concreteness,
                 concreteness_configuration=concreteness_configuration,
+                include_sensorimotor=include_sensorimotor,
+                sensorimotor_configuration=sensorimotor_configuration,
                 include_frequency=include_frequency,
                 frequency_configuration=frequency_configuration,
                 include_aoa=include_aoa,
@@ -2435,6 +2523,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
         st.session_state["poem_text"] != workspace.request.original_text
         or tuple(selected_lexicons) != workspace.request.lexicon_ids
         or include_concreteness != workspace.request.include_concreteness
+        or include_sensorimotor != workspace.request.include_sensorimotor
         or include_frequency != workspace.request.include_frequency
         or include_aoa != workspace.request.include_aoa
         or include_pronunciation != workspace.request.include_pronunciation
@@ -2449,6 +2538,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
             include_concreteness
             and concreteness_configuration
             != workspace.request.concreteness_configuration
+        )
+        or (
+            include_sensorimotor
+            and sensorimotor_configuration
+            != workspace.request.sensorimotor_configuration
         )
         or (
             include_frequency
@@ -2521,7 +2615,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
     report_sections = (
         "Overview",
         "Affective Evidence",
-        "Lexical Character",
+        "Lexical Character, Imagery & Embodiment",
         "Sound & Form",
         "Structure",
         "VerseMap",
@@ -2547,7 +2641,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
     )
     overview_tab = report_containers["Overview"]
     affective_tab = report_containers["Affective Evidence"]
-    lexical_tab = report_containers["Lexical Character"]
+    lexical_tab = report_containers[
+        "Lexical Character, Imagery & Embodiment"
+    ]
     sound_tab = report_containers["Sound & Form"]
     structure_tab = report_containers["Structure"]
     versemap_report_tab = report_containers["VerseMap"]
@@ -2589,6 +2685,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
             _section_label("Concreteness", workspace.concreteness is not None),
             state_key=f"{report_state_key}_concreteness",
             collapse_label="Concreteness",
+        )
+        sensorimotor_tab = _bottom_collapsible_expander(
+            _section_label(
+                "Sensorimotor Imagery & Embodiment",
+                workspace.sensorimotor is not None,
+            ),
+            state_key=f"{report_state_key}_sensorimotor",
+            collapse_label="Sensorimotor Imagery & Embodiment",
         )
         frequency_tab = _bottom_collapsible_expander(
             _section_label("Frequency & Rarity", workspace.frequency is not None),
@@ -2901,7 +3005,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
             st.caption("Open Affective Evidence for sources, weighting, and details.")
         with lexical_summary:
-            st.markdown("#### Lexical Character")
+            st.markdown("#### Lexical Character, Imagery & Embodiment")
             if workspace.concreteness is not None:
                 st.write(
                     "Concreteness: "
@@ -2917,16 +3021,29 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "Mean AoA: "
                     f"{_decimal(workspace.aoa.summary.statistics.mean)} years"
                 )
+            if workspace.sensorimotor is not None:
+                sensorimotor_profile = workspace.sensorimotor.profile(
+                    "All matched tokens",
+                    "token",
+                )
+                st.write(
+                    "Sensorimotor strength: "
+                    f"{_decimal(sensorimotor_profile.overall_sensorimotor_strength.mean)}"
+                )
             if all(
                 result is None
                 for result in (
                     workspace.concreteness,
                     workspace.frequency,
                     workspace.aoa,
+                    workspace.sensorimotor,
                 )
             ):
                 st.write("Not selected")
-            st.caption("Open Lexical Character for distributions and coverage.")
+            st.caption(
+                "Open Lexical Character, Imagery & Embodiment for distributions, "
+                "trajectories, and coverage."
+            )
         with sound_summary:
             st.markdown("#### Sound & Form")
             if workspace.meter is not None:
@@ -3061,6 +3178,40 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     {
                         "Rated-token coverage": lambda value: _percentage(value),
                         "Unique-word coverage": lambda value: _percentage(value),
+                    }
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+        if workspace.sensorimotor is not None:
+            sensorimotor_summary = workspace.sensorimotor.profile(
+                "All matched tokens",
+                "token",
+            )
+            st.markdown("**Sensorimotor imagery and embodiment coverage**")
+            render_dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "Resource": (
+                                workspace.sensorimotor.resource_status.display_name
+                            ),
+                            "Matched tokens": sensorimotor_summary.matched_token_count,
+                            "Eligible tokens": sensorimotor_summary.eligible_token_count,
+                            "Matched-token coverage": (
+                                sensorimotor_summary.token_coverage
+                            ),
+                            "Matched observations": (
+                                sensorimotor_summary.matched_observation_count
+                            ),
+                            "Matched source types": (
+                                sensorimotor_summary.matched_type_count
+                            ),
+                        }
+                    ]
+                ).style.format(
+                    {
+                        "Matched-token coverage": lambda value: _percentage(value),
                     }
                 ),
                 hide_index=True,
@@ -3712,6 +3863,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         st.info(warning.message)
                     else:
                         st.warning(warning.message)
+
+    with sensorimotor_tab:
+        render_sensorimotor(
+            workspace.sensorimotor,
+            state_key_prefix=f"{report_state_key}_sensorimotor_controls",
+        )
 
     with concreteness_tab:
         concreteness = workspace.concreteness
@@ -6594,6 +6751,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         (
                             workspace.concreteness.module_result.result_id
                             if workspace.concreteness
+                            else ""
+                        ),
+                        (
+                            workspace.sensorimotor.module_result.result_id
+                            if workspace.sensorimotor
                             else ""
                         ),
                         (

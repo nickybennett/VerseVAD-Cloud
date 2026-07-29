@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -283,6 +284,77 @@ def test_corpus_uses_same_optional_performance_aware_meter_engine(
         "meter_stanzas.csv",
         "meter_rhythm_trajectory.csv",
         "meter_report.docx",
+    } <= artifacts
+
+
+def test_corpus_uses_and_persists_sensorimotor_module_when_installed(
+    tmp_path,
+    preprocessor,
+) -> None:
+    resource = (
+        Path("resources")
+        / "Lancaster_Sensorimotor_Norms"
+        / "Lancaster_sensorimotor_norms_for_39707_words.csv"
+    )
+    if not resource.is_file():
+        pytest.skip("The user-supplied Lancaster source is not present.")
+    repository = ProjectRepository(tmp_path / "sensorimotor-corpus.sqlite3")
+    project = repository.create_project("Sensorimotor corpus")
+    imported = repository.import_texts(
+        project.project_id,
+        (
+            CorpusTextImport(
+                "Embodied",
+                "embodied.txt",
+                "embodied.txt",
+                "Stone sings in the dark night.\nHands touch water.",
+            ),
+        ),
+    )
+
+    batch = analyze_corpus(
+        repository,
+        project.project_id,
+        lexicon_ids=(),
+        text_ids=(imported[0].text_id,),
+        module_configuration=CorpusAnalysisConfiguration(
+            include_sensorimotor=True,
+        ),
+        preprocessor=preprocessor,
+    )
+
+    assert "sensorimotor_imagery_and_embodiment" in batch.module_names
+    result = next(
+        row
+        for row in repository.list_module_results_for_batch(
+            project.project_id,
+            batch.batch_id,
+        )
+        if row.module_name == "sensorimotor_imagery_and_embodiment"
+    )
+    metrics = repository.list_module_metrics_for_batch(
+        project.project_id,
+        batch.batch_id,
+    )
+    assert any(
+        row.metric_id == "sensorimotor.visual.mean"
+        and row.scope_id == "all_token"
+        and row.value is not None
+        for row in metrics
+    )
+    artifacts = {
+        item.filename
+        for item in repository.list_module_artifacts(
+            result.run_id,
+            result.module_name,
+        )
+    }
+    assert {
+        "sensorimotor_summary.csv",
+        "sensorimotor_by_structure.csv",
+        "sensorimotor_observations.csv",
+        "sensorimotor_unmatched.csv",
+        "sensorimotor_report.docx",
     } <= artifacts
 
 

@@ -621,10 +621,10 @@ def render_lexicon_explorer(preprocessor: TextPreprocessor) -> None:
     render_workspace_header(
         "Lexicon Explorer",
         "Look up a word or phrase across all installed affective lexicons plus "
-        "concreteness, SUBTLEX-US frequency, age of acquisition, and CMUdict "
-        "pronunciation and stress, with local VADER polarity and applicable "
-        "word-level readability evidence. Each source and derived construct "
-        "remains separate and auditable.",
+        "concreteness, Lancaster sensorimotor imagery and embodiment, SUBTLEX-US "
+        "frequency, age of acquisition, and CMUdict pronunciation and stress, "
+        "with local VADER polarity and applicable word-level readability "
+        "evidence. Each source and derived construct remains separate and auditable.",
         kicker="Auditable word and phrase lookup",
         status="Local resources",
     )

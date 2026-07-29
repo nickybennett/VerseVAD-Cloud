@@ -95,8 +95,8 @@ def test_resource_readiness_reports_all_public_installation_contracts(
         resource_root=resource_root,
     )
 
-    assert len(readiness.all_statuses) == 12
-    assert len(readiness.unavailable) == 12
+    assert len(readiness.all_statuses) == 13
+    assert len(readiness.unavailable) == 13
     assert readiness.available_lexicon_ids == ()
     assert readiness.available_module_ids == ("lexical_style", "poetry_id")
     assert not readiness.pronunciation_available
@@ -119,6 +119,7 @@ def test_resource_readiness_does_not_eagerly_parse_installed_datasets(
         application_services.ConcretenessModule,
         application_services.FrequencyModule,
         application_services.AoAModule,
+        application_services.SensorimotorModule,
         application_services.PronunciationModule,
     ):
         monkeypatch.setattr(
@@ -132,8 +133,8 @@ def test_resource_readiness_does_not_eagerly_parse_installed_datasets(
         resource_root=tmp_path / "resources",
     )
 
-    assert len(readiness.all_statuses) == 12
-    assert len(readiness.unavailable) == 12
+    assert len(readiness.all_statuses) == 13
+    assert len(readiness.unavailable) == 13
 
 
 def test_text_file_import_preserves_unicode_and_line_endings() -> None:

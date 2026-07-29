@@ -1,5 +1,39 @@
 # VerseVAD Implementation Plan
 
+## Completed contrastive poem evaluation
+
+- [x] Add a session-only **Compare Poems** workspace outside the single-poem
+  and corpus workflows.
+- [x] Enforce one shared configuration and report source-specific A/B values,
+  B-minus-A differences, coverage, denominators, missingness, VAD dispersion,
+  and cumulative plus per-100 lexical loads.
+- [x] Reuse the sensorimotor, affective, lexical, structure, sound, PoetryID,
+  inherited-form, and VerseMap engines without duplicating their calculations.
+- [x] Add scale-isolated charts, a complete evidence table, CSV export, a
+  narrative Word report, documentation, and regression tests.
+- [x] Include sensorimotor imagery in Essential, Sound and Form, Literary, and
+  Complete presets; include VerseMap in Complete.
+
+## Completed sensorimotor imagery and embodiment module
+
+- [x] Pin the official Lancaster Sensorimotor Norms CSV by exact filename,
+  SHA-256, citation, version, and source license without redistributing or
+  rewriting the user-installed source.
+- [x] Add a strict read-only adapter for all eleven published means and SDs,
+  perceptual/action/overall composites, exclusivity, dominant dimensions, and
+  percent-known evidence.
+- [x] Match longest published expressions before exact surface, conservative
+  possessive, and POS-aware lemma fallbacks; keep unmatched concepts missing.
+- [x] Calculate token/type-weighted all-matched and stopword-excluded profiles,
+  poem-level dispersion, cumulative and per-100 loads, dominant proportions,
+  diversity, line/stanza trajectories, coverage, warnings, and provenance.
+- [x] Add a dedicated single-text report section, corpus/project persistence
+  and summaries, complete CSV/Word exports, and full-field Lexicon Explorer
+  lookup with explanatory definitions and cautions.
+- [x] Cover the adapter, calculations, phrase and stopword behavior, source
+  immutability, exports, corpus reuse, Explorer, and Streamlit interface with
+  synthetic and installed-source regression tests.
+
 ## Completed persistent multi-theme interface
 
 - [x] Rename Light to Classic, remove System, and add Lavender, Ocean,

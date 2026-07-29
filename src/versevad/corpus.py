@@ -29,6 +29,7 @@ from versevad.lexical_semantic.aoa import AoAConfiguration
 from versevad.lexical_semantic.concreteness import ConcretenessConfiguration
 from versevad.lexical_semantic.frequency import FrequencyConfiguration
 from versevad.lexical_semantic.readability import ReadabilityConfiguration
+from versevad.lexical_semantic.sensorimotor import SensorimotorConfiguration
 from versevad.lexical_semantic.sentiment import VaderSentimentConfiguration
 from versevad.lexical_style import (
     LexicalStyleConfiguration,
@@ -142,6 +143,10 @@ class CorpusAnalysisConfiguration:
     frequency_configuration: FrequencyConfiguration = FrequencyConfiguration()
     include_aoa: bool = False
     aoa_configuration: AoAConfiguration = AoAConfiguration()
+    include_sensorimotor: bool = False
+    sensorimotor_configuration: SensorimotorConfiguration = (
+        SensorimotorConfiguration()
+    )
     include_pronunciation: bool = False
     pronunciation_configuration: PronunciationConfiguration = (
         PronunciationConfiguration()
@@ -178,6 +183,8 @@ class CorpusAnalysisConfiguration:
             names.append("lexical_frequency")
         if self.include_aoa or self.include_versemap:
             names.append("age_of_acquisition")
+        if self.include_sensorimotor:
+            names.append("sensorimotor_imagery_and_embodiment")
         if (
             self.include_pronunciation
             or self.include_meter
@@ -242,6 +249,11 @@ class CorpusAnalysisConfiguration:
                     if self.include_versemap
                     else self.aoa_configuration
                 ),
+            ),
+            (
+                self.include_sensorimotor,
+                "sensorimotor_imagery_and_embodiment",
+                self.sensorimotor_configuration,
             ),
             (
                 (
@@ -1104,6 +1116,12 @@ def analyze_corpus(
                     ),
                     include_aoa=module_configuration.include_aoa,
                     aoa_configuration=module_configuration.aoa_configuration,
+                    include_sensorimotor=(
+                        module_configuration.include_sensorimotor
+                    ),
+                    sensorimotor_configuration=(
+                        module_configuration.sensorimotor_configuration
+                    ),
                     include_pronunciation=(
                         module_configuration.include_pronunciation
                     ),
