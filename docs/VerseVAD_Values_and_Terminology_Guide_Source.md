@@ -76,9 +76,9 @@ families used for navigation. A collapsed section retains its result.
 module-selection presets. A preset is not a methodology or an interpretive
 claim; the exact effective settings remain visible and recorded.
 
-**Light**, **Dark**, and **System** are appearance preferences. They do not
-change a score, result ID, coverage value, project, or export. Missing values
-remain missing in every appearance.
+**Classic**, **Dark**, **Lavender**, **Ocean**, **Crimson**, and **Forest** are
+appearance preferences. They do not change a score, result ID, coverage value,
+project, or export. Missing values remain missing in every appearance.
 
 # 3. Valence, Arousal, and Dominance
 

@@ -70,7 +70,7 @@ ordinary unit-test gates.
 The final visual review must cover:
 
 - Single Poem, Project / Corpus, Other Text, and Lexicon Explorer;
-- Light, Dark, and System appearance;
+- every current appearance theme;
 - desktop and approximately 768-pixel-wide layouts;
 - the settings popover, advanced meter controls, completed candidate and
   performance-aware reports, diagnostics, and prepared downloads;
@@ -105,7 +105,7 @@ Completed on 2026-07-24 before the final folder rename:
   caches, lexicons, research data, projects, text, databases, or exports. The
   wheel contained the canonical GPL license and no research/private state;
 - the in-app browser review covered desktop, 768-pixel, and 390-pixel widths;
-  Light, Dark, and System; all four workspaces; and a completed
+  the available appearance themes; all four workspaces; and a completed
   performance-aware result without horizontal page overflow or application
   errors. After the final license/resource-notice additions, the complete
   Streamlit regression suite passed; a final browser reopen was blocked by the

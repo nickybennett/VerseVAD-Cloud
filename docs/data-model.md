@@ -570,13 +570,15 @@ metric, scope ID, and weighting.
 `UiPreferences` is deliberately not an analytical or project record. Version 1
 contains only:
 
-- `version`;
-- `appearance`, one of `Light`, `Dark`, or `System`.
+- `version` (currently `2`);
+- `appearance`, one of `Classic`, `Dark`, `Lavender`, `Ocean`, `Crimson`, or
+  `Forest`.
 
 It is stored by default at `data/private/ui_preferences.json`, which is outside
 source control and separate from every project database. A malformed or absent
-file safely resolves to `System`. Saves use a temporary sibling followed by an
-atomic replacement.
+file safely resolves to `Classic`. Version-1 `Light` and `System` values also
+migrate to `Classic`. Saves use a temporary sibling followed by an atomic
+replacement.
 
 Module presets, workspace navigation, expanded report sections, search text,
 and filters remain Streamlit session state. They do not alter schema 4.

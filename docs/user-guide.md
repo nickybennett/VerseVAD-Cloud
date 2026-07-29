@@ -80,13 +80,21 @@ or deliberately update the software.
 
 ## Appearance
 
-The global header uses three compact circular controls: the sun/moon/automatic
-appearance icon, a settings gear, and a help icon. Open the appearance control
-to choose **Light**, **Dark**, or **System**. System follows the browser or
-operating-system preference. VerseVAD saves this application-level preference
-locally under ignored private runtime data. It is not stored in a project,
-recorded as an analysis setting, or used to calculate or export a result.
-Exported charts remain publication-light.
+The global header uses three compact circular controls: an appearance icon, a
+settings gear, and a help icon. Open the appearance control to choose:
+
+- **Classic** — VerseVAD's warm neutral interface;
+- **Dark** — the low-light charcoal interface;
+- **Lavender** — soft lavender with deep-purple accents;
+- **Ocean** — pale blue with clear blue accents;
+- **Crimson** — warm rose with burgundy accents; or
+- **Forest** — quiet green with deep-green accents.
+
+VerseVAD saves this application-level choice locally under ignored private
+runtime data, so the selected theme returns after the app closes and reopens.
+It is not stored in a project, recorded as an analysis setting, or used to
+calculate or export a result. Legacy Light and System preferences migrate to
+Classic. Exported charts remain publication-light.
 
 ## Analyze a poem
 

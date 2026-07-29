@@ -16,6 +16,7 @@ from versevad.ui.preferences import (
     AppearanceMode,
     UiPreferences,
     load_preferences,
+    normalize_appearance,
     save_appearance,
 )
 
@@ -27,7 +28,7 @@ WORKSPACES = (
     "Lexicon Explorer",
 )
 
-LIGHT_TOKENS = {
+CLASSIC_TOKENS = {
     "background": "#f6f3ed",
     "surface": "#fffdf9",
     "surface-raised": "#ffffff",
@@ -97,6 +98,159 @@ DARK_TOKENS = {
     "shadow": "rgba(0, 0, 0, 0.30)",
     "chart-grid": "#46545b",
     "chart-label": "#dce3e5",
+}
+
+LAVENDER_TOKENS = {
+    "background": "#f4eff8",
+    "surface": "#fffbff",
+    "surface-raised": "#ffffff",
+    "surface-muted": "#e9e0f0",
+    "text-primary": "#2c2034",
+    "text-secondary": "#5e5167",
+    "text-inverse": "#ffffff",
+    "button-primary-background": "#5f3374",
+    "button-primary-hover": "#75468a",
+    "button-primary-text": "#ffffff",
+    "button-secondary-background": "#fffbff",
+    "button-secondary-hover": "#eadff2",
+    "button-secondary-text": "#2c2034",
+    "button-tertiary-text": "#5f3374",
+    "button-disabled-background": "#e2d8e8",
+    "button-disabled-text": "#594d62",
+    "border": "#d8cbe1",
+    "border-strong": "#9a87a6",
+    "accent": "#75468a",
+    "accent-strong": "#5f3374",
+    "accent-soft": "#eadff2",
+    "success": "#356447",
+    "success-soft": "#e4efe7",
+    "warning": "#7b5c17",
+    "warning-soft": "#f5ecd3",
+    "danger": "#8d3944",
+    "danger-soft": "#f6e2e6",
+    "info": "#3e5e7b",
+    "info-soft": "#e4ebf3",
+    "focus": "#6d3d83",
+    "shadow": "rgba(52, 35, 62, 0.12)",
+    "chart-grid": "#d7cce0",
+    "chart-label": "#4b3d55",
+}
+
+OCEAN_TOKENS = {
+    "background": "#edf7fa",
+    "surface": "#f9fdff",
+    "surface-raised": "#ffffff",
+    "surface-muted": "#dceef3",
+    "text-primary": "#142b36",
+    "text-secondary": "#4d6470",
+    "text-inverse": "#ffffff",
+    "button-primary-background": "#155a73",
+    "button-primary-hover": "#1d6c89",
+    "button-primary-text": "#ffffff",
+    "button-secondary-background": "#f9fdff",
+    "button-secondary-hover": "#dceff5",
+    "button-secondary-text": "#142b36",
+    "button-tertiary-text": "#155a73",
+    "button-disabled-background": "#d8e9ee",
+    "button-disabled-text": "#4d6470",
+    "border": "#c4dde5",
+    "border-strong": "#779ba8",
+    "accent": "#1d6c89",
+    "accent-strong": "#155a73",
+    "accent-soft": "#dceff5",
+    "success": "#2f654a",
+    "success-soft": "#e2f0e7",
+    "warning": "#765b19",
+    "warning-soft": "#f5edd5",
+    "danger": "#8e3a43",
+    "danger-soft": "#f6e3e5",
+    "info": "#155a73",
+    "info-soft": "#dceff5",
+    "focus": "#176884",
+    "shadow": "rgba(20, 55, 70, 0.12)",
+    "chart-grid": "#c7dfe6",
+    "chart-label": "#354f5b",
+}
+
+CRIMSON_TOKENS = {
+    "background": "#faf1f2",
+    "surface": "#fffafa",
+    "surface-raised": "#ffffff",
+    "surface-muted": "#f2dfe2",
+    "text-primary": "#32191d",
+    "text-secondary": "#6c5054",
+    "text-inverse": "#ffffff",
+    "button-primary-background": "#7e2638",
+    "button-primary-hover": "#963449",
+    "button-primary-text": "#ffffff",
+    "button-secondary-background": "#fffafa",
+    "button-secondary-hover": "#f5dfe3",
+    "button-secondary-text": "#32191d",
+    "button-tertiary-text": "#7e2638",
+    "button-disabled-background": "#ecd9dc",
+    "button-disabled-text": "#665055",
+    "border": "#e1c8cd",
+    "border-strong": "#aa7d85",
+    "accent": "#963449",
+    "accent-strong": "#7e2638",
+    "accent-soft": "#f5dfe3",
+    "success": "#386344",
+    "success-soft": "#e5efe7",
+    "warning": "#775b18",
+    "warning-soft": "#f5ecd3",
+    "danger": "#8b2f40",
+    "danger-soft": "#f5dde2",
+    "info": "#3e6175",
+    "info-soft": "#e3edf2",
+    "focus": "#8b2f40",
+    "shadow": "rgba(70, 28, 35, 0.12)",
+    "chart-grid": "#e0cbd0",
+    "chart-label": "#55383e",
+}
+
+FOREST_TOKENS = {
+    "background": "#f1f5ee",
+    "surface": "#fbfdf9",
+    "surface-raised": "#ffffff",
+    "surface-muted": "#e1eadb",
+    "text-primary": "#1b2b1d",
+    "text-secondary": "#516454",
+    "text-inverse": "#ffffff",
+    "button-primary-background": "#315f3c",
+    "button-primary-hover": "#3d754a",
+    "button-primary-text": "#ffffff",
+    "button-secondary-background": "#fbfdf9",
+    "button-secondary-hover": "#e3eddd",
+    "button-secondary-text": "#1b2b1d",
+    "button-tertiary-text": "#315f3c",
+    "button-disabled-background": "#dde7d8",
+    "button-disabled-text": "#506153",
+    "border": "#ccd9c5",
+    "border-strong": "#849b7e",
+    "accent": "#3d754a",
+    "accent-strong": "#315f3c",
+    "accent-soft": "#e3eddd",
+    "success": "#315f3c",
+    "success-soft": "#e0ede2",
+    "warning": "#735a1a",
+    "warning-soft": "#f3ecd7",
+    "danger": "#8a3b3b",
+    "danger-soft": "#f4e3e1",
+    "info": "#3b6170",
+    "info-soft": "#e2edf0",
+    "focus": "#356a42",
+    "shadow": "rgba(31, 54, 34, 0.12)",
+    "chart-grid": "#cfdbc9",
+    "chart-label": "#3c5240",
+}
+
+THEME_TOKENS = {
+    AppearanceMode.CLASSIC: CLASSIC_TOKENS,
+    AppearanceMode.DARK: DARK_TOKENS,
+    AppearanceMode.LAVENDER: LAVENDER_TOKENS,
+    AppearanceMode.OCEAN: OCEAN_TOKENS,
+    AppearanceMode.CRIMSON: CRIMSON_TOKENS,
+    AppearanceMode.FOREST: FOREST_TOKENS,
 }
 
 PUBLICATION_CHART_COLORS = (
@@ -236,18 +390,8 @@ def _token_declarations(tokens: Mapping[str, str]) -> str:
 
 
 def stylesheet_for(mode: AppearanceMode | str) -> str:
-    appearance = AppearanceMode(mode)
-    base = DARK_TOKENS if appearance is AppearanceMode.DARK else LIGHT_TOKENS
-    system_override = ""
-    if appearance is AppearanceMode.SYSTEM:
-        system_override = f"""
-    @media (prefers-color-scheme: dark) {{
-      :root {{
-{_token_declarations(DARK_TOKENS)}
-        color-scheme: dark;
-      }}
-    }}
-"""
+    appearance = normalize_appearance(mode)
+    base = THEME_TOKENS[appearance]
     return f"""
     <style>
     :root {{
@@ -266,7 +410,6 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       --radius-large: 1rem;
       --transition-fast: 120ms ease;
     }}
-{system_override}
     html, body, [class*="css"] {{
       font-family: var(--font-interface);
       color: var(--color-text-primary);
@@ -314,6 +457,84 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
     [data-testid="stTextInputRootElement"] input::placeholder {{
       color: var(--color-text-secondary) !important;
       opacity: 1;
+    }}
+    [data-testid="stFileUploaderDropzone"] {{
+      background: var(--color-surface-muted) !important;
+      border-color: var(--color-border-strong) !important;
+      color: var(--color-text-primary) !important;
+    }}
+    [data-testid="stFileUploaderDropzone"] *,
+    [data-testid="stFileUploaderDropzoneInstructions"] * {{
+      color: var(--color-text-secondary) !important;
+      -webkit-text-fill-color: var(--color-text-secondary) !important;
+    }}
+    [data-testid="stFileUploaderDropzone"] button,
+    [data-testid="stFileUploaderDropzone"] button * {{
+      color: var(--color-button-secondary-text) !important;
+      -webkit-text-fill-color: var(--color-button-secondary-text) !important;
+    }}
+    [data-baseweb="select"] > div,
+    [data-baseweb="input"] > div,
+    [data-baseweb="textarea"] > div {{
+      background: var(--color-surface) !important;
+      border-color: var(--color-border-strong) !important;
+      color: var(--color-text-primary) !important;
+    }}
+    [data-baseweb="select"] *,
+    [data-baseweb="input"] *,
+    [data-baseweb="textarea"] * {{
+      color: var(--color-text-primary) !important;
+      -webkit-text-fill-color: var(--color-text-primary) !important;
+    }}
+    [data-testid="stSelectbox"] [role="group"],
+    [data-testid="stMultiSelect"] [role="group"] {{
+      background: var(--color-surface) !important;
+      border-color: var(--color-border-strong) !important;
+      color: var(--color-text-primary) !important;
+    }}
+    [data-testid="stSelectbox"] [role="group"] *,
+    [data-testid="stMultiSelect"] [role="group"] * {{
+      color: var(--color-text-primary) !important;
+      -webkit-text-fill-color: var(--color-text-primary) !important;
+    }}
+    [data-baseweb="popover"],
+    [data-baseweb="popover"] > div,
+    [data-baseweb="menu"],
+    [role="listbox"],
+    [role="dialog"] {{
+      background: var(--color-surface-raised) !important;
+      border-color: var(--color-border) !important;
+      color: var(--color-text-primary) !important;
+    }}
+    [data-baseweb="popover"] p,
+    [data-baseweb="popover"] label,
+    [data-baseweb="popover"] span,
+    [data-baseweb="menu"] *,
+    [role="listbox"] *,
+    [role="dialog"] p,
+    [role="dialog"] label {{
+      color: var(--color-text-primary) !important;
+      -webkit-text-fill-color: var(--color-text-primary) !important;
+    }}
+    [role="option"] {{
+      background: var(--color-surface-raised) !important;
+      color: var(--color-text-primary) !important;
+    }}
+    [role="option"]:hover,
+    [role="option"][aria-selected="true"] {{
+      background: var(--color-accent-soft) !important;
+      color: var(--color-accent-strong) !important;
+    }}
+    [data-baseweb="tooltip"],
+    [role="tooltip"] {{
+      background: var(--color-text-primary) !important;
+      border-color: var(--color-text-primary) !important;
+      color: var(--color-surface-raised) !important;
+    }}
+    [data-baseweb="tooltip"] *,
+    [role="tooltip"] * {{
+      color: var(--color-surface-raised) !important;
+      -webkit-text-fill-color: var(--color-surface-raised) !important;
     }}
     /*
      * Streamlit uses distinct test IDs for ordinary, form-submit, and
@@ -708,7 +929,11 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
     }}
     [class*="st-key-versevad_header_icon__"] button {{
       align-items: center;
+      background: var(--color-button-secondary-background) !important;
+      border: 1px solid var(--color-border-strong) !important;
       border-radius: 999px !important;
+      color: var(--color-button-secondary-text) !important;
+      -webkit-text-fill-color: var(--color-button-secondary-text) !important;
       display: inline-flex;
       height: 2.5rem;
       justify-content: center;
@@ -716,6 +941,16 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       min-width: 2.5rem;
       padding: 0 !important;
       width: 2.5rem !important;
+    }}
+    [class*="st-key-versevad_header_icon__"] button:hover {{
+      background: var(--color-button-secondary-hover) !important;
+      border-color: var(--color-accent) !important;
+      color: var(--color-button-secondary-text) !important;
+      -webkit-text-fill-color: var(--color-button-secondary-text) !important;
+    }}
+    [class*="st-key-versevad_header_icon__"] button * {{
+      color: inherit !important;
+      -webkit-text-fill-color: inherit !important;
     }}
     [class*="st-key-versevad_header_icon__"] button p {{
       font-size: 0 !important;
@@ -950,6 +1185,9 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
         else load_preferences()
     )
     st.session_state.setdefault("appearance_mode", preferences.appearance.value)
+    st.session_state["appearance_mode"] = normalize_appearance(
+        st.session_state["appearance_mode"]
+    ).value
     st.session_state.setdefault("analysis_cache_enabled", True)
     st.session_state.setdefault("performance_diagnostics_enabled", True)
     st.session_state.setdefault("workspace_page", WORKSPACES[0])
@@ -965,7 +1203,7 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
             st.session_state["workspace_page"],
             WORKSPACES[0],
         )
-    appearance = AppearanceMode(st.session_state["appearance_mode"])
+    appearance = normalize_appearance(st.session_state["appearance_mode"])
     apply_design_system(appearance)
 
     with st.container(key="versevad_global_header"):
@@ -983,9 +1221,12 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
             )
         with appearance_column:
             appearance_icon = {
-                AppearanceMode.LIGHT: ":material/light_mode:",
+                AppearanceMode.CLASSIC: ":material/light_mode:",
                 AppearanceMode.DARK: ":material/dark_mode:",
-                AppearanceMode.SYSTEM: ":material/brightness_auto:",
+                AppearanceMode.LAVENDER: ":material/filter_vintage:",
+                AppearanceMode.OCEAN: ":material/water:",
+                AppearanceMode.CRIMSON: ":material/favorite:",
+                AppearanceMode.FOREST: ":material/forest:",
             }[appearance]
             with st.popover(
                 "Appearance",
@@ -1000,8 +1241,8 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
                     key="appearance_mode",
                     on_change=_persist_appearance,
                     help=(
-                        "System follows the browser or operating-system "
-                        "preference."
+                        "Choose a persistent color theme. Appearance never "
+                        "changes the analysis or publication-light exports."
                     ),
                 )
         with settings_column:

@@ -323,7 +323,9 @@ On either operating system, ordinary startup and analysis use the installed
 local files and do not upload the poem or results.
 
 In the app, use the shared workspace navigation across the top. The same header
-also provides persistent Light, Dark, and System appearance modes:
+also provides persistent **Classic**, **Dark**, **Lavender**, **Ocean**,
+**Crimson**, and **Forest** appearance themes. The saved choice returns when
+VerseVAD is closed and reopened:
 
 1. **Single Poem** accepts pasted text or one `.txt` file and provides readable
    results plus the audit bundle.

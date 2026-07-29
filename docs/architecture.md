@@ -427,12 +427,14 @@ JSON. Existing module exports are unchanged.
 ## Expansion Stage 13 interface architecture
 
 Expansion Stage 13 adds a presentation-only layer under `versevad.ui.design`
-and `versevad.ui.preferences`. `design` owns semantic Light, Dark, and System
-tokens, publication-light chart defaults, the shared application shell,
+and `versevad.ui.preferences`. `design` owns semantic **Classic**, **Dark**,
+**Lavender**, **Ocean**, **Crimson**, and **Forest** tokens,
+publication-light chart defaults, the shared application shell,
 workspace headers, status/empty-state patterns, module presets, and report
 section helpers. `preferences` owns one ignored application-level JSON file for
-appearance. Neither module imports an analysis engine, repository, adapter, or
-lexicon.
+appearance. Preference version 2 migrates legacy `Light` and `System` values
+to `Classic`; invalid or absent values also resolve safely to `Classic`.
+Neither module imports an analysis engine, repository, adapter, or lexicon.
 
 The shell exposes **Single Poem**, **Project / Corpus**, **Other Text**, and
 **Lexicon Explorer** through one navigation pattern. Single Poem and Other Text

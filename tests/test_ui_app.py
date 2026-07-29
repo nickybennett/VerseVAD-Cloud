@@ -446,11 +446,19 @@ def test_interface_persists_application_appearance_without_analysis_state(
     appearance = next(
         field for field in app.selectbox if field.label == "Appearance"
     )
-    appearance.set_value("Dark")
+    assert appearance.options == [
+        "Classic",
+        "Dark",
+        "Lavender",
+        "Ocean",
+        "Crimson",
+        "Forest",
+    ]
+    appearance.set_value("Ocean")
     app.run(timeout=30)
 
     assert not app.exception
-    assert load_preferences(preferences_path).appearance is AppearanceMode.DARK
+    assert load_preferences(preferences_path).appearance is AppearanceMode.OCEAN
     assert app.session_state["workspace"] is None
 
 

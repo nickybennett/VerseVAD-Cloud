@@ -6,6 +6,14 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Replaced the Light/System appearance choices with six persistent,
+  contrast-tested themes: **Classic**, **Dark**, **Lavender**, **Ocean**,
+  **Crimson**, and **Forest**. Existing Light and System preferences migrate
+  safely to Classic; the selected theme remains UI-only and does not affect
+  analysis or publication-light exports.
+- Extended semantic theme styling to dropdown menus, popovers, tooltips,
+  dialogs, sidebar controls, inputs, buttons, and disabled/hover states, with
+  automated contrast checks across all six palettes.
 - Added the first VerseMap reference-corpus source pipeline: tracked
   `resources/VerseMap_Reference_Corpus/<Poet Name>/*.txt` folders, exact and
   canonical SHA-256 evidence, stable poet/poem IDs, a deterministic CSV
@@ -69,8 +77,8 @@ All notable VerseVAD changes will be recorded here.
   explicitly estimated rather than neutral.
 - Added bottom **Collapse** controls to the default-collapsed Additional
   Optional Models and Analysis Configuration and Methodology panels.
-- Strengthened sidebar text, alert, widget, and installation-check contrast in
-  Light, Dark, and System modes without changing analytical state.
+- Strengthened sidebar text, alert, widget, and installation-check contrast
+  across every appearance theme without changing analytical state.
 - Matched the standalone collapsed-sidebar expand arrow to the Installation
   Check secondary-button foreground, background, border, and hover treatment,
   including Streamlit's current `stExpandSidebarButton` selector.
@@ -274,7 +282,7 @@ All notable VerseVAD changes will be recorded here.
 - Poetic Fingerprint Stage 13 shared application shell with **Single Poem**,
   **Project / Corpus**, **Other Text**, and **Lexicon Explorer** workspaces,
   current-version context, visible appearance, settings, and help controls.
-- Central semantic Light/Dark/System design tokens, measured contrast, visible
+- Central semantic appearance design tokens, measured contrast, visible
   focus, reduced-motion behavior, responsive stacking, stable
   publication-light chart styling, and an ignored application-level appearance
   preference that never enters analytical or project state.
@@ -693,7 +701,7 @@ All notable VerseVAD changes will be recorded here.
 - Removed Streamlit's default-plus-Session-State widget warnings by giving
   workspace, lexicon, module, preset, and corpus controls one state owner.
 - Repaired Dark text-entry foreground/caret/placeholder colors and primary
-  Analyze-label contrast across Light, Dark, and System appearances with
+  Analyze-label contrast across every appearance with
   stable semantic selectors.
 - Reduced installed-resource readiness from full eager workbook/dictionary
   parsing to exact checksum identity checks; selected modules still perform

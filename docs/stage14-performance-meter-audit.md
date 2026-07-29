@@ -174,8 +174,8 @@ statistics, or weakening source validation.
   suite; correctness and cache-state assertions remain stable.
 - Repeat the measured scenarios, report medians and hardware, and document
   remaining bottlenecks honestly.
-- Rebuild both Word guides and visually verify all four workspaces, explicit
-  Light/Dark/System modes, completed reports, meter scansion, corpus tables,
+- Rebuild both Word guides and visually verify all four workspaces, every
+  appearance theme, completed reports, meter scansion, corpus tables,
   desktop layout, narrow layout, focus, overflow, and browser diagnostics.
 
 ## Explicit non-goals for this pass

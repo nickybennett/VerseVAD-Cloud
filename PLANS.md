@@ -1,5 +1,17 @@
 # VerseVAD Implementation Plan
 
+## Completed persistent multi-theme interface
+
+- [x] Rename Light to Classic, remove System, and add Lavender, Ocean,
+  Crimson, and Forest alongside Dark.
+- [x] Persist the selected appearance outside analytical/project state and
+  migrate legacy Light/System preference files safely to Classic.
+- [x] Apply contrast-tested semantic tokens to controls, text, sidebar
+  surfaces, menus, popovers, tooltips, dialogs, hover states, and disabled
+  states in every theme.
+- [x] Keep publication-oriented exports and analytical results independent of
+  the active interface theme.
+
 ## Completed VerseMap comparative module and reference pipeline
 
 - [x] Establish a narrowly tracked
@@ -65,7 +77,7 @@
   the existing metric-card dimensions and visual hierarchy.
 - [x] Remove Streamlit's single-line ellipsis behavior and retain wrapping as a
   fallback for unusually long categorical results.
-- [x] Verify the shared rule across Light, Dark, and System styles so meter,
+- [x] Verify the shared rule across all appearance styles so meter,
   confidence, classification, and other metric-card outputs inherit the fix.
 
 ## Completed compact pronunciation review and contraction handling
@@ -1022,7 +1034,7 @@ review required.
   boundaries, styling architecture, accessibility, dark-mode feasibility,
   proposed components and tokens, affected files, and migration risks before
   implementation.
-- [x] Add one semantic Light/Dark/System design-token system and an ignored,
+- [x] Add one semantic appearance design-token system and an ignored,
   application-level appearance preference.
 - [x] Add a compact global shell with the four named workspaces, version,
   active-workspace context, visible appearance control, settings summary, and
@@ -1275,8 +1287,8 @@ review required.
   parsing without weakening source identity or completed-run provenance.
 - [x] Give workspace, lexicon, and preset-controlled widgets one Session State
   owner so Streamlit emits no conflicting default-value warnings.
-- [x] Repair text-entry surfaces and primary action-button contrast in Light,
-  Dark, and System appearances with stable Streamlit selectors.
+- [x] Repair text-entry surfaces and primary action-button contrast across
+  appearance themes with stable Streamlit selectors.
 - [x] Add source-separated VAD-by-part-of-speech rows with both token-weighted
   and type-weighted normalized means, explicit coverage, and mixed-POS phrase
   handling.
@@ -1296,7 +1308,7 @@ review required.
 - [x] No widget is created with both a programmatically supplied Session State
   value and a competing default.
 - [x] Editable text and enabled primary action labels meet at least WCAG AA
-  normal-text contrast in Light, Dark, and System appearances.
+  normal-text contrast in every appearance theme.
 - [x] The one-text Part-of-Speech Profile and detailed audit export report
   token-weighted and type-weighted normalized VAD means without assigning
   neutral values to unmatched evidence or forcing mixed-POS phrases into a

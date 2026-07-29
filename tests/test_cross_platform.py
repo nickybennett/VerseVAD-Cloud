@@ -50,7 +50,7 @@ def test_macos_helpers_are_project_local_locked_and_private() -> None:
 
 
 def test_browser_styles_include_safari_and_narrow_layout_safeguards() -> None:
-    css = stylesheet_for("System")
+    css = stylesheet_for("Classic")
 
     for required in (
         "-webkit-text-size-adjust: 100%",

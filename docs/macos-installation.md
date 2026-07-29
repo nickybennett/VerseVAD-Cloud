@@ -167,7 +167,8 @@ After cloning the finalized commit onto a Mac:
 2. Double-click `start_versevad.command` and open all four workspaces in current
    Safari.
 3. In **Single Poem**, paste a short invented text, run a small available
-   analysis, switch between Light and Dark, and download one CSV or DOCX.
+   analysis, switch among Classic, Dark, and one color theme, and download one
+   CSV or DOCX.
 4. Resize the browser from a wide MacBook window to a narrow split-screen
    window. Confirm the header and workspace choices wrap, inputs remain
    readable, tables scroll inside their own region, and the page itself has no

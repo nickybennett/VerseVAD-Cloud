@@ -417,8 +417,8 @@ for the final completion record and beginner interface checks.
 Stage 13 adds tests for:
 
 - missing, malformed, saved, and reloaded application appearance preferences;
-- semantic Light/Dark/System tokens, system preference media rules, visible
-  focus, reduced motion, and measured contrast;
+- semantic Classic/Dark/Lavender/Ocean/Crimson/Forest tokens, legacy
+  preference migration, visible focus, reduced motion, and measured contrast;
 - Essential, Literary, Sound and Form, Complete, and Custom presets, including
   the rule that advanced methodology keys are never changed;
 - the four-workspace shell and distinct Analyze Poem, Analyze Text, and Analyze
@@ -432,8 +432,9 @@ Stage 13 adds tests for:
   behavior through the complete regression suite.
 
 The visual validation procedure checks Single Poem, Project / Corpus, Other
-Text, and Lexicon Explorer at desktop and narrow widths in Light, Dark, and
-System appearances. It inspects focus visibility, contrast, header wrapping,
+Text, and Lexicon Explorer at desktop and narrow widths in Classic, Dark,
+Lavender, Ocean, Crimson, and Forest appearances. It inspects focus visibility,
+contrast, header wrapping,
 table access, empty states, and a completed-result overview. See
 [`design-stage13-validation.md`](design-stage13-validation.md).
 
@@ -478,7 +479,7 @@ for repeatable medians, or add `--memory` for traced peak memory. See
 
 The repair suite adds regression coverage for lightweight checksum-only
 startup readiness, single-owner Streamlit widget state, stable semantic
-selectors, Light/Dark contrast, and the source/view-specific VAD-by-POS table.
+selectors, cross-theme contrast, and the source/view-specific VAD-by-POS table.
 The hand-calculated POS fixture repeats one adjective so its token-weighted
 and type-weighted normalized VAD means differ, preserves an unmatched POS
 group with missing means, and retains a cross-POS published phrase in an

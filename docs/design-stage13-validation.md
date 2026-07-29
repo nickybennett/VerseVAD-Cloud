@@ -11,8 +11,8 @@ project schema, source text, or established export contents.
 The Stage 13 tests verify:
 
 - application-level appearance round trips and safe malformed-file fallback;
-- semantic Light, Dark, and System token mappings;
-- system color-scheme and reduced-motion media rules;
+- semantic Classic, Dark, Lavender, Ocean, Crimson, and Forest token mappings;
+- legacy Light/System migration and reduced-motion media rules;
 - WCAG-oriented primary/secondary text and focus contrast;
 - module presets and their strict exclusion of advanced methodology keys;
 - all four workspaces and dynamic Analyze Poem, Analyze Text, and Analyze Corpus
@@ -28,9 +28,11 @@ The Stage 13 tests verify:
 1. Start VerseVAD with `start_versevad.bat`.
 2. Confirm that the header shows the VerseVAD wordmark/version, all four
    workspaces, Appearance, Settings, and Help.
-3. In **Appearance**, choose Light, Dark, and System. Confirm that controls,
-   text, tables, alerts, focus outlines, and borders remain readable.
-4. Return to System, close VerseVAD, reopen it, and confirm the saved choice.
+3. In **Appearance**, choose Classic, Dark, Lavender, Ocean, Crimson, and
+   Forest. Confirm that controls, text, tables, alerts, tooltips, focus
+   outlines, and borders remain readable.
+4. Return to any color theme, close VerseVAD, reopen it, and confirm the saved
+   choice.
 5. In **Single Poem**, paste a short poem and enter a title. Confirm the live
    word/line/block orientation counts and optional bibliographic fields.
 6. Choose **Literary**, click **Apply preset**, and confirm the visible module
@@ -76,7 +78,7 @@ Completed on 2026-07-24:
   all passed with their expected SHA-256 values;
 - the offline dependency lock check passed with 86 resolved packages;
 - in-app browser checks covered the four workspaces, a completed Single Poem
-  Overview, an all-resource Explorer lookup, Light, Dark, and System styling,
+  Overview, an all-resource Explorer lookup, every current appearance theme,
   and a 768-pixel viewport with no horizontal page overflow;
 - the responsive check found and then verified a fix for compressed header
   utilities, and browser diagnostics reported no interface errors;

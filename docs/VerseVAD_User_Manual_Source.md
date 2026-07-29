@@ -217,15 +217,14 @@ The shared application header contains:
 - **Other Text**
 - **Lexicon Explorer**
 - the current VerseVAD version;
-- a circular sun/moon/automatic appearance menu for **Light**, **Dark**, and
-  **System**;
+- a circular appearance menu for **Classic**, **Dark**, **Lavender**, **Ocean**, **Crimson**, and **Forest**;
 - circular gear and question-mark controls for settings and help.
 
-System appearance follows the browser or operating-system preference. The
-selection is stored as an application-level local preference, not in a
-project or analysis configuration. Appearance does not change calculations,
-result IDs, project data, or exports. Publication-oriented charts remain
-light.
+The selected theme persists across closing and reopening VerseVAD. Legacy
+Light and System choices migrate safely to Classic. The selection is stored
+as an application-level local preference, not in a project or analysis
+configuration. Appearance does not change calculations, result IDs, project
+data, or exports. Publication-oriented charts remain light.
 
 ## Stop VerseVAD
 

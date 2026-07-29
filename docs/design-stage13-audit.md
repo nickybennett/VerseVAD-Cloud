@@ -56,15 +56,15 @@ boundary.
 
 ## Current styling architecture
 
-The complete custom style is one inline block in `ui/app.py`. It contains four
-partly semantic color variables but also direct hex values, a fixed light
-gradient, fixed white metric cards, a fixed light sidebar, and no dark or system
-mode. Chart defaults are authored per module.
+The complete custom style was one inline block in `ui/app.py`. It contained
+four partly semantic color variables but also direct hex values, a fixed light
+gradient, fixed white metric cards, a fixed light sidebar, and no alternate
+appearance mode. Chart defaults were authored per module.
 
-Dark mode is feasible without changing analysis. Streamlit can receive a
-central CSS token sheet whose Light and Dark mappings use the same semantic
-names. System mode can use `prefers-color-scheme`. Appearance can be stored in
-one ignored local application-preference file and mirrored in session state.
+Alternate appearances are feasible without changing analysis. Streamlit uses
+a central CSS token sheet whose Classic, Dark, Lavender, Ocean, Crimson, and
+Forest mappings share the same semantic names. Appearance is stored in one
+ignored local application-preference file and mirrored in session state.
 Exports remain independent and light-oriented.
 
 ## Accessibility findings

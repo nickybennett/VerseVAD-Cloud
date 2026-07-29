@@ -4,9 +4,14 @@ import pandas as pd
 
 import versevad.ui.design as design_services
 from versevad.ui.design import (
+    CLASSIC_TOKENS,
+    CRIMSON_TOKENS,
     DARK_TOKENS,
-    LIGHT_TOKENS,
+    FOREST_TOKENS,
+    LAVENDER_TOKENS,
     MODULE_PRESETS,
+    OCEAN_TOKENS,
+    THEME_TOKENS,
     collapse_control_html,
     preset_widget_state,
     render_dataframe,
@@ -22,19 +27,33 @@ from versevad.ui.preferences import (
 
 def test_ui_preferences_default_and_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "private" / "ui_preferences.json"
-    assert load_preferences(path).appearance is AppearanceMode.SYSTEM
+    assert load_preferences(path).appearance is AppearanceMode.CLASSIC
 
     saved = save_preferences(
-        UiPreferences(appearance=AppearanceMode.DARK),
+        UiPreferences(appearance=AppearanceMode.LAVENDER),
         path,
     )
     assert saved == path
-    assert load_preferences(path).appearance is AppearanceMode.DARK
+    assert load_preferences(path).appearance is AppearanceMode.LAVENDER
+
+
+def test_ui_preferences_migrate_removed_appearances(tmp_path: Path) -> None:
+    path = tmp_path / "ui_preferences.json"
+    for legacy in ("Light", "System"):
+        path.write_text(
+            f'{{"version": 1, "appearance": "{legacy}"}}',
+            encoding="utf-8",
+        )
+        preferences = load_preferences(path)
+        assert preferences.appearance is AppearanceMode.CLASSIC
+        assert preferences.version == 2
 
 
 def test_malformed_ui_preferences_fail_safely(tmp_path: Path) -> None:
     path = tmp_path / "ui_preferences.json"
     path.write_text("{not valid", encoding="utf-8")
+    assert load_preferences(path) == UiPreferences()
+    path.write_text('{"appearance": []}', encoding="utf-8")
     assert load_preferences(path) == UiPreferences()
 
 
@@ -57,11 +76,12 @@ def test_dataframe_renderer_pins_leftmost_data_column(monkeypatch) -> None:
 
 
 def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
-    light = stylesheet_for(AppearanceMode.LIGHT)
-    dark = stylesheet_for(AppearanceMode.DARK)
-    system = stylesheet_for(AppearanceMode.SYSTEM)
+    sheets = {
+        appearance: stylesheet_for(appearance)
+        for appearance in AppearanceMode
+    }
 
-    for sheet in (light, dark, system):
+    for sheet in sheets.values():
         assert "--color-background" in sheet
         assert "--color-text-primary" in sheet
         assert "--color-focus" in sheet
@@ -106,10 +126,33 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert "-webkit-text-fill-color" in sheet
         assert "caret-color" in sheet
         assert "::placeholder" in sheet
-    assert "prefers-color-scheme: dark" not in light
-    assert "prefers-color-scheme: dark" not in dark
-    assert "prefers-color-scheme: dark" in system
-    assert light != dark
+        assert '[data-testid="stFileUploaderDropzone"]' in sheet
+        assert '[data-testid="stSelectbox"] [role="group"]' in sheet
+        assert '[data-baseweb="popover"]' in sheet
+        assert '[data-baseweb="tooltip"]' in sheet
+        assert '[role="listbox"]' in sheet
+        assert "prefers-color-scheme: dark" not in sheet
+        assert (
+            "[class*=\"st-key-versevad_header_icon__\"] button:hover"
+            in sheet
+        )
+    assert len(set(sheets.values())) == len(AppearanceMode)
+    assert tuple(mode.value for mode in AppearanceMode) == (
+        "Classic",
+        "Dark",
+        "Lavender",
+        "Ocean",
+        "Crimson",
+        "Forest",
+    )
+    assert THEME_TOKENS == {
+        AppearanceMode.CLASSIC: CLASSIC_TOKENS,
+        AppearanceMode.DARK: DARK_TOKENS,
+        AppearanceMode.LAVENDER: LAVENDER_TOKENS,
+        AppearanceMode.OCEAN: OCEAN_TOKENS,
+        AppearanceMode.CRIMSON: CRIMSON_TOKENS,
+        AppearanceMode.FOREST: FOREST_TOKENS,
+    }
 
 
 def test_collapse_control_is_accessible_and_client_side() -> None:
@@ -149,20 +192,29 @@ def _contrast(first: str, second: str) -> float:
 
 
 def test_primary_text_and_focus_tokens_meet_contrast_expectations() -> None:
-    for tokens in (LIGHT_TOKENS, DARK_TOKENS):
-        assert _contrast(tokens["text-primary"], tokens["background"]) >= 7
-        assert _contrast(tokens["text-primary"], tokens["surface"]) >= 7
-        assert _contrast(tokens["text-primary"], tokens["surface-muted"]) >= 7
-        assert _contrast(tokens["text-secondary"], tokens["background"]) >= 4.5
-        assert _contrast(tokens["focus"], tokens["background"]) >= 3
+    for tokens in THEME_TOKENS.values():
+        for surface in (
+            "background",
+            "surface",
+            "surface-raised",
+            "surface-muted",
+        ):
+            assert _contrast(tokens["text-primary"], tokens[surface]) >= 7
+            assert _contrast(tokens["text-secondary"], tokens[surface]) >= 4.5
+        for surface in ("background", "surface", "surface-raised"):
+            assert _contrast(tokens["focus"], tokens[surface]) >= 3
+            assert _contrast(tokens["accent"], tokens[surface]) >= 4.5
+        assert _contrast(tokens["accent-strong"], tokens["accent-soft"]) >= 4.5
         assert (
             _contrast(tokens["text-inverse"], tokens["accent-strong"]) >= 4.5
         )
         assert _contrast(tokens["text-inverse"], tokens["accent"]) >= 4.5
+        assert _contrast(tokens["success"], tokens["success-soft"]) >= 4.5
+        assert _contrast(tokens["warning"], tokens["warning-soft"]) >= 4.5
 
 
 def test_all_button_states_meet_text_contrast_expectations() -> None:
-    for tokens in (LIGHT_TOKENS, DARK_TOKENS):
+    for tokens in THEME_TOKENS.values():
         assert (
             _contrast(
                 tokens["button-primary-text"],

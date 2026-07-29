@@ -843,9 +843,10 @@ and no JSON file.
 
 ## Stage 13 interface-only invariants
 
-The Stage 13 redesign does not define a new analytical method. Light, Dark, and
-System appearance; active workspace; preset-menu choice; expanded/collapsed
-sections; search text; and project-list filters are presentation state. They do
+The Stage 13 redesign does not define a new analytical method. Classic, Dark,
+Lavender, Ocean, Crimson, and Forest appearance; active workspace; preset-menu
+choice; expanded/collapsed sections; search text; and project-list filters are
+presentation state. They do
 not participate in tokenization, matching, weighting, thresholds, confidence,
 result IDs, cached analysis, project records, or exports.
 
