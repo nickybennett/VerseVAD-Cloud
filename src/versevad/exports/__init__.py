@@ -21,6 +21,8 @@ from versevad.exports.concreteness import (
 from versevad.exports.comparison import (
     export_poem_comparison_csv,
     export_poem_comparison_docx,
+    export_poem_comparison_set_csv,
+    export_poem_comparison_set_docx,
 )
 from versevad.exports.csv_export import export_analysis_csv
 from versevad.exports.frequency import (
@@ -124,6 +126,8 @@ __all__ = [
     "export_concreteness_token_audit_csv",
     "export_poem_comparison_csv",
     "export_poem_comparison_docx",
+    "export_poem_comparison_set_csv",
+    "export_poem_comparison_set_docx",
     "export_frequency_bundle",
     "export_frequency_by_pos_csv",
     "export_frequency_by_structure_csv",

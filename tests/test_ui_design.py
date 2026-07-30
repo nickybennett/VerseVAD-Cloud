@@ -18,6 +18,7 @@ from versevad.ui.design import (
     render_dataframe,
     stylesheet_for,
 )
+from versevad.ui.navigation import ROUTES, _top_navigation_hover_html
 from versevad.ui.dataframes import (
     heterogeneous_display_value,
     rounded_display_data,
@@ -324,13 +325,15 @@ def test_presets_change_only_module_selection_not_advanced_settings() -> None:
         "Custom",
         available_lexicon_ids=(),
     ) == {}
-    assert set(MODULE_PRESETS) == {
-        "Essential",
-        "Literary",
-        "Sound and Form",
-        "Complete",
+    assert tuple(MODULE_PRESETS) == (
+        "Full Poetic Analysis",
+        "Computational Close Reading",
+        "Affect and Emotion",
+        "Sound and Prosody",
+        "Formal Analysis",
+        "Teaching/Introductory",
         "Custom",
-    }
+    )
     assert "Compare Poems" in WORKSPACES
 
 
@@ -354,3 +357,28 @@ def test_presets_include_sensorimotor_and_versemap_as_documented() -> None:
     assert sound_and_form["include_versemap"] is False
     assert complete["include_sensorimotor"] is True
     assert complete["include_versemap"] is True
+
+
+def test_top_level_navigation_groups_stable_workspace_routes() -> None:
+    sections = tuple(dict.fromkeys(route.section for route in ROUTES))
+    assert sections == ("Analyze", "Collections", "Explore", "Learn")
+    assert {
+        route.title for route in ROUTES if route.section == "Analyze"
+    } == {
+        "Single Poem",
+        "Compare Poems",
+        "Other Text",
+        "Lexicon Explorer",
+    }
+    personal = next(route for route in ROUTES if route.title == "Personal Corpus")
+    assert personal.section == "Collections"
+    assert personal.local_only
+
+
+def test_top_level_navigation_keeps_click_and_adds_desktop_hover() -> None:
+    html = _top_navigation_hover_html()
+
+    assert 'data-testid="stTopNavSection"' in html
+    assert 'addEventListener("pointerenter"' in html
+    assert 'addEventListener("mouseenter"' in html
+    assert 'button.click()' in html

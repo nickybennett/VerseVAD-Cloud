@@ -2,21 +2,47 @@
 
 ## What is available now
 
-VerseVAD provides five local workspaces: **Single Poem**, **Compare Poems**,
-**Project / Corpus**, **Other Text**, and **Lexicon Explorer**. Single-text and
-two-poem comparison analyses remain temporary
-unless downloaded.
+VerseVAD organizes its workspaces under four top-level sections:
+**Analyze**, **Collections**, **Explore**, and **Learn**. Analyze contains
+**Single Poem**, **Compare Poems**, **Other Text**, and **Lexicon Explorer**.
+Collections contains **Saved Projects** (the workspace previously labeled
+Project / Corpus) and reserved destinations for Reference Corpora and the
+Analysis Library. Personal Corpus remains local-only and does not appear in
+the hosted edition. Explore and Learn expose the current Lexicon Explorer and
+clearly marked destinations for later standalone VerseMap, form-library,
+corpus-browser, documentation, and methodology work. Single-text and
+comparison-set analyses remain temporary unless downloaded.
 Corpus projects, preserved text versions, metadata, completed results, and
 versioned review scenarios persist in the local `projects` database. Single-text
 analysis can also enable the optional local normative lexical concreteness
 module, the optional SUBTLEX-US Zipf frequency module, and/or the optional
 Kuperman retrospective Age of Acquisition module when their exact local
-workbooks are installed under `resources/`. **Project / Corpus** can run
+workbooks are installed under `resources/`. **Saved Projects** can run
 and persist these plus pronunciation, meter, rhyme/sound, and lexical-style
 modules through the same analysis engines used by **Single Poem**.
 
 Do not rename or edit anything in `source_lexicons`. VerseVAD reads those files
 in place and verifies their SHA-256 checksums.
+
+## Navigation, analysis profiles, and comparison sets
+
+Select a top-level section in the header, then choose its workspace. The
+sidebar changes with the active context while keeping familiar locations for
+the current object, analysis profile, settings, comparison resources, later
+research notes/management, and exports.
+
+The built-in profiles are **Full Poetic Analysis**, **Computational Close
+Reading**, **Affect and Emotion**, **Sound and Prosody**, **Formal Analysis**,
+and **Teaching/Introductory**. Applying a profile establishes its defaults;
+you may continue customizing afterward. In the hosted edition, custom profiles
+store configuration only and last for the current browser session.
+
+Compare Poems starts with two poem inputs. Use **Add Another Poem** or
+**Remove** to maintain a set of two through ten. Every poem receives the same
+lexicons, modules, preprocessing, stopword treatment, and weighting choices.
+Results place poem values side by side and, where meaningful, show an
+equal-poem mean and the population standard deviation of poem-level values.
+These are descriptive summaries rather than significance tests.
 
 Research data are not included in a public VerseVAD checkout. Before first
 analysis, follow the
@@ -131,36 +157,35 @@ The app never assigns an unmatched token a neutral score. It attempts an exact
 normalized surface match before a POS-sensitive lemma fallback and records the
 method used.
 
-## Compare two poems
+## Compare two to ten poems
 
-1. Choose **Compare Poems** in the workspace navigation.
-2. Paste or upload Poem A and Poem B. Titles are working labels and may be
-   changed before analysis.
-3. Choose the affective sources and additional modules. Sensorimotor imagery,
-   lexical measures, and other installed lexical modules are selected by
-   default; pronunciation-dependent sound/form evidence remains available when
-   CMUdict is installed.
-4. If needed, open the shared stopword settings. One phrase policy, stopword
-   policy, resource set, and module configuration is applied to both poems.
-5. Click **Analyze Both Poems**, then choose one shared all-matched or
+1. Choose **Analyze → Compare Poems**.
+2. Paste or upload the first two poems. Use **Add Another Poem** or **Remove**
+   to build a comparison set of two through ten works; titles are editable
+   working labels.
+3. Choose one shared built-in or custom analysis profile, then continue
+   customizing the affective sources, installed modules, and stopword policy
+   if needed.
+4. Click **Analyze _n_ Poems**, then choose one shared all-matched or
    stopword-excluded view and token or type weighting.
-6. Use the same report map as Single Poem: **Overview**, **Affective
+5. Use the same report map as Single Poem: **Overview**, **Affective
    Evidence**, **Lexical Character, Imagery & Embodiment**, **Sound & Form**,
    **Structure**, **VerseMap**, **Evidence & Diagnostics**, and **Export &
    Help**. Each analytical subsection starts collapsed.
-7. Within a subsection, select one compatible source/scale group. The
-   side-by-side dot plot automatically fits its axis around the observed
-   values; switch to **B − A Difference** for zero-centered diverging bars.
-8. Read each source/scale separately. **B minus A** is a descriptive
-   difference: positive means B has the higher recorded value and negative
-   means it has the lower value. It is not a significance test or ranking.
-9. Check each poem's denominator and coverage before interpreting its
-   difference. Missing evidence remains missing rather than being assigned a
-   neutral value.
-10. Export either the complete comparison CSV or the narrative `.docx` report.
+6. Within a subsection, choose one compatible source-and-scale group. Colored
+   points show individual poems and the diamond shows the equal-poem mean; the
+   axis fits the observed values.
+7. Read each source and scale separately. **Equal-Poem Mean** gives every poem
+   one vote and omits missing results. **Poem-Level SD** describes variation
+   among available poem values; neither is a significance test or ranking.
+8. Check every poem's denominator and coverage before interpreting a contrast.
+   Missing evidence remains missing rather than being assigned a neutral value.
+9. Export the long-form comparison-set CSV or narrative `.docx` report.
 
-Population standard deviation in this workspace describes dispersion among the
-matched normative ratings within each poem; it is not uncertainty in the mean.
+Within-poem standard-deviation metrics describe dispersion among matched
+normative ratings inside one poem. **Poem-Level SD** instead describes
+dispersion among the displayed poem-level values. Neither is uncertainty in
+the mean.
 Raw cumulative lexical load preserves repetition and length under token
 weighting. Its per-100-observation counterpart is the appropriate
 length-normalized comparison prompt.

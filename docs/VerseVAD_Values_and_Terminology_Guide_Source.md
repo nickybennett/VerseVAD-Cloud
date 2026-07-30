@@ -67,14 +67,18 @@ For every analysis, read the results in this order:
 
 ## Interface Terms Are Not Analytical Terms
 
-**Single Poem**, **Project / Corpus**, **Other Text**, and **Lexicon Explorer**
-are workspaces. **Affective Evidence**, **Lexical Character**, **Sound & Form**,
+**Analyze**, **Collections**, **Explore**, and **Learn** are top-level
+navigation sections. Single Poem, Compare Poems, Other Text, Lexicon Explorer,
+and Saved Projects are implemented hosted workspaces. **Affective Evidence**,
+**Lexical Character**, **Sound & Form**,
 **Structure**, **Evidence & Diagnostics**, and **Export & Help** are report
 families used for navigation. A collapsed section retains its result.
 
-**Essential**, **Literary**, **Sound and Form**, and **Complete** are
-module-selection presets. A preset is not a methodology or an interpretive
-claim; the exact effective settings remain visible and recorded.
+**Full Poetic Analysis**, **Computational Close Reading**, **Affect and
+Emotion**, **Sound and Prosody**, **Formal Analysis**, and
+**Teaching/Introductory** are analysis profiles. A profile is not an
+interpretive claim; the exact effective settings remain visible and recorded.
+A hosted custom profile stores configuration only for the current session.
 
 **Classic**, **Dark**, **Lavender**, **Ocean**, **Crimson**, and **Forest** are
 appearance preferences. They do not change a score, result ID, coverage value,

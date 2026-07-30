@@ -436,12 +436,14 @@ appearance. Preference version 2 migrates legacy `Light` and `System` values
 to `Classic`; invalid or absent values also resolve safely to `Classic`.
 Neither module imports an analysis engine, repository, adapter, or lexicon.
 
-The shell exposes **Single Poem**, **Project / Corpus**, **Other Text**, and
-**Lexicon Explorer** through one navigation pattern. Single Poem and Other Text
-share the existing `AnalysisRequest` construction and result objects. The
-Project / Corpus page continues to use schema 4 and the same corpus
-orchestrator. Explorer continues to call the same `explore_lexicons` service;
-its lookup and matching behavior did not change.
+The shell now exposes stable grouped routes under **Analyze**,
+**Collections**, **Explore**, and **Learn** through Streamlit's native top
+navigation. Single Poem and Other Text share the existing `AnalysisRequest`
+construction and result objects. **Saved Projects** continues to use schema 4
+and the same session-isolated corpus orchestrator; only its presentation label
+changed. Personal Corpus is omitted from hosted navigation. Explorer continues
+to call the same `explore_lexicons` service; its lookup and matching behavior
+did not change.
 
 Fifteen single-text result tabs are reorganized into seven report families.
 Within a family, each analytical module has a large native expander with a
@@ -449,10 +451,18 @@ visible completion/not-selected state. This changes navigation and visual
 hierarchy only: the framework-independent result objects, exports, and stable
 provenance remain unchanged.
 
-Module presets write only existing module-selection widget keys after an
-explicit **Apply** action. They never write threshold, matching, filtering,
-pronunciation, or confidence settings. Appearance, collapse state, navigation,
-and other presentation state remain outside analytical configuration IDs.
+Built-in analysis profiles establish existing widget defaults only after an
+explicit **Apply / Restore** action. Named hosted custom profiles retain
+advanced analytical settings only in session memory; the allowlist excludes
+supplied text, bibliographic metadata, pronunciation overrides, completed
+results, and exports.
+
+`versevad.comparison` retains its two-poem API for backward compatibility and
+adds an immutable `PoemComparisonSet` boundary for two through ten compatible
+analyses. Set rows reuse the established pairwise metric extractors and
+calculate equal-poem numeric means plus poem-level population standard
+deviations. The user-facing set interface and exports contain no pairwise
+delta fields.
 
 ## Expansion Stage 14 meter and performance architecture
 

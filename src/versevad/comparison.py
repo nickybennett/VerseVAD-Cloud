@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import math
 import statistics
+from collections import Counter
 from dataclasses import dataclass
 from numbers import Real
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Sequence
 
 from versevad.stopwords import build_stopword_policy
 
@@ -39,6 +40,44 @@ class PoemComparisonRow:
     denominator_b: str
     coverage_a: float | None
     coverage_b: float | None
+    note: str
+
+
+@dataclass(frozen=True)
+class PoemComparisonSet:
+    """Two to ten immutable analyses sharing one analytical configuration."""
+
+    comparison_set_id: str
+    analyses: tuple[WorkspaceAnalysis, ...]
+
+
+@dataclass(frozen=True)
+class PoemComparisonSetValue:
+    """One poem's contribution to a comparison-set metric."""
+
+    poem_id: str
+    title: str
+    value: float | int | str | None
+    denominator: str
+    coverage: float | None
+
+
+@dataclass(frozen=True)
+class PoemComparisonSetRow:
+    """One like-for-like metric across every poem in a comparison set."""
+
+    section: str
+    source: str
+    analysis_view: str
+    weighting: str
+    metric_id: str
+    metric: str
+    values: tuple[PoemComparisonSetValue, ...]
+    numeric_mean: float | None
+    numeric_population_standard_deviation: float | None
+    contributing_poem_count: int
+    categorical_summary: str
+    unit_or_scale: str
     note: str
 
 
@@ -103,6 +142,27 @@ def build_poem_comparison(
         + hashlib.sha256(signature.encode("utf-8")).hexdigest(),
         first=first,
         second=second,
+    )
+
+
+def build_poem_comparison_set(
+    analyses: Sequence[WorkspaceAnalysis],
+) -> PoemComparisonSet:
+    """Validate and retain a shared-design set of two through ten poems."""
+
+    retained = tuple(analyses)
+    if not 2 <= len(retained) <= 10:
+        raise ValueError("A poem comparison set requires between 2 and 10 poems.")
+    anchor = retained[0]
+    comparison_ids = [
+        build_poem_comparison(anchor, analysis).comparison_id
+        for analysis in retained
+    ]
+    signature = "|".join(("poem-comparison-set-v1", *comparison_ids))
+    return PoemComparisonSet(
+        comparison_set_id="poem-comparison-set-v1:"
+        + hashlib.sha256(signature.encode("utf-8")).hexdigest(),
+        analyses=retained,
     )
 
 
@@ -1000,3 +1060,127 @@ def comparison_rows(
             ),
         )
     )
+
+
+def comparison_set_rows(
+    comparison_set: PoemComparisonSet,
+    *,
+    analysis_view: str = "all_matched",
+    weighting: str = "token",
+) -> tuple[PoemComparisonSetRow, ...]:
+    """Return source-compatible metric rows across a two-to-ten-poem set."""
+
+    analyses = comparison_set.analyses
+    rows_by_poem: list[dict[tuple[str, ...], PoemComparisonRow]] = []
+    ordered_keys: dict[tuple[str, ...], None] = {}
+    anchor = analyses[0]
+    for analysis in analyses:
+        pair_rows = comparison_rows(
+            build_poem_comparison(anchor, analysis),
+            analysis_view=analysis_view,
+            weighting=weighting,
+        )
+        indexed: dict[tuple[str, ...], PoemComparisonRow] = {}
+        for row in pair_rows:
+            key = (
+                row.section,
+                row.source,
+                row.analysis_view,
+                row.weighting,
+                row.metric_id,
+                row.metric,
+                row.unit_or_scale,
+            )
+            indexed[key] = row
+            ordered_keys.setdefault(key, None)
+        rows_by_poem.append(indexed)
+
+    result: list[PoemComparisonSetRow] = []
+    for key in ordered_keys:
+        template = next(
+            indexed[key] for indexed in rows_by_poem if key in indexed
+        )
+        values: list[PoemComparisonSetValue] = []
+        numeric_values: list[float] = []
+        categories: list[str] = []
+        for analysis, indexed in zip(analyses, rows_by_poem, strict=True):
+            row = indexed.get(key)
+            value = row.value_b if row is not None else None
+            numeric = _numeric(value)
+            if numeric is not None:
+                numeric_values.append(numeric)
+            elif isinstance(value, str) and value:
+                categories.append(value)
+            values.append(
+                PoemComparisonSetValue(
+                    poem_id=analysis.document.text_version_id,
+                    title=analysis.request.title,
+                    value=value,
+                    denominator=row.denominator_b if row is not None else "",
+                    coverage=row.coverage_b if row is not None else None,
+                )
+            )
+        categorical_summary = ""
+        if categories:
+            counts = Counter(categories)
+            most_common = counts.most_common()
+            highest = most_common[0][1]
+            leaders = [
+                label for label, count in most_common if count == highest
+            ]
+            categorical_summary = (
+                f"{leaders[0]} ({highest}/{len(categories)})"
+                if len(leaders) == 1
+                else f"Mixed ({len(categories)} contributing poems)"
+            )
+        numeric_mean = (
+            statistics.fmean(numeric_values) if numeric_values else None
+        )
+        numeric_sd = (
+            statistics.pstdev(numeric_values)
+            if len(numeric_values) > 1
+            else (0.0 if numeric_values else None)
+        )
+        result.append(
+            PoemComparisonSetRow(
+                section=template.section,
+                source=template.source,
+                analysis_view=template.analysis_view,
+                weighting=template.weighting,
+                metric_id=template.metric_id,
+                metric=template.metric,
+                values=tuple(values),
+                numeric_mean=numeric_mean,
+                numeric_population_standard_deviation=numeric_sd,
+                contributing_poem_count=(
+                    len(numeric_values) if numeric_values else len(categories)
+                ),
+                categorical_summary=categorical_summary,
+                unit_or_scale=template.unit_or_scale,
+                note=template.note,
+            )
+        )
+    return tuple(
+        sorted(
+            result,
+            key=lambda row: (
+                row.section,
+                row.source.casefold(),
+                row.metric.casefold(),
+                row.metric_id,
+            ),
+        )
+    )
+
+
+__all__ = [
+    "PoemComparison",
+    "PoemComparisonRow",
+    "PoemComparisonSet",
+    "PoemComparisonSetRow",
+    "PoemComparisonSetValue",
+    "build_poem_comparison",
+    "build_poem_comparison_set",
+    "comparison_rows",
+    "comparison_set_rows",
+]

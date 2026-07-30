@@ -36,6 +36,13 @@ def _button(app: AppTest, label: str):
     return next(button for button in app.button if button.label == label)
 
 
+def _open_workspace(app: AppTest, workspace: str) -> AppTest:
+    """Select a route through the shell's supported AppTest override."""
+
+    app.session_state["_workspace_route_override"] = workspace
+    return app.run(timeout=30)
+
+
 def _section_navigation(app: AppTest, label: str):
     control_type = "selectbox" if label == "Report section" else "button_group"
     return next(
@@ -52,14 +59,11 @@ def test_interface_starts_with_beginner_input_workflow() -> None:
     assert "Paste the poem exactly as you want it analyzed" in [
         area.label for area in app.text_area
     ]
-    navigation = app.get("button_group")[0]
-    assert navigation.label == "Workspace"
-    assert navigation.value == "Single Poem"
     text_inputs = {field.label: field for field in app.text_input}
     assert "Poem title or working label" in text_inputs
     assert text_inputs["Workspace name"].value == ""
     assert "Analyze Poem" in [button.label for button in app.button]
-    assert "Apply preset" in [button.label for button in app.button]
+    assert "Apply / Restore" in [button.label for button in app.button]
     assert "Appearance" in [field.label for field in app.selectbox]
     assert "Run self-test" in [button.label for button in app.button]
     assert "Concreteness profile (Brysbaert et al. ratings)" in [
@@ -117,6 +121,18 @@ def test_cloud_entrypoint_rerenders_after_report_navigation(
     assert not app.exception
     assert _section_navigation(app, "Report section").value == "Sound & Form"
     assert "Analyze Poem" in [button.label for button in app.button]
+
+
+def test_cloud_navigation_omits_the_local_only_personal_corpus() -> None:
+    app = AppTest.from_file(
+        str(CLOUD_APP_PATH),
+        default_timeout=60,
+    ).run()
+    app.session_state["_workspace_route_override"] = "Personal Corpus"
+    app.run(timeout=60)
+
+    assert not app.exception
+    assert [title.value for title in app.title] == ["Single Poem"]
 
 
 def test_inherited_form_report_uses_fragment_scoped_widget_reruns() -> None:
@@ -196,20 +212,17 @@ def test_interface_state_migration_and_preset_emit_no_widget_default_warning(
 ) -> None:
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
 
-    app.session_state["workspace_page"] = "One Poem"
     caplog.clear()
     app.run(timeout=30)
-    navigation = app.get("button_group")[0]
-    assert navigation.value == "Single Poem"
     assert "created with a default value" not in caplog.text
 
     preset = next(
-        field for field in app.selectbox if field.label == "Module preset"
+        field for field in app.selectbox if field.label == "Analysis profile"
     )
-    preset.set_value("Essential")
+    preset.set_value("Affect and Emotion")
     app.run(timeout=30)
     caplog.clear()
-    _button(app, "Apply preset").click()
+    _button(app, "Apply / Restore").click()
     app.run(timeout=30)
 
     assert not app.exception
@@ -253,27 +266,24 @@ def test_interface_warns_and_filters_when_research_resources_are_absent(
 def test_interface_opens_persistent_corpus_workspace(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("VERSEVAD_DATABASE_PATH", str(tmp_path / "versevad.sqlite3"))
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
-    navigation = app.get("button_group")[0]
-    navigation.set_value("Project / Corpus")
-    app.run(timeout=30)
+    _open_workspace(app, "Saved Projects")
     assert not app.exception
-    assert [title.value for title in app.title] == ["Project / Corpus"]
+    assert [title.value for title in app.title] == ["Saved Projects"]
     assert "Project title" in [field.label for field in app.text_input]
     assert "Create project" in [button.label for button in app.button]
 
 
 def test_interface_opens_compare_poems_workspace() -> None:
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
-    navigation = app.get("button_group")[0]
-    navigation.set_value("Compare Poems")
-    app.run(timeout=30)
+    _open_workspace(app, "Compare Poems")
 
     assert not app.exception
     assert [title.value for title in app.title] == ["Compare Poems"]
     assert [area.label for area in app.text_area].count(
         "Paste the poem exactly as it should be analyzed"
     ) == 2
-    assert "Analyze Both Poems" in [button.label for button in app.button]
+    assert "Analyze 2 Poems" in [button.label for button in app.button]
+    assert "Add Another Poem" in [button.label for button in app.button]
     module_selector = next(
         field
         for field in app.multiselect
@@ -281,6 +291,14 @@ def test_interface_opens_compare_poems_workspace() -> None:
     )
     if "sensorimotor" in module_selector.options:
         assert "sensorimotor" in module_selector.value
+
+    _button(app, "Add Another Poem").click()
+    app.run(timeout=30)
+    assert not app.exception
+    assert [area.label for area in app.text_area].count(
+        "Paste the poem exactly as it should be analyzed"
+    ) == 3
+    assert "Analyze 3 Poems" in [button.label for button in app.button]
 
 
 def test_corpus_workspace_exposes_phase5_review_scenarios(
@@ -301,9 +319,7 @@ def test_corpus_workspace_exposes_phase5_review_scenarios(
     )
 
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
-    navigation = app.get("button_group")[0]
-    navigation.set_value("Project / Corpus")
-    app.run(timeout=30)
+    _open_workspace(app, "Saved Projects")
 
     assert not app.exception
     project_navigation = _section_navigation(app, "Project section")
@@ -328,9 +344,7 @@ def test_interface_deletes_only_exactly_confirmed_project(tmp_path, monkeypatch)
     keeper = repository.create_project("Keep this project")
 
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
-    navigation = app.get("button_group")[0]
-    navigation.set_value("Project / Corpus")
-    app.run(timeout=30)
+    _open_workspace(app, "Saved Projects")
     active_project = next(
         field for field in app.selectbox if field.label == "Active project"
     )
@@ -373,9 +387,7 @@ def test_interface_recovers_from_a_stale_deleted_project_selection(
     keeper = repository.create_project("Remaining project")
 
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
-    navigation = app.get("button_group")[0]
-    navigation.set_value("Project / Corpus")
-    app.run(timeout=30)
+    _open_workspace(app, "Saved Projects")
     app.session_state["active_corpus_project"] = disposable.project_id
 
     repository.delete_project(
@@ -393,9 +405,7 @@ def test_interface_recovers_from_a_stale_deleted_project_selection(
 
 def test_interface_opens_lexicon_explorer() -> None:
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
-    navigation = app.get("button_group")[0]
-    navigation.set_value("Lexicon Explorer")
-    app.run(timeout=30)
+    _open_workspace(app, "Lexicon Explorer")
     assert not app.exception
     assert [title.value for title in app.title] == ["Lexicon Explorer"]
     assert "Word or phrase" in [field.label for field in app.text_input]
@@ -405,8 +415,7 @@ def test_interface_opens_lexicon_explorer() -> None:
 
 def test_lexicon_explorer_offers_printable_word_report() -> None:
     app = AppTest.from_file(str(APP_PATH), default_timeout=60).run()
-    navigation = app.get("button_group")[0]
-    navigation.set_value("Lexicon Explorer")
+    app.session_state["_workspace_route_override"] = "Lexicon Explorer"
     app.run(timeout=60)
 
     query = next(
@@ -442,9 +451,7 @@ def test_lexicon_explorer_offers_printable_word_report() -> None:
 
 def test_interface_reuses_single_text_workflow_for_other_text() -> None:
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
-    navigation = app.get("button_group")[0]
-    navigation.set_value("Other Text")
-    app.run(timeout=30)
+    _open_workspace(app, "Other Text")
 
     assert not app.exception
     assert [title.value for title in app.title] == ["Other Text"]

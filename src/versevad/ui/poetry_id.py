@@ -238,11 +238,19 @@ def render_poetry_id(result: PoetryIDAnalysisResult | None) -> None:
     )
 
     st.markdown(
-        "### Nearest PoetryID profile: "
+        "### Category Fit Archetype: "
+        f"{assignment.categorical_archetype.name}"
+    )
+    st.caption(assignment.categorical_archetype.short_descriptor)
+    st.write(assignment.narrative_summary)
+    st.markdown(
+        "**Nearest Centroid Archetype:** "
         f"{assignment.nearest_centroid_archetype.name}"
     )
-    st.caption(assignment.nearest_centroid_archetype.short_descriptor)
-    st.write(assignment.narrative_summary)
+    st.caption(
+        assignment.nearest_centroid_archetype.short_descriptor
+        + " The centroid result is a secondary continuous-distance comparison."
+    )
     metrics = st.columns(4)
     metrics[0].metric("Valence", f"{assignment.vad.valence:.3f}")
     metrics[1].metric("Arousal", f"{assignment.vad.arousal:.3f}")
@@ -264,9 +272,9 @@ def render_poetry_id(result: PoetryIDAnalysisResult | None) -> None:
 
     if not assignment.categorical_match:
         st.warning(
-            "The categorical profile and nearest Euclidean centroid differ. "
-            f"The categorical result is {assignment.categorical_archetype.name}; "
-            "the nearest centroid is "
+            "The primary category-fit archetype and secondary nearest "
+            "Euclidean centroid differ. The category fit is "
+            f"{assignment.categorical_archetype.name}; the nearest centroid is "
             f"{assignment.nearest_centroid_archetype.name}. Both are retained."
         )
     elif assignment.confidence.boundary_dimensions:

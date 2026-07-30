@@ -33,6 +33,14 @@ It now keeps pooled lexical-rating standard deviation separate from the
 standard deviation of poem-level means, and the poem comparison pairs each VAD
 mean with its within-poem population standard deviation.
 
+The interface now groups stable workspace routes under **Analyze**,
+**Collections**, **Explore**, and **Learn**. Compare Poems accepts a dynamic set
+of two through ten poems under one shared analytical design and reports
+side-by-side values, equal-poem means, and poem-level dispersion. Hosted custom
+analysis profiles last for the browser session and never retain poem text or
+results. PoetryID presents category fit as its primary descriptive archetype
+and nearest centroid as a secondary candidate.
+
 The one-text report uses a persistent dropdown, all large report panels start
 collapsed while remaining independently expandable, and the native sidebar
 arrow hides or restores the sidebar while the wide workspace resizes. In
@@ -139,17 +147,17 @@ CSV under `resources/Lancaster_Sensorimotor_Norms/`, so hosted users do not
 need to install that resource. The public/local repository continues to omit
 the dataset and documents its user-supplied installation separately.
 
-**Compare Poems** provides a session-only contrastive workspace for two texts
-analyzed under one shared configuration. It places source-specific means,
-within-poem population standard deviations, cumulative and per-100 lexical
-loads, sensorimotor evidence, structure, sound, PoetryID, and VerseMap evidence
-side by side when their modules are enabled. Every numeric difference is
-reported as Poem B minus Poem A with its source scale, denominator, and
-coverage. The CSV and narrative Word exports preserve missing values and do
-not present differences as significance tests, rankings, or substitutes for
-close reading. Its report navigation now mirrors Single Poem, with familiar
-default-collapsed subsections, automatically fitted side-by-side dot plots,
-and optional zero-centered B-minus-A difference bars.
+**Compare Poems** provides a session-only contrastive workspace for two
+through ten texts analyzed under one shared configuration. It places
+source-specific means, within-poem population standard deviations, cumulative
+and per-100 lexical loads, sensorimotor evidence, structure, sound, PoetryID,
+and VerseMap evidence side by side when their modules are enabled. Its
+equal-poem mean gives every poem one vote; poem-level population SD describes
+variation among available poem values. Long-form CSV and narrative Word
+exports preserve every poem's denominator, coverage, and missing values. The
+workspace does not present its summaries as significance tests, rankings, or
+substitutes for close reading. Its report navigation mirrors Single Poem,
+with default-collapsed subsections and automatically fitted point plots.
 
 Across every workspace, interface tables, chart tooltips, and numeric result
 displays use at most three decimal places. This is a presentation rule only:

@@ -8,10 +8,17 @@ import pyarrow as pa
 
 from versevad.analysis.phase2 import analyze_lexicon, compare_lexicons
 from versevad.application import AnalysisRequest, WorkspaceAnalysis
-from versevad.comparison import build_poem_comparison, comparison_rows
+from versevad.comparison import (
+    build_poem_comparison,
+    build_poem_comparison_set,
+    comparison_rows,
+    comparison_set_rows,
+)
 from versevad.exports.comparison import (
     export_poem_comparison_csv,
     export_poem_comparison_docx,
+    export_poem_comparison_set_csv,
+    export_poem_comparison_set_docx,
 )
 from versevad.phase2_validation import phase2_synthetic_vad_lexicon
 from versevad.preprocessing import PreparedPoemPreprocessor, create_text_document
@@ -63,6 +70,31 @@ def poem_comparison(preprocessor):
         text="Bright bright bright glows.\nNight glows.",
     )
     return build_poem_comparison(first, second)
+
+
+@pytest.fixture
+def poem_comparison_set(preprocessor):
+    analyses = (
+        _workspace(
+            preprocessor,
+            identifier="comparison-set-a",
+            title="Poem A",
+            text="Very dark night glows.\nBright night glows.",
+        ),
+        _workspace(
+            preprocessor,
+            identifier="comparison-set-b",
+            title="Poem B",
+            text="Bright bright bright glows.\nNight glows.",
+        ),
+        _workspace(
+            preprocessor,
+            identifier="comparison-set-c",
+            title="Poem C",
+            text="Dark night.\nVery bright glows.",
+        ),
+    )
+    return build_poem_comparison_set(analyses)
 
 
 def test_comparison_reports_like_for_like_means_dispersion_and_loads(
@@ -143,6 +175,56 @@ def test_comparison_csv_and_docx_exports_are_auditable(poem_comparison) -> None:
     assert "Poem A compared with Poem B" in document_xml
 
 
+def test_comparison_set_supports_three_poems_and_equal_poem_summaries(
+    poem_comparison_set,
+) -> None:
+    rows = comparison_set_rows(poem_comparison_set)
+    mean = next(
+        row
+        for row in rows
+        if row.metric_id == "vad.synthetic_vad_phase2.valence.mean"
+    )
+    values = [float(value.value) for value in mean.values]
+
+    assert len(mean.values) == 3
+    assert mean.contributing_poem_count == 3
+    assert mean.numeric_mean == pytest.approx(sum(values) / 3)
+    assert mean.numeric_population_standard_deviation is not None
+
+
+def test_comparison_set_enforces_two_to_ten_poem_boundary(
+    poem_comparison_set,
+) -> None:
+    analyses = poem_comparison_set.analyses
+
+    with pytest.raises(ValueError, match="between 2 and 10"):
+        build_poem_comparison_set(analyses[:1])
+    with pytest.raises(ValueError, match="between 2 and 10"):
+        build_poem_comparison_set(analyses * 4)
+
+
+def test_comparison_set_exports_are_long_form_without_pairwise_differences(
+    poem_comparison_set,
+) -> None:
+    csv_content = export_poem_comparison_set_csv(poem_comparison_set)
+    rows = list(csv.DictReader(io.StringIO(csv_content.decode("utf-8-sig"))))
+
+    assert rows
+    assert {row["poem_title"] for row in rows} == {
+        "Poem A",
+        "Poem B",
+        "Poem C",
+    }
+    assert "equal_poem_mean" in rows[0]
+    assert "poem_level_population_sd" in rows[0]
+    assert "difference_b_minus_a" not in rows[0]
+
+    docx_content = export_poem_comparison_set_docx(poem_comparison_set)
+    with zipfile.ZipFile(io.BytesIO(docx_content)) as archive:
+        document_xml = archive.read("word/document.xml").decode("utf-8")
+    assert "Comparison set: Poem A, Poem B, Poem C" in document_xml
+
+
 def test_comparison_display_values_are_arrow_safe() -> None:
     display = _arrow_safe_display_frame(
         pd.DataFrame(
@@ -160,6 +242,21 @@ def test_comparison_display_values_are_arrow_safe() -> None:
         "—",
     ]
     assert pa.Table.from_pandas(display).num_rows == 3
+
+
+def test_comparison_set_display_values_are_arrow_safe() -> None:
+    display = _arrow_safe_display_frame(
+        pd.DataFrame(
+            {
+                "Poem One": [0.5, "accentual-syllabic"],
+                "Poem Two": [0.6, "free verse"],
+            }
+        ),
+        value_columns=("Poem One", "Poem Two"),
+    )
+
+    assert display["Poem One"].tolist() == ["0.5", "accentual-syllabic"]
+    assert pa.Table.from_pandas(display).num_rows == 2
 
 
 def test_comparison_report_map_matches_single_poem_structure() -> None:

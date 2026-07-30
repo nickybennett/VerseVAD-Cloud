@@ -88,19 +88,16 @@ def test_poetry_id_corpus_reuses_modules_and_keeps_compatible_distributions(
         ("nrc_vad_v1:all_matched", "token"),
     )
     assert {row["Work"] for row in comparisons} == {"First", "Second"}
-    assert all(row["Categorical profile"] for row in comparisons)
-    assert all(row["Nearest centroid"] for row in comparisons)
-    assert all(row["Same profile"] in {"Yes", "No"} for row in comparisons)
+    assert all(row["Category Fit Archetype"] for row in comparisons)
+    assert all(row["Nearest Centroid Archetype"] for row in comparisons)
     assert all(
-        row["Nearest distance"] <= row["Categorical distance"]
+        set(row) == {
+            "Work",
+            "Category Fit Archetype",
+            "Nearest Centroid Archetype",
+        }
         for row in comparisons
     )
-    assert all(
-        0 <= row[dimension] <= 1
-        for row in comparisons
-        for dimension in ("Valence", "Arousal", "Dominance")
-    )
-    assert all(row["Confidence"] for row in comparisons)
 
     archive = repository.build_module_artifact_zip(
         results[0].run_id,

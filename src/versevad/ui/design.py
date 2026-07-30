@@ -13,6 +13,7 @@ from streamlit.delta_generator import DeltaGenerator
 from versevad import __version__
 from versevad.deployment import cloud_deployment_enabled
 from versevad.ui.dataframes import rounded_display_data
+from versevad.ui.navigation import WORKSPACES, render_top_navigation
 from versevad.ui.preferences import (
     AppearanceMode,
     UiPreferences,
@@ -20,15 +21,7 @@ from versevad.ui.preferences import (
     normalize_appearance,
     save_appearance,
 )
-
-
-WORKSPACES = (
-    "Single Poem",
-    "Compare Poems",
-    "Project / Corpus",
-    "Other Text",
-    "Lexicon Explorer",
-)
+from versevad.ui.sidebar import render_context_sidebar
 
 CLASSIC_TOKENS = {
     "background": "#f6f3ed",
@@ -293,10 +286,11 @@ class ModulePreset:
 
 
 MODULE_PRESETS = {
-    "Essential": ModulePreset(
-        label="Essential",
+    "Affect and Emotion": ModulePreset(
+        label="Affect and Emotion",
         description=(
-            "VAD, emotion association and intensity, plus sensorimotor imagery."
+            "Focused VAD, emotion association and intensity, plus "
+            "sensorimotor imagery."
         ),
         lexicon_ids=(
             "nrc_vad_v2_1",
@@ -305,9 +299,12 @@ MODULE_PRESETS = {
         ),
         modules=("include_sensorimotor",),
     ),
-    "Literary": ModulePreset(
-        label="Literary",
-        description="Core affective evidence plus lexical character and structure.",
+    "Computational Close Reading": ModulePreset(
+        label="Computational Close Reading",
+        description=(
+            "A broad close-reading profile combining affective, lexical, "
+            "sensorimotor, structural, and PoetryID evidence."
+        ),
         lexicon_ids=(
             "warriner_vad_2013",
             "nrc_vad_v2_1",
@@ -323,8 +320,8 @@ MODULE_PRESETS = {
             "include_poetry_id",
         ),
     ),
-    "Sound and Form": ModulePreset(
-        label="Sound and Form",
+    "Sound and Prosody": ModulePreset(
+        label="Sound and Prosody",
         description=(
             "Sensorimotor imagery, pronunciation, meter, rhyme/sound, and "
             "structural measures."
@@ -339,8 +336,38 @@ MODULE_PRESETS = {
             "include_lexical_style",
         ),
     ),
-    "Complete": ModulePreset(
-        label="Complete",
+    "Formal Analysis": ModulePreset(
+        label="Formal Analysis",
+        description=(
+            "Pronunciation, meter, recurring sound, inherited form, and "
+            "structural measures without unrelated lexical modules."
+        ),
+        lexicon_ids=(),
+        modules=(
+            "include_pronunciation",
+            "include_meter",
+            "include_phonology",
+            "include_inherited_form",
+            "include_lexical_style",
+        ),
+    ),
+    "Teaching/Introductory": ModulePreset(
+        label="Teaching/Introductory",
+        description=(
+            "A smaller introductory profile with one current VAD source, "
+            "emotion associations, concreteness, and structural measures."
+        ),
+        lexicon_ids=(
+            "nrc_vad_v2_1",
+            "nrc_emotion_v0_92",
+        ),
+        modules=(
+            "include_concreteness",
+            "include_lexical_style",
+        ),
+    ),
+    "Full Poetic Analysis": ModulePreset(
+        label="Full Poetic Analysis",
         description="Every installed analytical module.",
         lexicon_ids=(
             "warriner_vad_2013",
@@ -371,6 +398,19 @@ MODULE_PRESETS = {
     ),
 }
 
+MODULE_PRESETS = {
+    name: MODULE_PRESETS[name]
+    for name in (
+        "Full Poetic Analysis",
+        "Computational Close Reading",
+        "Affect and Emotion",
+        "Sound and Prosody",
+        "Formal Analysis",
+        "Teaching/Introductory",
+        "Custom",
+    )
+}
+
 _OPTIONAL_MODULE_KEYS = frozenset(
     key
     for preset in MODULE_PRESETS.values()
@@ -385,6 +425,13 @@ def preset_widget_state(
 ) -> dict[str, object]:
     """Return only module-selection state; advanced settings are never touched."""
 
+    legacy_names = {
+        "Essential": "Affect and Emotion",
+        "Literary": "Computational Close Reading",
+        "Sound and Form": "Sound and Prosody",
+        "Complete": "Full Poetic Analysis",
+    }
+    preset_name = legacy_names.get(preset_name, preset_name)
     preset = MODULE_PRESETS[preset_name]
     if preset_name == "Custom":
         return {}
@@ -1238,20 +1285,12 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
     st.session_state.setdefault("analysis_cache_enabled", True)
     st.session_state.setdefault("performance_diagnostics_enabled", True)
     st.session_state.setdefault("workspace_page", WORKSPACES[0])
-    legacy_workspace = {
-        "One Poem": "Single Poem",
-        "Projects & Corpus": "Project / Corpus",
-    }
-    if (
-        "workspace_page" in st.session_state
-        and st.session_state["workspace_page"] not in WORKSPACES
-    ):
-        st.session_state["workspace_page"] = legacy_workspace.get(
-            st.session_state["workspace_page"],
-            WORKSPACES[0],
-        )
     appearance = normalize_appearance(st.session_state["appearance_mode"])
     apply_design_system(appearance)
+    route = render_top_navigation(include_local_routes=False)
+    workspace = route.workspace_id
+    st.session_state["workspace_page"] = workspace
+    render_context_sidebar(workspace)
 
     with st.container(key="versevad_global_header"):
         brand, appearance_column, settings_column, help_column = st.columns(
@@ -1397,13 +1436,7 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
                     "warranty. See LICENSE. Research datasets retain their own "
                     "terms and are not included in that license."
                 )
-        workspace = st.segmented_control(
-            "Workspace",
-            options=WORKSPACES,
-            selection_mode="single",
-            key="workspace_page",
-        )
-    return workspace or WORKSPACES[0], appearance
+    return workspace, appearance
 
 
 def render_workspace_header(

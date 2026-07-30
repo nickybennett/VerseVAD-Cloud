@@ -6,6 +6,20 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Replaced the flat workspace control with four grouped top-level sections:
+  **Analyze**, **Collections**, **Explore**, and **Learn**. The existing Project
+  / Corpus workspace is now labeled **Saved Projects**, while Personal Corpus
+  remains unavailable in the hosted edition.
+- Added a conditional research sidebar and expanded **Compare Poems** from two
+  poems to a dynamic set of two through ten with side-by-side values,
+  equal-poem means, poem-level dispersion, and long-form CSV/Word exports.
+- Replaced the legacy presets with **Full Poetic Analysis**,
+  **Computational Close Reading**, **Affect and Emotion**, **Sound and Prosody**,
+  **Formal Analysis**, and **Teaching/Introductory**. Hosted custom profiles
+  retain configuration only for the current browser session.
+- Made PoetryID's **Category Fit Archetype** primary and the **Nearest Centroid
+  Archetype** secondary. Multi-poem and corpus summaries remain limited to
+  those two interpretable fields.
 - Bundled the checksum-pinned Lancaster Sensorimotor Norms CSV in the private
   cloud repository so hosted sensorimotor analysis works without user setup;
   the public/local repository continues to treat it as user-supplied data.

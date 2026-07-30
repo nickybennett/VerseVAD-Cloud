@@ -218,6 +218,14 @@ from versevad.ui.sensorimotor import render_sensorimotor
 from versevad.ui.dataframes import rounded_display_data
 from versevad.versemap import VerseMapConfiguration
 from versevad.ui.stopwords import render_stopword_settings
+from versevad.ui.profiles import (
+    PROFILE_WIDGET_KEYS,
+    apply_profile_settings,
+    delete_custom_profile,
+    load_custom_profiles,
+    save_custom_profile,
+    snapshot_profile_settings,
+)
 from versevad.ui.design import (
     MODULE_PRESETS,
     PUBLICATION_CHART_COLORS,
@@ -864,7 +872,7 @@ if workspace_page == "Compare Poems":
     from versevad.ui.comparison import render_compare_poems_workspace
 
     render_compare_poems_workspace(_preprocessor(), resource_readiness)
-if workspace_page == "Project / Corpus":
+if workspace_page == "Saved Projects":
     from versevad.ui.corpus import render_corpus_workspace
 
     render_corpus_workspace(_preprocessor(), resource_readiness)
@@ -872,6 +880,57 @@ if workspace_page == "Lexicon Explorer":
     from versevad.ui.explorer import render_lexicon_explorer
 
     render_lexicon_explorer(_preprocessor())
+
+_STAGED_WORKSPACE_COPY = {
+    "Reference Corpora": (
+        "Curated and user-managed reference collections",
+        "Reference-corpus management and validation arrives in Stage 3. "
+        "The installed VerseMap reference model remains available in existing "
+        "analytical reports.",
+    ),
+    "Analysis Library": (
+        "Persistent research retrieval",
+        "Saved analyses, recoverable drafts, and contextual notebooks arrive "
+        "in Stage 2.",
+    ),
+    "VerseMap": (
+        "Independent comparative exploration",
+        "The standalone selectable-corpus VerseMap workspace arrives in Stage "
+        "3. Existing analytical VerseMap reports remain available.",
+    ),
+    "Form Library": (
+        "Inherited-form reference",
+        "The educational form registry workspace arrives in Stage 3. "
+        "Inherited Form Analysis remains available under Sound & Form.",
+    ),
+    "Corpus Browser": (
+        "Read-only corpus inspection",
+        "Read-only corpus metadata, coverage, and profile browsing arrives in "
+        "Stage 3.",
+    ),
+    "Documentation": (
+        "VerseVAD guidance",
+        "The in-application documentation reader arrives in Stage 3. The "
+        "versioned README and docs folder remain authoritative.",
+    ),
+    "Methodology": (
+        "Calculations, limitations, and provenance",
+        "The registry-driven methodology workspace arrives in Stage 3. "
+        "Current module methodology panels and audit exports remain available.",
+    ),
+}
+if workspace_page in _STAGED_WORKSPACE_COPY:
+    staged_kicker, staged_description = _STAGED_WORKSPACE_COPY[workspace_page]
+    render_workspace_header(
+        workspace_page,
+        staged_description,
+        kicker=staged_kicker,
+        status="Planned",
+    )
+    st.info(
+        "This route is part of the new VerseVAD architecture and is reserved "
+        "for its scheduled implementation stage."
+    )
 
 
 if workspace_page in {"Single Poem", "Other Text"}:
@@ -898,13 +957,25 @@ if workspace_page in {"Single Poem", "Other Text"}:
     st.session_state.setdefault("workspace", None)
 
     with st.sidebar:
-        st.markdown("### Local Session")
-        st.caption(f"{workspace_page} · VerseVAD {__version__}")
-        st.success("Private by design: analysis stays on this computer.")
-        st.info(
-            "Single-text results last only while the app is open. Download them "
-            "before closing, or use Project / Corpus for persistent local work."
+        _hosted_session = (
+            os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT", "").strip().lower()
+            in {"1", "true", "yes", "on"}
         )
+        st.markdown("### Hosted Session" if _hosted_session else "### Local Session")
+        st.caption(f"{workspace_page} · VerseVAD {__version__}")
+        if _hosted_session:
+            st.success("Your analysis is isolated to this hosted app session.")
+            st.info(
+                "Hosted results are temporary. Download them before the session "
+                "ends; Saved Projects also uses session-only storage here."
+            )
+        else:
+            st.success("Private by design: analysis stays on this computer.")
+            st.info(
+                "Single-text results last only while the app is open. Download "
+                "them before closing, or use Saved Projects for persistent local "
+                "work."
+            )
         st.markdown("### Installation Check")
         if st.button("Run self-test", width="stretch", key="run_self_test"):
             _display_self_test()
@@ -1092,38 +1163,200 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     selected_available_lexicons
                 )
 
-        preset_choice, preset_action = st.columns([3, 1], vertical_alignment="bottom")
+        cloud_profile_session = (
+            os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT") == "1"
+        )
+        if cloud_profile_session:
+            st.session_state.setdefault("_session_custom_profiles", {})
+            custom_profile_settings = {
+                name: dict(settings)
+                for name, settings in st.session_state[
+                    "_session_custom_profiles"
+                ].items()
+                if isinstance(name, str) and isinstance(settings, dict)
+            }
+        else:
+            custom_profile_settings = {
+                name: dict(profile.settings)
+                for name, profile in load_custom_profiles().items()
+            }
+        builtin_profile_names = [
+            name for name in MODULE_PRESETS if name != "Custom"
+        ]
+        custom_profile_labels = [
+            f"Custom · {name}" for name in custom_profile_settings
+        ]
+        profile_options = builtin_profile_names + custom_profile_labels + [
+            "Custom"
+        ]
+        legacy_profile_names = {
+            "Essential": "Affect and Emotion",
+            "Literary": "Computational Close Reading",
+            "Sound and Form": "Sound and Prosody",
+            "Complete": "Full Poetic Analysis",
+        }
+        if st.session_state.get("module_preset") in legacy_profile_names:
+            st.session_state["module_preset"] = legacy_profile_names[
+                st.session_state["module_preset"]
+            ]
+        if st.session_state.get("module_preset") not in profile_options:
+            st.session_state["module_preset"] = "Custom"
+
+        preset_choice, preset_action = st.columns(
+            [3, 1], vertical_alignment="bottom"
+        )
         with preset_choice:
             selected_preset = st.selectbox(
-                "Module preset",
-                options=list(MODULE_PRESETS),
-                index=list(MODULE_PRESETS).index("Custom"),
+                "Analysis profile",
+                options=profile_options,
                 key="module_preset",
                 help=(
-                    "A preset changes module selections only. It never overwrites "
-                    "advanced thresholds, filters, or pronunciation decisions."
+                    "A profile establishes a reproducible configuration. Apply "
+                    "it, then continue customizing any visible setting."
                 ),
             )
         with preset_action:
             apply_preset = st.button(
-                "Apply preset",
+                "Apply / Restore",
                 width="stretch",
                 key="apply_module_preset",
+                help=(
+                    "Apply the selected profile. If you customized it, this "
+                    "restores the selected profile's recorded defaults."
+                ),
             )
-        st.caption(MODULE_PRESETS[selected_preset].description)
+        if selected_preset in MODULE_PRESETS:
+            st.caption(MODULE_PRESETS[selected_preset].description)
+        elif selected_preset.startswith("Custom · "):
+            st.caption(
+                "A saved custom configuration. Applying it restores its "
+                "recorded module, filtering, threshold, and methodology settings."
+            )
+        else:
+            st.caption(
+                "Keep configuring manually, or save the current settings as a "
+                "named custom profile."
+            )
         if apply_preset:
-            preset_state = preset_widget_state(
-                selected_preset,
-                available_lexicon_ids=tuple(spec_by_id),
-            )
-            if not preset_state:
+            if selected_preset == "Custom":
                 st.info("Custom keeps the current manual selections unchanged.")
-            for key, value in preset_state.items():
-                st.session_state[key] = (
-                    False if unavailable_modules.get(key, False) else value
-                )
-            if preset_state:
+            else:
+                for profile_key in PROFILE_WIDGET_KEYS:
+                    st.session_state.pop(profile_key, None)
+                if selected_preset.startswith("Custom · "):
+                    custom_name = selected_preset.removeprefix("Custom · ")
+                    apply_profile_settings(
+                        st.session_state,
+                        custom_profile_settings[custom_name],
+                    )
+                else:
+                    preset_state = preset_widget_state(
+                        selected_preset,
+                        available_lexicon_ids=tuple(spec_by_id),
+                    )
+                    apply_profile_settings(st.session_state, preset_state)
+                for key, unavailable in unavailable_modules.items():
+                    if unavailable:
+                        st.session_state[key] = False
+                st.session_state["_applied_analysis_profile"] = selected_preset
                 st.rerun()
+
+        with st.expander("Manage Custom Analysis Profiles", expanded=False):
+            st.caption(
+                "Custom profiles never contain the poem, author, source notes, "
+                "pronunciation overrides, analyses, or exports."
+            )
+            custom_profile_name = st.text_input(
+                "Custom profile name",
+                key="custom_analysis_profile_name",
+            )
+            custom_profile_description = st.text_input(
+                "Description (optional)",
+                key="custom_analysis_profile_description",
+            )
+            save_profile_column, delete_profile_column = st.columns(2)
+            if save_profile_column.button(
+                "Save Current Settings",
+                key="save_custom_analysis_profile",
+                width="stretch",
+            ):
+                if custom_profile_name in MODULE_PRESETS:
+                    st.error(
+                        "Choose a name that is not one of the built-in profiles."
+                    )
+                else:
+                    try:
+                        snapshot = snapshot_profile_settings(st.session_state)
+                        if cloud_profile_session:
+                            clean_name = " ".join(
+                                custom_profile_name.split()
+                            )
+                            if not clean_name:
+                                raise ValueError(
+                                    "Enter a name for the custom analysis profile."
+                                )
+                            if len(clean_name) > 80:
+                                raise ValueError(
+                                    "Custom analysis profile names must be 80 "
+                                    "characters or fewer."
+                                )
+                            st.session_state["_session_custom_profiles"][
+                                clean_name
+                            ] = snapshot
+                            saved_name = clean_name
+                        else:
+                            saved_profile = save_custom_profile(
+                                custom_profile_name,
+                                snapshot,
+                                description=custom_profile_description,
+                                base_profile=str(
+                                    st.session_state.get(
+                                        "_applied_analysis_profile",
+                                        "Custom",
+                                    )
+                                ),
+                            )
+                            saved_name = saved_profile.name
+                        st.session_state["module_preset"] = (
+                            f"Custom · {saved_name}"
+                        )
+                        st.success(
+                            "Custom analysis profile saved"
+                            + (
+                                " for this hosted session."
+                                if cloud_profile_session
+                                else " locally."
+                            )
+                        )
+                        st.rerun()
+                    except (OSError, TypeError, ValueError) as error:
+                        st.error(str(error))
+            selected_custom_name = (
+                selected_preset.removeprefix("Custom · ")
+                if selected_preset.startswith("Custom · ")
+                else ""
+            )
+            if delete_profile_column.button(
+                "Delete Selected Custom Profile",
+                key="delete_custom_analysis_profile",
+                width="stretch",
+                disabled=not selected_custom_name,
+            ):
+                if cloud_profile_session:
+                    st.session_state["_session_custom_profiles"].pop(
+                        selected_custom_name,
+                        None,
+                    )
+                else:
+                    delete_custom_profile(selected_custom_name)
+                st.session_state["module_preset"] = "Custom"
+                st.success("Custom analysis profile deleted.")
+                st.rerun()
+            st.caption(
+                "Hosted custom profiles last only for the current session."
+                if cloud_profile_session
+                else "Custom profiles persist locally between VerseVAD sessions."
+            )
 
         st.markdown("#### Core Analysis")
         st.caption(
@@ -3001,7 +3234,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.write("Not selected")
             if primary_poetry_id is not None:
                 st.write(
-                    "**Nearest PoetryID profile:** "
+                    "**PoetryID category fit:** "
+                    f"{primary_poetry_id.categorical_archetype.name}"
+                )
+                st.caption(
+                    "Nearest centroid candidate: "
                     f"{primary_poetry_id.nearest_centroid_archetype.name}"
                 )
             st.caption("Open Affective Evidence for sources, weighting, and details.")
