@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from html import escape
 from typing import Any, Literal, Mapping, Sequence
 
@@ -447,6 +448,7 @@ def _token_declarations(tokens: Mapping[str, str]) -> str:
     return "\n".join(f"      --color-{name}: {value};" for name, value in tokens.items())
 
 
+@lru_cache(maxsize=12)
 def stylesheet_for(mode: AppearanceMode | str) -> str:
     appearance = normalize_appearance(mode)
     base = THEME_TOKENS[appearance]
@@ -613,6 +615,27 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
     [data-baseweb="tooltip"] *,
     [data-testid="stTooltipContent"] *,
     [role="tooltip"] * {{
+      color: var(--color-text-inverse) !important;
+      -webkit-text-fill-color: var(--color-text-inverse) !important;
+    }}
+    /*
+     * Dataframe validation messages render outside Streamlit's BaseWeb
+     * tooltip tree. Give those overlays the same theme-aware contrast.
+     */
+    [data-testid="stDataFrame"] [class*="tooltip"],
+    [data-testid="stDataFrame"] [class*="Tooltip"],
+    body > [class*="tooltip"],
+    body > [class*="Tooltip"] {{
+      background: var(--color-accent-strong) !important;
+      border-color: var(--color-accent-strong) !important;
+      box-shadow: 0 .3rem .8rem var(--color-shadow) !important;
+      color: var(--color-text-inverse) !important;
+      opacity: 1 !important;
+    }}
+    [data-testid="stDataFrame"] [class*="tooltip"] *,
+    [data-testid="stDataFrame"] [class*="Tooltip"] *,
+    body > [class*="tooltip"] *,
+    body > [class*="Tooltip"] * {{
       color: var(--color-text-inverse) !important;
       -webkit-text-fill-color: var(--color-text-inverse) !important;
     }}
@@ -1335,7 +1358,7 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
 
 
 def apply_design_system(mode: AppearanceMode | str) -> None:
-    st.markdown(stylesheet_for(mode), unsafe_allow_html=True)
+    st.html(stylesheet_for(mode))
 
 
 def collapse_control_html(label: str, control_id: str) -> str:

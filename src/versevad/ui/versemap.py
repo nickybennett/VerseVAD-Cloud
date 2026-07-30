@@ -174,7 +174,7 @@ def render_versemap(
                     column_config={
                         "Distance": st.column_config.NumberColumn(format="%.3f"),
                         "Shared Evidence Weight": st.column_config.ProgressColumn(
-                            min_value=0.0, max_value=1.0, format="%.1%%"
+                            min_value=0.0, max_value=1.0, format="percent"
                         ),
                     },
                 )
@@ -199,7 +199,7 @@ def render_versemap(
                 column_config={
                     "Distance": st.column_config.NumberColumn(format="%.3f"),
                     "Shared Evidence Weight": st.column_config.ProgressColumn(
-                        min_value=0.0, max_value=1.0, format="%.1%%"
+                        min_value=0.0, max_value=1.0, format="percent"
                     ),
                 },
             )
@@ -234,10 +234,10 @@ def render_versemap(
                 "Reference SD": st.column_config.NumberColumn(format="%.3f"),
                 "Z Score": st.column_config.NumberColumn(format="%.3f"),
                 "Approx. Percentile": st.column_config.ProgressColumn(
-                    min_value=0.0, max_value=1.0, format="%.1%%"
+                    min_value=0.0, max_value=1.0, format="percent"
                 ),
                 "Coverage": st.column_config.ProgressColumn(
-                    min_value=0.0, max_value=1.0, format="%.1%%"
+                    min_value=0.0, max_value=1.0, format="percent"
                 ),
             },
         )

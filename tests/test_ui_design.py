@@ -163,6 +163,7 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert '[data-baseweb="popover"]' in sheet
         assert '[data-baseweb="tooltip"]' in sheet
         assert '[data-testid="stTooltipContent"]' in sheet
+        assert '[data-testid="stDataFrame"] [class*="tooltip"]' in sheet
         assert '[role="listbox"]' in sheet
         assert "prefers-color-scheme: dark" not in sheet
         assert (
@@ -186,6 +187,17 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         AppearanceMode.CRIMSON: CRIMSON_TOKENS,
         AppearanceMode.FOREST: FOREST_TOKENS,
     }
+
+
+def test_progress_columns_use_streamlits_valid_percent_format() -> None:
+    ui_root = Path(__file__).parents[1] / "src" / "versevad" / "ui"
+    source = "\n".join(
+        (ui_root / filename).read_text(encoding="utf-8")
+        for filename in ("corpus.py", "stage3.py", "versemap.py")
+    )
+
+    assert 'format="%.1%%"' not in source
+    assert 'format="percent"' in source
 
 
 def test_collapse_control_is_accessible_and_client_side() -> None:

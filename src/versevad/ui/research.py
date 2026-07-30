@@ -1322,18 +1322,26 @@ def render_analysis_library_workspace() -> None:
             "cannot be reopened as a live analysis."
         )
     with open_columns[1].popover("Delete from library", width="stretch"):
-        confirmation = st.text_input(
-            "Type the exact title to delete",
+        confirmation = st.checkbox(
+            f"Permanently delete this saved item: {selected_item.title}",
             key=f"delete_library_confirmation__{selected_item.item_id}",
         )
         if st.button(
             "Delete permanently",
             key=f"delete_library_item__{selected_item.item_id}",
-            disabled=confirmation != selected_item.title,
+            disabled=not confirmation,
             type="primary",
         ):
-            research_repository().delete_item(selected_item.item_id)
-            st.rerun()
+            try:
+                research_repository().delete_item(selected_item.item_id)
+            except ResearchLibraryError as error:
+                st.error(str(error))
+            else:
+                st.session_state.pop(
+                    f"delete_library_confirmation__{selected_item.item_id}",
+                    None,
+                )
+                st.rerun()
     _render_item_notebook(selected_item)
 
 

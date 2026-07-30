@@ -236,6 +236,22 @@ def _decode(value: object) -> object:
                     "Saved analysis is missing required field "
                     f"{cls.__qualname__}.{field_name}."
                 )
+            # Early saved analyses recorded a few enum-backed settings as
+            # their plain string values. Coerce those historical values to
+            # the current enum type without rerunning dataclass validation or
+            # recalculating the immutable analysis.
+            if isinstance(field.default, Enum) and isinstance(field_value, str):
+                enum_type = type(field.default)
+                try:
+                    field_value = enum_type(field_value)
+                except ValueError:
+                    try:
+                        field_value = enum_type[field_value]
+                    except KeyError as error:
+                        raise ResearchLibraryError(
+                            "Saved analysis contains an unsupported value for "
+                            f"{cls.__qualname__}.{field_name}: {field_value!r}."
+                        ) from error
             object.__setattr__(restored, field_name, field_value)
         return restored
     raw_items = value.get("items")

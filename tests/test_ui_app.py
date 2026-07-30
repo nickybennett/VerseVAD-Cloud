@@ -195,6 +195,44 @@ def test_recovering_an_early_draft_discards_transient_button_state(
     assert app.session_state["poem_text"] == "A restored line."
 
 
+def test_analysis_library_deletes_the_selected_item_by_id(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    library_path = tmp_path / "analysis-library.sqlite3"
+    monkeypatch.setenv("VERSEVAD_RESEARCH_LIBRARY_PATH", str(library_path))
+    repository = ResearchLibraryRepository(library_path)
+    item, _, _ = repository.save_revision(
+        parent_type="analysis",
+        workspace_id="Single Poem",
+        title='"The Red Wheelbarrow"',
+        author="William Carlos Williams",
+        software_version="1.0.0",
+        payload={"kind": "historical_test"},
+        storage_mode="full",
+        status="saved",
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=45).run()
+    _open_workspace(app, "Analysis Library")
+
+    confirmation = next(
+        checkbox
+        for checkbox in app.checkbox
+        if checkbox.label
+        == 'Permanently delete this saved item: "The Red Wheelbarrow"'
+    )
+    confirmation.set_value(True)
+    app.run(timeout=30)
+    _button(app, "Delete permanently").click()
+    app.run(timeout=30)
+
+    assert not app.exception
+    assert all(
+        saved.item_id != item.item_id
+        for saved in repository.list_items()
+    )
+
+
 def test_interface_starts_with_beginner_input_workflow() -> None:
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
     assert not app.exception

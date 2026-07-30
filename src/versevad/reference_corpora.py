@@ -9,6 +9,7 @@ import re
 import shutil
 import tempfile
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Sequence
 
@@ -87,8 +88,21 @@ def _corpus_display_name(source_root: Path) -> str:
     return source_root.name.replace("_", " ").replace("-", " ").strip().title()
 
 
-def _index_header(source_root: Path) -> tuple[str, str]:
-    path = source_root / MODEL_FILENAME
+def _file_signature(path: Path) -> tuple[str, int, int] | None:
+    """Return a cheap signature that invalidates caches after corpus updates."""
+
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return str(path.resolve()), stat.st_size, stat.st_mtime_ns
+
+
+@lru_cache(maxsize=32)
+def _index_header_cached(
+    signature: tuple[str, int, int],
+) -> tuple[str, str]:
+    path = Path(signature[0])
     if not path.is_file():
         return "", ""
     try:
@@ -101,15 +115,29 @@ def _index_header(source_root: Path) -> tuple[str, str]:
     return row.get("reference_release_id", ""), row.get("model_id", "")
 
 
+def _index_header(source_root: Path) -> tuple[str, str]:
+    signature = _file_signature(source_root / MODEL_FILENAME)
+    return _index_header_cached(signature) if signature is not None else ("", "")
+
+
+@lru_cache(maxsize=64)
+def _csv_row_count_cached(signature: tuple[str, int, int]) -> int:
+    path = Path(signature[0])
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            return sum(1 for _ in csv.DictReader(handle))
+    except (OSError, csv.Error):
+        return 0
+
+
 def _profile_counts(source_root: Path) -> tuple[int, int]:
     def count_rows(path: Path) -> int:
-        if not path.is_file():
-            return 0
-        try:
-            with path.open("r", encoding="utf-8-sig", newline="") as handle:
-                return sum(1 for _ in csv.DictReader(handle))
-        except (OSError, csv.Error):
-            return 0
+        signature = _file_signature(path)
+        return (
+            _csv_row_count_cached(signature)
+            if signature is not None
+            else 0
+        )
 
     return (
         count_rows(source_root / PROFILE_FILENAME),
@@ -197,13 +225,35 @@ def load_corpus_index(
             f"{descriptor.display_name} has no current VerseMap index. "
             "Validate it and build its Standard Profile 1.0 index first."
         )
+    signatures = tuple(
+        _file_signature(descriptor.source_root / filename)
+        for filename in (MODEL_FILENAME, PROFILE_FILENAME, POET_PROFILE_FILENAME)
+    )
+    if any(signature is None for signature in signatures):
+        raise ReferenceCorpusError(
+            f"{descriptor.display_name} has an incomplete VerseMap index."
+        )
     try:
-        return load_reference_index(descriptor.source_root)
+        return _load_corpus_index_cached(
+            str(descriptor.source_root.resolve()),
+            tuple(signature for signature in signatures if signature is not None),
+        )
     except (OSError, ValueError) as error:
         raise ReferenceCorpusError(
             f"{descriptor.display_name} has an unreadable or stale VerseMap "
             f"index. {error}"
         ) from error
+
+
+@lru_cache(maxsize=8)
+def _load_corpus_index_cached(
+    source_root: str,
+    signatures: tuple[tuple[str, int, int], ...],
+) -> VerseMapReferenceIndex:
+    """Parse each unchanged reference index once per application process."""
+
+    del signatures  # The cache key carries automatic size/mtime invalidation.
+    return load_reference_index(Path(source_root))
 
 
 def _safe_upload_path(

@@ -4,6 +4,11 @@ gatherUsageStats = false
 [client]
 toolbarMode = "minimal"
 
+[runner]
+# VerseVAD uses explicit Streamlit output calls. Disabling unused magic syntax
+# avoids reparsing the large application source on every widget rerun.
+magicEnabled = false
+
 [server]
 maxUploadSize = 5
 runOnSave = false

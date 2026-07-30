@@ -3,12 +3,19 @@ from __future__ import annotations
 import pytest
 
 from versevad.reference_corpora import (
+    ReferenceCorpusDescriptor,
     ReferenceCorpusError,
     add_user_reference_files,
     create_user_reference_corpus,
     delete_user_reference_corpus,
     list_reference_corpora,
+    load_corpus_index,
     validate_reference_corpus,
+)
+from versevad.versemap.model import (
+    MODEL_FILENAME,
+    POET_PROFILE_FILENAME,
+    PROFILE_FILENAME,
 )
 
 
@@ -71,3 +78,41 @@ def test_reference_corpus_rejects_unsafe_or_invalid_uploads(
             "Invalid Corpus",
             (("Poet/invalid.txt", b"\xff\xfe\x00"),),
         )
+
+
+def test_unchanged_reference_index_is_parsed_once(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    for filename in (MODEL_FILENAME, PROFILE_FILENAME, POET_PROFILE_FILENAME):
+        (tmp_path / filename).write_text("first\n", encoding="utf-8")
+    descriptor = ReferenceCorpusDescriptor(
+        corpus_id="test",
+        display_name="Test Corpus",
+        source_root=tmp_path,
+        built_in=False,
+        index_available=True,
+        poem_count=1,
+        poet_count=1,
+        release_id="release",
+        model_id="model",
+    )
+    calls: list[object] = []
+    sentinel = object()
+
+    def fake_loader(source_root):
+        calls.append(source_root)
+        return sentinel
+
+    monkeypatch.setattr(
+        "versevad.reference_corpora.load_reference_index",
+        fake_loader,
+    )
+
+    assert load_corpus_index(descriptor) is sentinel
+    assert load_corpus_index(descriptor) is sentinel
+    assert len(calls) == 1
+
+    (tmp_path / PROFILE_FILENAME).write_text("changed\nrow\n", encoding="utf-8")
+    assert load_corpus_index(descriptor) is sentinel
+    assert len(calls) == 2

@@ -5,7 +5,12 @@ from dataclasses import dataclass
 import pytest
 
 from versevad import __version__
-from versevad.application import AnalysisRequest, WorkspaceAnalysis, run_workspace_analysis
+from versevad.application import (
+    AnalysisRequest,
+    PhrasePolicy,
+    WorkspaceAnalysis,
+    run_workspace_analysis,
+)
 from versevad.research_library import (
     LIBRARY_SCHEMA_VERSION,
     ResearchLibraryError,
@@ -39,6 +44,19 @@ def test_workspace_round_trips_through_restricted_json(preprocessor) -> None:
     assert restored == workspace
     assert restored.request.original_text == workspace.request.original_text
     assert serialize_value(restored) == serialize_value(workspace)
+
+
+def test_historical_string_enum_settings_are_migrated(preprocessor) -> None:
+    workspace = _workspace(preprocessor)
+    object.__setattr__(
+        workspace.request,
+        "phrase_policy",
+        PhrasePolicy.PHRASE_PREFERRED.value,
+    )
+
+    restored = deserialize_value(serialize_value(workspace))
+
+    assert restored.request.phrase_policy is PhrasePolicy.PHRASE_PREFERRED
 
 
 def test_serializer_rejects_non_versevad_dataclasses() -> None:

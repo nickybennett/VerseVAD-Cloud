@@ -596,7 +596,7 @@ def render_corpus_browser_workspace() -> None:
                 width="stretch",
                 column_config={
                     "Corpus Coverage": st.column_config.ProgressColumn(
-                        min_value=0.0, max_value=1.0, format="%.1%%"
+                        min_value=0.0, max_value=1.0, format="percent"
                     )
                 },
             )
@@ -795,7 +795,7 @@ def render_form_library_workspace() -> None:
             width="stretch",
             column_config={
                 "Share of Candidate Score": st.column_config.ProgressColumn(
-                    min_value=0.0, max_value=1.0, format="%.1%%"
+                    min_value=0.0, max_value=1.0, format="percent"
                 )
             },
         )
