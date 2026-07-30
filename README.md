@@ -41,6 +41,14 @@ analysis profiles last for the browser session and never retain poem text or
 results. PoetryID presents category fit as its primary descriptive archetype
 and nearest centroid as a secondary candidate.
 
+**Analysis Library** now preserves single-text analyses, comparison sets,
+Lexicon Explorer lookups, drafts, and contextual research notes for the current
+isolated hosted session. Saves use immutable revisions and reopen as historical
+results without silent recalculation. Users can retain full analysis/text or a
+non-restorable results-only CSV/Word bundle. Notes remain excluded from exports
+unless explicitly selected. Hosted library data are temporary and should be
+downloaded before the session ends.
+
 The one-text report uses a persistent dropdown, all large report panels start
 collapsed while remaining independently expandable, and the native sidebar
 arrow hides or restores the sidebar while the wide workspace resizes. In
@@ -268,6 +276,7 @@ See:
 - [Data model](docs/data-model.md)
 - [Testing strategy](docs/testing.md)
 - [Beginner user guide](docs/user-guide.md)
+- [Analysis Library, drafts, and research notes](docs/research-library.md)
 - [Private Streamlit Community Cloud deployment](docs/streamlit-community-cloud.md)
 - [Comprehensive Word user manual](docs/VerseVAD_User_Manual.docx)
 - [Values and terminology Word guide](docs/VerseVAD_Values_and_Terminology_Guide.docx)

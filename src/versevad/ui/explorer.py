@@ -697,9 +697,24 @@ def render_lexicon_explorer(preprocessor: TextPreprocessor) -> None:
     _render_supplementary(result)
     _render_local_derived_metrics(result)
     _render_provenance(result)
+    from versevad.exports.research_notes import (
+        append_research_notes_to_docx,
+        research_notes_csv,
+    )
+    from versevad.ui.research import render_note_export_options
+
+    selected_notes, include_note_metadata = render_note_export_options(
+        "Lexicon Explorer",
+        key_prefix="lexicon_explorer_export_notes",
+    )
+    explorer_report = append_research_notes_to_docx(
+        export_lexicon_explorer_docx(result),
+        selected_notes,
+        include_metadata=include_note_metadata,
+    )
     st.download_button(
         "Download printable Word report",
-        data=export_lexicon_explorer_docx(result),
+        data=explorer_report,
         file_name=lexicon_explorer_report_filename(result.query),
         mime=(
             "application/vnd.openxmlformats-officedocument."
@@ -707,6 +722,17 @@ def render_lexicon_explorer(preprocessor: TextPreprocessor) -> None:
         ),
         key="download_lexicon_explorer_docx",
     )
+    if selected_notes:
+        st.download_button(
+            "Download research notes CSV",
+            data=research_notes_csv(
+                selected_notes,
+                include_metadata=include_note_metadata,
+            ),
+            file_name="VerseVAD_lexicon_explorer_notes.csv",
+            mime="text/csv",
+            key="download_lexicon_explorer_notes_csv",
+        )
     st.caption(
         "The Word report includes the lookup details, all available evidence, "
         "comparisons, notices, and source provenance shown for this query."

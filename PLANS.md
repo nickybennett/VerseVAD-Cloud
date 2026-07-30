@@ -1,5 +1,25 @@
 # VerseVAD Implementation Plan
 
+## Completed research-workspace architecture Stage 2
+
+- [x] Implement **Analysis Library** for saved analyses, recoverable drafts,
+  historical revisions, and contextual notebooks.
+- [x] Use isolated temporary SQLite storage for each hosted session and label
+  its nonpersistent lifecycle throughout the interface.
+- [x] Serialize immutable results as restricted compressed JSON rather than
+  executable pickle data, with software/profile/settings/provenance metadata.
+- [x] Autosave changed drafts under stable IDs and preserve anchored notes.
+- [x] Add full-text and results-only privacy choices, Save / Save As New,
+  revision history, optional project association, and exact-title deletion.
+- [x] Reopen historical results without silent recalculation and offer an
+  explicit current-version reanalysis path.
+- [x] Exclude notes from exports by default; add deliberately selected notes
+  to Word, CSV, and Markdown artifacts.
+- [x] Make top navigation opaque and fixed, enlarge and responsively space the
+  four section labels, and dismiss hover menus when the pointer leaves.
+- [x] Cover repository, serializer, notes, exports, navigation, and hosted
+  session behavior with automated and live-browser validation.
+
 ## Completed research-workspace architecture Stage 1
 
 - [x] Replace the flat workspace switcher with grouped top navigation:

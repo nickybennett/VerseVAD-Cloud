@@ -5,6 +5,8 @@ from streamlit.testing.v1 import AppTest
 
 import versevad.application as application_services
 from versevad.db.repository import CorpusTextImport, ProjectRepository
+from versevad.research_library import ResearchLibraryRepository
+from versevad.ui.navigation import ROUTES
 from versevad.ui.preferences import AppearanceMode, load_preferences
 from versevad.ui.inherited_form import render_inherited_form
 
@@ -50,6 +52,77 @@ def _section_navigation(app: AppTest, label: str):
         for control in app.get(control_type)
         if control.label == label
     )
+
+
+def test_every_registered_workspace_opens_without_an_exception(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "VERSEVAD_DATABASE_PATH",
+        str(tmp_path / "projects.sqlite3"),
+    )
+    monkeypatch.setenv(
+        "VERSEVAD_PERSONAL_CORPUS_DATABASE_PATH",
+        str(tmp_path / "personal-corpus.sqlite3"),
+    )
+    monkeypatch.setenv(
+        "VERSEVAD_RESEARCH_LIBRARY_PATH",
+        str(tmp_path / "analysis-library.sqlite3"),
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=45).run()
+
+    for workspace in dict.fromkeys(route.workspace_id for route in ROUTES):
+        _open_workspace(app, workspace)
+        assert not app.exception, f"{workspace}: {app.exception}"
+
+
+def test_recovering_an_early_draft_discards_transient_button_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    library_path = tmp_path / "analysis-library.sqlite3"
+    monkeypatch.setenv("VERSEVAD_RESEARCH_LIBRARY_PATH", str(library_path))
+    repository = ResearchLibraryRepository(library_path)
+    repository.save_revision(
+        parent_type="draft",
+        workspace_id="Single Poem",
+        title="Recoverable draft",
+        software_version="1.0.0",
+        payload={
+            "kind": "text_draft",
+            "workspace_id": "Single Poem",
+            "ui_state": {
+                "poem_title": "Recoverable draft",
+                "poem_text": "A restored line.",
+                "module_preset": "Custom",
+                "apply_module_preset": False,
+                "load_match_evidence": False,
+            },
+        },
+        storage_mode="draft",
+        status="draft",
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=45).run()
+    _open_workspace(app, "Analysis Library")
+    section = next(
+        field for field in app.selectbox if field.label == "Library Section"
+    )
+    section.set_value("Draft Analyses")
+    app.run(timeout=45)
+    _button(app, "Recover draft").click()
+    app.run(timeout=45)
+    app.session_state["_workspace_route_override"] = "Single Poem"
+    app.run(timeout=45)
+
+    assert not app.exception
+    title = next(
+        field
+        for field in app.text_input
+        if field.label == "Poem title or working label"
+    )
+    assert title.value == "Recoverable draft"
+    assert app.session_state["poem_text"] == "A restored line."
 
 
 def test_interface_starts_with_beginner_input_workflow() -> None:
@@ -501,19 +574,56 @@ def test_interface_shows_plain_language_input_error() -> None:
     assert any("Enter a title" in error.value for error in app.error)
 
 
-def test_clear_text_uses_widget_callback_without_session_state_error() -> None:
+def test_clear_text_uses_widget_callback_without_session_state_error(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "VERSEVAD_RESEARCH_LIBRARY_PATH",
+        str(tmp_path / "analysis-library.sqlite3"),
+    )
     app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
     app.text_area[0].input("Temporary poem text.")
     app.run(timeout=30)
 
-    clear_button = _button(app, "Confirm clear text")
+    clear_button = _button(app, "Keep recoverable draft and clear")
     assert not clear_button.disabled
     clear_button.click()
     app.run(timeout=30)
 
     assert not app.exception
     assert app.text_area[0].value == ""
-    assert _button(app, "Confirm clear text").disabled
+    assert _button(app, "Keep recoverable draft and clear").disabled
+
+
+def test_affective_tables_render_when_no_tokens_match_the_lexicon(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "VERSEVAD_RESEARCH_LIBRARY_PATH",
+        str(tmp_path / "analysis-library.sqlite3"),
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=60).run()
+    title = next(
+        field
+        for field in app.text_input
+        if field.label == "Poem title or working label"
+    )
+    title.input("Empty evidence stress test")
+    app.text_area[0].input("A\nB\nC\nD\nE")
+    app.multiselect[0].set_value(["nrc_vad_v2_1"])
+    _button(app, "Analyze Poem").click()
+    app.run(timeout=60)
+    navigation = _section_navigation(app, "Report section")
+    navigation.set_value("Affective Evidence")
+    app.run(timeout=60)
+
+    assert not app.exception
+    assert any(
+        heading.value == "Cumulative Normative Lexical Load"
+        for heading in app.subheader
+    )
 
 
 def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:

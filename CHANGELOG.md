@@ -6,6 +6,20 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Implemented the hosted **Analysis Library** with immutable revisions,
+  recoverable drafts, full-text versus results-only privacy choices,
+  historical viewing without silent recalculation, Save As New, optional
+  project associations, and exact-title deletion. Its isolated database lasts
+  only for the current hosted session.
+- Added contextual research notebooks with report, metric, chart, passage,
+  word, rhyme, and form anchors plus tags, dates, editing, deletion, and
+  explicit export eligibility.
+- Added automatic drafts and a clear-text decision flow that can retain the
+  draft, save a completed analysis, or discard only unsaved work.
+- Excluded notes from exports by default. Deliberately selected notes appear in
+  Word appendices and CSV/Markdown bundle artifacts.
+- Made top navigation opaque and fixed, enlarged and responsively spaced its
+  section labels, and dismissed hover menus after the pointer leaves.
 - Replaced the flat workspace control with four grouped top-level sections:
   **Analyze**, **Collections**, **Explore**, and **Learn**. The existing Project
   / Corpus workspace is now labeled **Saved Projects**, while Personal Corpus

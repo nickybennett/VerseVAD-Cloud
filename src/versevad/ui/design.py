@@ -841,7 +841,80 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       -webkit-text-fill-color: inherit !important;
     }}
     [data-testid="stHeader"] {{
-      background: transparent;
+      background: var(--color-surface-raised) !important;
+      border-bottom: 1px solid var(--color-border) !important;
+      box-shadow: 0 .28rem .8rem var(--color-shadow);
+      min-height: 4rem;
+      position: fixed !important;
+      z-index: 999990 !important;
+    }}
+    [data-testid="stToolbar"] {{
+      align-items: center;
+      background: var(--color-surface-raised) !important;
+      min-height: 4rem;
+      padding-inline: clamp(.8rem, 3vw, 2.75rem) !important;
+    }}
+    [data-testid="stToolbar"] > div {{
+      min-width: 0;
+    }}
+    [data-testid="stToolbar"] .rc-overflow {{
+      column-gap: clamp(.8rem, 3.1vw, 3.4rem);
+      display: flex;
+      justify-content: flex-start;
+      overflow: visible;
+    }}
+    [data-testid="stToolbar"] .rc-overflow-item {{
+      flex: 0 0 auto;
+    }}
+    .stApp:has([data-testid="stSidebar"][aria-expanded="true"])
+      [data-testid="stToolbar"] {{
+      padding-left: calc(300px + clamp(.8rem, 3vw, 2.75rem)) !important;
+    }}
+    [data-testid="stTopNavSection"] {{
+      border-radius: var(--radius-small) !important;
+      color: var(--color-text-primary) !important;
+      min-height: 2.75rem;
+      padding: .55rem .72rem !important;
+    }}
+    [data-testid="stTopNavSection"] p {{
+      color: inherit !important;
+      font-size: clamp(1rem, .88rem + .26vw, 1.14rem) !important;
+      font-weight: 650 !important;
+      letter-spacing: .005em;
+    }}
+    [data-testid="stTopNavSection"]:hover,
+    [data-testid="stTopNavSection"][aria-expanded="true"] {{
+      background: var(--color-accent-soft) !important;
+      color: var(--color-accent-strong) !important;
+    }}
+    [data-testid="stTopNavPopoverBody"],
+    [data-testid="stTopNavPopover"] {{
+      background: var(--color-surface-raised) !important;
+      border-color: var(--color-border-strong) !important;
+      color: var(--color-text-primary) !important;
+      box-shadow: 0 .65rem 1.4rem var(--color-shadow) !important;
+    }}
+    [data-testid="stTopNavDropdownLink"] {{
+      color: var(--color-text-primary) !important;
+    }}
+    [data-testid="stTopNavDropdownLink"]:hover {{
+      background: var(--color-accent-soft) !important;
+      color: var(--color-accent-strong) !important;
+    }}
+    @media (max-width: 54rem) {{
+      [data-testid="stToolbar"] {{
+        padding-inline: .45rem !important;
+      }}
+      [data-testid="stToolbar"] .rc-overflow {{
+        column-gap: clamp(.1rem, 1vw, .55rem);
+      }}
+      [data-testid="stTopNavSection"] {{
+        min-height: 2.45rem;
+        padding: .38rem .45rem !important;
+      }}
+      [data-testid="stTopNavSection"] p {{
+        font-size: .94rem !important;
+      }}
     }}
     [data-testid="stMetric"] {{
       background: var(--color-surface);
@@ -976,28 +1049,51 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       margin-bottom: var(--space-4);
     }}
     .st-key-versevad_global_header {{
-      background: var(--color-surface-raised);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-large);
-      box-shadow: 0 .35rem 1rem var(--color-shadow);
-      margin-bottom: var(--space-4);
-      padding: .55rem .8rem;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      container-name: versevad-header;
+      container-type: inline-size;
+      height: 3.25rem;
+      margin: 0;
+      padding: 0;
       position: -webkit-sticky;
-      position: sticky;
-      top: .5rem;
-      z-index: 900;
+      position: fixed !important;
+      right: clamp(.8rem, 2.4vw, 2.8rem);
+      top: .38rem;
+      width: 32rem;
+      z-index: 1000001;
+    }}
+    .st-key-versevad_global_header [data-testid="stHorizontalBlock"] {{
+      align-items: center;
+      gap: .55rem;
+      height: 100%;
+    }}
+    .st-key-versevad_global_header [data-testid="stColumn"] {{
+      min-width: 0;
+    }}
+    .st-key-versevad_global_header [data-testid="stColumn"]:first-child {{
+      flex: 1 1 auto !important;
+      width: auto !important;
+    }}
+    .st-key-versevad_global_header
+      [data-testid="stColumn"]:not(:first-child) {{
+      flex: 0 0 2.5rem !important;
+      min-width: 2.5rem !important;
+      width: 2.5rem !important;
     }}
     .versevad-wordmark {{
       color: var(--color-text-primary);
       font-family: var(--font-literary);
-      font-size: 1.55rem;
+      font-size: 1.32rem;
       font-weight: 700;
       line-height: 1.05;
       white-space: nowrap;
     }}
     .versevad-platform {{
       color: var(--color-text-secondary);
-      font-size: .73rem;
+      font-size: .61rem;
       letter-spacing: .08em;
       text-transform: uppercase;
     }}
@@ -1139,6 +1235,32 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
     #MainMenu, footer {{
       visibility: hidden;
     }}
+    @media (max-width: 90rem) {{
+      .st-key-versevad_global_header {{
+        width: 24rem;
+      }}
+      .versevad-platform {{
+        display: none;
+      }}
+      .stApp:has([data-testid="stSidebar"][aria-expanded="true"])
+        .st-key-versevad_global_header {{
+        width: 9.5rem;
+      }}
+      .stApp:has([data-testid="stSidebar"][aria-expanded="true"])
+        .st-key-versevad_global_header
+        [data-testid="stColumn"]:first-child {{
+        display: none;
+      }}
+    }}
+    @media (max-width: 74rem) {{
+      .st-key-versevad_global_header {{
+        width: 9.5rem;
+      }}
+      .st-key-versevad_global_header
+        [data-testid="stColumn"]:first-child {{
+        display: none;
+      }}
+    }}
     @media (max-width: 800px) {{
       .main .block-container {{
         max-width: 100%;
@@ -1148,22 +1270,6 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       .main .block-container {{
         padding-left: .8rem;
         padding-right: .8rem;
-      }}
-      .st-key-versevad_global_header [data-testid="stHorizontalBlock"] {{
-        flex-wrap: wrap;
-        gap: var(--space-2);
-      }}
-      .st-key-versevad_global_header [data-testid="stColumn"]:first-child {{
-        flex: 1 1 100% !important;
-        width: 100% !important;
-      }}
-      .st-key-versevad_global_header [data-testid="stColumn"]:not(:first-child) {{
-        flex: 0 0 2.5rem !important;
-        min-width: 2.5rem !important;
-        width: 2.5rem !important;
-      }}
-      .st-key-versevad_global_header [data-testid="stColumn"]:nth-child(2) {{
-        margin-left: auto;
       }}
       .st-key-versevad_global_header button {{
         white-space: nowrap;
@@ -1176,14 +1282,6 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       }}
     }}
     @media (max-width: 520px) {{
-      .st-key-versevad_global_header {{
-        position: static;
-      }}
-      .st-key-versevad_global_header [data-testid="stColumn"]:not(:first-child) {{
-        flex: 0 0 2.5rem !important;
-        min-width: 2.5rem !important;
-        width: 2.5rem !important;
-      }}
       [role="radiogroup"][aria-label="Workspace"] {{
         display: flex;
         flex-wrap: wrap;

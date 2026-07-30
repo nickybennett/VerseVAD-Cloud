@@ -464,6 +464,32 @@ calculate equal-poem numeric means plus poem-level population standard
 deviations. The user-facing set interface and exports contain no pairwise
 delta fields.
 
+## Research-workspace architecture Stage 2
+
+`versevad.research_library` owns a schema-versioned SQLite repository for
+library items, immutable revisions, and contextual notes. Hosted deployments
+place it beside the existing session database in the current session's private
+temporary directory. The schema matches the local edition, but its lifecycle
+ends with the hosted session.
+
+Saved payloads use restricted compressed JSON rather than pickle. Restoration
+accepts primitives, collections, paths, dates, and VerseVAD-owned
+enum/dataclass classes only. Historical objects are restored without rerunning
+contemporary calculations. Revision metadata separately records software,
+profile, settings, resource/result identities, warnings, summary, text hash,
+and privacy mode.
+
+Full saves retain immutable results and source text. Results-only saves retain
+only a summary CSV and narrative Word report and cannot restore source text.
+Draft revisions deduplicate unchanged payloads. Notes preserve context,
+anchors, tags, dates, and explicit export eligibility; promotion from a draft
+to a completed analysis occurs transactionally.
+
+`versevad.ui.research` restores a saved object to its originating workspace and
+shows a version notice rather than silently recalculating. Selected notes are
+appended through `versevad.exports.research_notes`; exclusion remains the
+default and metadata requires a separate opt-in.
+
 ## Expansion Stage 14 meter and performance architecture
 
 Expansion Stage 14 advances the package to `0.18.0.dev0`. The existing

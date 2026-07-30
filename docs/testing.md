@@ -593,6 +593,15 @@ changes. The rebuilt Word manual passed package/content checks and its
 accessibility audit reported zero findings. PNG visual rendering was
 unavailable because LibreOffice is not installed on the Windows host.
 
+## Research-workspace Stage 2 validation
+
+Focused tests verify restricted serialization of real immutable analyses,
+refusal of external classes, numbered historical revisions, unchanged-draft
+deduplication, results-only non-restorability, note lifecycle and draft
+promotion, Word note appendices, metadata-private notes CSVs, audit-bundle note
+artifacts, fixed navigation, and draft recovery. Hosted tests use temporary
+session database paths and never persist fixture text across tests.
+
 ## Project / Corpus deletion rerun repair
 
 The deletion regression set verifies exact case-sensitive title confirmation,

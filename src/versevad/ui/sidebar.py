@@ -62,6 +62,14 @@ def _context_heading(workspace: str) -> tuple[str, str]:
 def render_context_sidebar(workspace: str) -> None:
     """Render stable research controls appropriate to the active workspace."""
 
+    # Imported lazily because the research workspace uses shared design
+    # primitives, while the design shell itself imports this sidebar module.
+    from versevad.ui.research import (
+        autosave_active_draft,
+        render_analysis_management_sidebar,
+        render_research_notes_sidebar,
+    )
+
     analytical = {
         "Single Poem",
         "Other Text",
@@ -74,7 +82,11 @@ def render_context_sidebar(workspace: str) -> None:
         return
 
     heading, context = _context_heading(workspace)
+    autosave_active_draft(workspace)
     with st.sidebar:
+        library_error = st.session_state.pop("_research_library_error", None)
+        if isinstance(library_error, str):
+            st.warning(library_error)
         st.markdown(f"### {heading}")
         st.caption(context)
 
@@ -107,15 +119,9 @@ def render_context_sidebar(workspace: str) -> None:
                 )
 
         with st.expander("Research Notes", expanded=False):
-            st.caption(
-                "Contextual notebooks and result-anchored notes arrive in "
-                "Stage 2."
-            )
+            render_research_notes_sidebar(workspace)
         with st.expander("Analysis Management", expanded=False):
-            st.caption(
-                "Saved analyses, recoverable drafts, and project links arrive "
-                "in Stage 2."
-            )
+            render_analysis_management_sidebar(workspace)
         with st.expander("Export", expanded=False):
             st.caption(
                 "Open the workspace's Export report section after analysis for "

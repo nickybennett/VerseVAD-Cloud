@@ -583,6 +583,21 @@ replacement.
 Module presets, workspace navigation, expanded report sections, search text,
 and filters remain Streamlit session state. They do not alter schema 4.
 
+## Research library records
+
+The session-only hosted Analysis Library uses its own schema-version-1 SQLite
+database. `library_items` indexes stable context/workspace identity, status,
+title, current revision, optional project link, and timestamps.
+`library_revisions` stores immutable numbered full/results-only/draft records
+with hashes, profile, software version, settings, provenance identities,
+warnings, summary, optional restricted-JSON payload, and optional report
+bundle. `research_notes` stores parent and analysis/project associations,
+module, metric, anchor, title/body, tags, export eligibility, and timestamps.
+
+Results-only rows have a null result payload and cannot recreate source text.
+The codec is deterministic compressed JSON and refuses classes outside the
+`versevad` package. This is non-executable serialization, not encryption.
+
 ## Expansion Stage 15 inherited-form records
 
 `FormProfile` stores profile ID/name, family, tradition, original concise

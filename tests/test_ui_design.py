@@ -379,6 +379,26 @@ def test_top_level_navigation_keeps_click_and_adds_desktop_hover() -> None:
     html = _top_navigation_hover_html()
 
     assert 'data-testid="stTopNavSection"' in html
+    assert 'data-testid="stTopNavPopoverBody"' in html
     assert 'addEventListener("pointerenter"' in html
     assert 'addEventListener("mouseenter"' in html
+    assert 'addEventListener("pointerleave"' in html
+    assert "scheduleClose" in html
+    assert "CLOSE_DELAY_MS = 220" in html
+    assert "activeMenus().some" in html
+    assert "closeExpandedExcept(button)" in html
+    assert "closeExpandedExcept();" in html
     assert 'button.click()' in html
+
+
+def test_top_navigation_and_global_controls_share_an_opaque_sticky_bar() -> None:
+    sheet = stylesheet_for(AppearanceMode.CLASSIC)
+
+    assert '[data-testid="stHeader"]' in sheet
+    assert "position: fixed !important" in sheet
+    assert ".st-key-versevad_global_header" in sheet
+    assert "right: clamp(.8rem, 2.4vw, 2.8rem)" in sheet
+    assert "width: 32rem" in sheet
+    assert 'column-gap: clamp(.8rem, 3.1vw, 3.4rem)' in sheet
+    assert 'font-size: clamp(1rem, .88rem + .26vw, 1.14rem)' in sheet
+    assert '[data-testid="stSidebar"][aria-expanded="true"]' in sheet

@@ -6,12 +6,13 @@ VerseVAD organizes its workspaces under four top-level sections:
 **Analyze**, **Collections**, **Explore**, and **Learn**. Analyze contains
 **Single Poem**, **Compare Poems**, **Other Text**, and **Lexicon Explorer**.
 Collections contains **Saved Projects** (the workspace previously labeled
-Project / Corpus) and reserved destinations for Reference Corpora and the
-Analysis Library. Personal Corpus remains local-only and does not appear in
+Project / Corpus), the working **Analysis Library**, and a reserved destination
+for Reference Corpora. Personal Corpus remains local-only and does not appear in
 the hosted edition. Explore and Learn expose the current Lexicon Explorer and
 clearly marked destinations for later standalone VerseMap, form-library,
 corpus-browser, documentation, and methodology work. Single-text and
-comparison-set analyses remain temporary unless downloaded.
+comparison-set analyses remain temporary until saved in the session-only
+Analysis Library or downloaded.
 Corpus projects, preserved text versions, metadata, completed results, and
 versioned review scenarios persist in the local `projects` database. Single-text
 analysis can also enable the optional local normative lexical concreteness
@@ -31,6 +32,12 @@ sidebar changes with the active context while keeping familiar locations for
 the current object, analysis profile, settings, comparison resources, later
 research notes/management, and exports.
 
+The top navigation is an opaque fixed bar, so it remains readable while the
+report scrolls. Its four labels expand in size and spacing on wide windows,
+then tighten on narrower laptops and browser panes. A hover-open section menu
+closes when the pointer leaves both the label and dropdown; click and keyboard
+navigation remain available.
+
 The built-in profiles are **Full Poetic Analysis**, **Computational Close
 Reading**, **Affect and Emotion**, **Sound and Prosody**, **Formal Analysis**,
 and **Teaching/Introductory**. Applying a profile establishes its defaults;
@@ -43,6 +50,37 @@ lexicons, modules, preprocessing, stopword treatment, and weighting choices.
 Results place poem values side by side and, where meaningful, show an
 equal-poem mean and the population standard deviation of poem-level values.
 These are descriptive summaries rather than significance tests.
+
+## Analysis Library, recoverable drafts, and research notes
+
+Entering text in Single Poem, Other Text, or Compare Poems creates a private
+recoverable draft after the value is applied. Use **Collections → Analysis
+Library → Draft Analyses** to recover it. Unchanged reruns do not create
+duplicate draft revisions.
+
+After analysis, open **Analysis Management** in the sidebar. **Full analysis
+and source text** retains an exactly restorable historical result.
+**Results only — do not retain source text** keeps only a summary CSV and
+narrative Word report and cannot reopen the source. **Save analysis** appends
+an immutable revision; **Save as new** creates a separate item.
+
+Opening a full save never silently recalculates it. VerseVAD identifies the
+saved version and offers continued historical viewing or preparation for an
+explicit current-version reanalysis.
+
+Research Notes attach to the analysis, draft, comparison, collection, or
+Lexicon Explorer lookup and may be anchored to a section, metric, chart,
+passage, word, rhyme, or form candidate. The Analysis Library Notebook retrieves
+and edits them after workspace changes.
+
+Notes are excluded from exports by default. Explicit note selection adds a
+Word appendix, and full audit bundles also receive `research_notes.csv` and
+`research_notes.md`.
+
+The hosted Analysis Library uses isolated temporary session storage. A timeout,
+restart, or redeployment can remove it, so download important work before the
+session ends. See [Analysis Library, drafts, and research
+notes](research-library.md).
 
 Research data are not included in a public VerseVAD checkout. Before first
 analysis, follow the

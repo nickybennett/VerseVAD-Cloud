@@ -1338,7 +1338,17 @@ def _render_comparison_set_results(
         return
 
     if report_section == "Export & Help":
+        from versevad.exports.research_notes import (
+            append_research_notes_to_docx,
+            research_notes_csv,
+        )
+        from versevad.ui.research import render_note_export_options
+
         st.subheader("Export & Help")
+        selected_notes, include_note_metadata = render_note_export_options(
+            "Compare Poems",
+            key_prefix="comparison_set_export_notes",
+        )
         csv_content = export_poem_comparison_set_csv(
             comparison_set,
             analysis_view=analysis_view,
@@ -1349,7 +1359,12 @@ def _render_comparison_set_results(
             analysis_view=analysis_view,
             weighting=weighting,
         )
-        downloads = st.columns(2)
+        docx_content = append_research_notes_to_docx(
+            docx_content,
+            selected_notes,
+            include_metadata=include_note_metadata,
+        )
+        downloads = st.columns(3 if selected_notes else 2)
         downloads[0].download_button(
             "Download Comparison-Set CSV",
             data=csv_content,
@@ -1369,6 +1384,18 @@ def _render_comparison_set_results(
             key="comparison_set_download_docx",
             width="stretch",
         )
+        if selected_notes:
+            downloads[2].download_button(
+                "Download Research Notes CSV",
+                data=research_notes_csv(
+                    selected_notes,
+                    include_metadata=include_note_metadata,
+                ),
+                file_name="VerseVAD_poem_comparison_notes.csv",
+                mime="text/csv",
+                key="comparison_set_download_notes_csv",
+                width="stretch",
+            )
         with st.expander("How to read a comparison set", expanded=False):
             st.markdown(
                 "- Compare values only within the same source, scale, scope, and weighting.\n"

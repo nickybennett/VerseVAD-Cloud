@@ -137,7 +137,14 @@ def _empty_page() -> None:
 
 
 def _top_navigation_hover_html() -> str:
-    """Return a progressive enhancement for desktop hover navigation."""
+    """Return a progressive enhancement for desktop hover navigation.
+
+    Streamlit's top navigation is click-first.  VerseVAD additionally opens a
+    section after a short hover, then closes it once the pointer has left both
+    the section trigger and its menu.  The delayed close keeps the small gap
+    between those two elements traversable without making menus linger over
+    the report beneath them.
+    """
 
     return """
     <span
@@ -147,6 +154,64 @@ def _top_navigation_hover_html() -> str:
     >.</span>
     <script>
       (() => {
+        const OPEN_DELAY_MS = 160;
+        const CLOSE_DELAY_MS = 220;
+        let closeTimer = null;
+
+        const cancelClose = () => {
+          if (closeTimer !== null) window.clearTimeout(closeTimer);
+          closeTimer = null;
+        };
+
+        const activeMenus = () =>
+          Array.from(
+            document.querySelectorAll(
+              '[data-testid="stTopNavPopoverBody"]'
+            )
+          );
+
+        const activeButtons = () =>
+          Array.from(
+            document.querySelectorAll(
+              '[data-testid="stTopNavSection"][aria-expanded="true"]'
+            )
+          );
+
+        const closeExpandedExcept = (buttonToKeep = null) => {
+          activeButtons().forEach((button) => {
+            if (button !== buttonToKeep) button.click();
+          });
+        };
+
+        const pointerIsInsideNavigation = () => {
+          return Boolean(
+            document.querySelector(
+              '[data-testid="stTopNavSection"]:hover'
+            ) ||
+            activeMenus().some((menu) => menu.matches(":hover"))
+          );
+        };
+
+        const scheduleClose = () => {
+          cancelClose();
+          closeTimer = window.setTimeout(() => {
+            closeTimer = null;
+            if (pointerIsInsideNavigation()) return;
+            closeExpandedExcept();
+          }, CLOSE_DELAY_MS);
+        };
+
+        const bindMenuLeave = () => {
+          activeMenus().forEach((menu) => {
+            if (menu.dataset.versevadHoverBound === "true") return;
+            menu.dataset.versevadHoverBound = "true";
+            menu.addEventListener("pointerenter", cancelClose);
+            menu.addEventListener("mouseenter", cancelClose);
+            menu.addEventListener("pointerleave", scheduleClose);
+            menu.addEventListener("mouseleave", scheduleClose);
+          });
+        };
+
         const bindTopNavigationHover = () => {
           document
             .querySelectorAll('[data-testid="stTopNavSection"]')
@@ -155,22 +220,41 @@ def _top_navigation_hover_html() -> str:
               button.dataset.versevadHoverBound = "true";
               let hoverTimer = null;
               const openOnHover = () => {
-                if (button.getAttribute("aria-expanded") === "true") return;
+                cancelClose();
+                closeExpandedExcept(button);
+                if (button.getAttribute("aria-expanded") === "true") {
+                  bindMenuLeave();
+                  return;
+                }
                 if (hoverTimer !== null) return;
-                hoverTimer = window.setTimeout(() => button.click(), 180);
+                hoverTimer = window.setTimeout(() => {
+                  hoverTimer = null;
+                  closeExpandedExcept(button);
+                  button.click();
+                  window.requestAnimationFrame(bindMenuLeave);
+                }, OPEN_DELAY_MS);
               };
               button.addEventListener("pointerenter", openOnHover);
               button.addEventListener("mouseenter", openOnHover);
               button.addEventListener("pointerover", openOnHover);
+              button.addEventListener("pointerleave", () => {
+                if (hoverTimer !== null) window.clearTimeout(hoverTimer);
+                hoverTimer = null;
+                scheduleClose();
+              });
               button.addEventListener("mouseleave", () => {
                 if (hoverTimer !== null) window.clearTimeout(hoverTimer);
                 hoverTimer = null;
+                scheduleClose();
               });
             });
+          bindMenuLeave();
         };
         bindTopNavigationHover();
         window.requestAnimationFrame(bindTopNavigationHover);
         window.setTimeout(bindTopNavigationHover, 250);
+        const observer = new MutationObserver(bindTopNavigationHover);
+        observer.observe(document.body, { childList: true, subtree: true });
       })();
     </script>
     """
@@ -181,6 +265,7 @@ def render_top_navigation(*, include_local_routes: bool) -> WorkspaceRoute:
 
     grouped_pages: dict[str, list[st.Page]] = {}
     page_routes: dict[str, WorkspaceRoute] = {}
+    workspace_pages: dict[str, st.Page] = {}
     for route in ROUTES:
         if route.local_only and not include_local_routes:
             continue
@@ -193,8 +278,28 @@ def render_top_navigation(*, include_local_routes: bool) -> WorkspaceRoute:
         )
         grouped_pages.setdefault(route.section, []).append(page)
         page_routes[route.url_path] = route
+        workspace_pages.setdefault(route.workspace_id, page)
 
     selected_page = st.navigation(grouped_pages, position="top")
+    st.session_state["_versevad_workspace_pages"] = workspace_pages
+    pending_workspace = st.session_state.pop("_pending_workspace_switch", None)
+    if isinstance(pending_workspace, str):
+        for route in ROUTES:
+            if (
+                route.workspace_id == pending_workspace
+                and (include_local_routes or not route.local_only)
+            ):
+                target_page = next(
+                    (
+                        page
+                        for page in grouped_pages.get(route.section, ())
+                        if page.url_path == route.url_path
+                    ),
+                    None,
+                )
+                if target_page is not None:
+                    st.switch_page(target_page)
+                break
     selected_page.run()
     st.html(
         _top_navigation_hover_html(),
@@ -218,6 +323,18 @@ def render_top_navigation(*, include_local_routes: bool) -> WorkspaceRoute:
     return next(route for route in ROUTES if route.default)
 
 
+def switch_to_workspace(workspace_id: str) -> None:
+    """Navigate immediately to a registered workspace in the current session."""
+
+    pages = st.session_state.get("_versevad_workspace_pages")
+    if isinstance(pages, dict):
+        page = pages.get(workspace_id)
+        if page is not None:
+            st.switch_page(page)
+    st.session_state["_pending_workspace_switch"] = workspace_id
+    st.rerun()
+
+
 __all__ = [
     "ROUTES",
     "ROUTE_BY_PATH",
@@ -225,4 +342,5 @@ __all__ = [
     "WorkspaceRoute",
     "_top_navigation_hover_html",
     "render_top_navigation",
+    "switch_to_workspace",
 ]

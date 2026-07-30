@@ -223,8 +223,8 @@ The shared application header groups workspaces under:
 Personal Corpus remains exclusive to the downloadable local edition. Routes
 whose later implementation is not yet complete are visibly marked as planned.
 The contextual sidebar keeps the current object, analysis profile, settings,
-comparison resources, research-notes location, analysis-management location,
-and export guidance together.
+comparison resources, working research-notes notebook, analysis-management
+controls, and export guidance together.
 
 Built-in analysis profiles are **Full Poetic Analysis**, **Computational Close
 Reading**, **Affect and Emotion**, **Sound and Prosody**, **Formal Analysis**,
@@ -233,15 +233,45 @@ profile's defaults, then continue customizing if needed. Hosted custom profiles
 store configuration only for the current browser session; they never retain
 poem text, metadata, pronunciation overrides, results, or exports.
 
+The top navigation is an opaque fixed bar. Its labels expand in size and
+spacing on wide windows and tighten on smaller panes. A hover-open menu closes
+after the pointer leaves both its section label and dropdown; click and keyboard
+navigation remain available.
+
 The selected theme persists across closing and reopening VerseVAD. Legacy
 Light and System choices migrate safely to Classic. The selection is stored
 as an application-level local preference, not in a project or analysis
 configuration. Appearance does not change calculations, result IDs, project
 data, or exports. Publication-oriented charts remain light.
 
+## Analysis Library, drafts, and research notes
+
+Entering text in Single Poem, Other Text, or Compare Poems creates a
+recoverable draft for the current hosted session. Open **Collections →
+Analysis Library → Draft Analyses** to recover it. Unchanged reruns do not add
+duplicate draft revisions.
+
+After analysis, **Analysis Management** can retain the full historical result
+and source text or a non-restorable results-only CSV/Word bundle. **Save
+analysis** appends an immutable revision; **Save as new** creates a separate
+item. Opening a full save identifies its VerseVAD version and never silently
+recalculates it.
+
+Research Notes attach to an analysis, draft, comparison, collection, lookup,
+section, metric, chart, passage, word, rhyme, or form candidate. Notes are
+excluded from exports by default. Explicit selection adds them to a Word
+appendix and, for full bundles, `research_notes.csv` and
+`research_notes.md`.
+
+Hosted Analysis Library data are isolated but temporary. A timeout, restart,
+or redeployment can remove them, so download important work before the session
+ends. The Clear Text menu asks whether to keep the draft, save a completed
+analysis first, or discard only unsaved work.
+
 ## Stop VerseVAD
 
-Close the browser tab, then close the visible launcher window. One-poem results exist only in the current application session unless downloaded. Corpus projects persist in the local SQLite database.
+Close the browser tab, then close the visible launcher window. Hosted
+analyses, library items, and project data remain temporary unless downloaded.
 
 # 3. Five-minute first analysis
 
@@ -259,6 +289,7 @@ Close the browser tab, then close the visible launcher window. One-poem results 
 12. In **Structure**, inspect the language profile and lexical/structural measures.
 13. In **Evidence & Diagnostics**, inspect exactly which surface forms, lemmas, or phrases matched.
 14. In **Export & Help**, save the readable summary or full audit bundle.
+    Notes remain excluded unless explicitly selected.
 
 > SAFE PRACTICE: A high or low mean is not self-interpreting. Always read it with the lexicon name, analysis view, weighting, matched count, coverage, and evidence table.
 

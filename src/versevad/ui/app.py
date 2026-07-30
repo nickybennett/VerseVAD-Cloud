@@ -145,6 +145,7 @@ from versevad.application import (
     ResourceReadiness,
     TextImportError,
     VAD_DEFINITIONS,
+    WorkspaceAnalysis,
     WorkspaceAnalysisError,
     coverage_views,
     csv_reading_guide,
@@ -341,15 +342,41 @@ def _decimal(value: float | None) -> str:
     return "—" if value is None else f"{value:.3f}"
 
 
-def _clear_current_text() -> None:
-    """Clear widget state before the text-area widget is recreated."""
+def _clear_current_text(
+    workspace: str,
+    *,
+    discard_draft: bool = False,
+    save_analysis: bool = False,
+) -> None:
+    """Resolve research state, then clear before the text widget is recreated."""
+
+    from versevad.research_library import ResearchLibraryError
+    from versevad.ui.research import release_active_context, save_active_context
+
+    if save_analysis:
+        try:
+            save_active_context(workspace, storage_mode="full")
+            st.session_state["_clear_text_message"] = (
+                "The completed analysis was saved before the text was cleared."
+            )
+        except ResearchLibraryError as error:
+            st.session_state["_clear_text_error"] = str(error)
+            return
+    release_active_context(workspace, discard_draft=discard_draft)
 
     st.session_state["poem_text"] = ""
     st.session_state.pop("upload_signature", None)
+    st.session_state.pop("_historical_analysis", None)
 
 
 def _frame(rows, rename: dict[str, str] | None = None) -> pd.DataFrame:
-    data = pd.DataFrame([asdict(row) for row in rows])
+    records = [asdict(row) for row in rows]
+    if not records and rename:
+        # Empty evidence is a valid analytical outcome. Preserve the declared
+        # table schema so downstream formatting and column selection can render
+        # an empty state instead of raising a KeyError.
+        return pd.DataFrame(columns=tuple(rename.values()))
+    data = pd.DataFrame(records)
     return data.rename(columns=rename or {})
 
 
@@ -870,7 +897,9 @@ resource_readiness = installed_resource_readiness()
 _render_resource_setup_notice(resource_readiness)
 if workspace_page == "Compare Poems":
     from versevad.ui.comparison import render_compare_poems_workspace
+    from versevad.ui.research import render_historical_analysis_notice
 
+    render_historical_analysis_notice(workspace_page)
     render_compare_poems_workspace(_preprocessor(), resource_readiness)
 if workspace_page == "Saved Projects":
     from versevad.ui.corpus import render_corpus_workspace
@@ -878,8 +907,14 @@ if workspace_page == "Saved Projects":
     render_corpus_workspace(_preprocessor(), resource_readiness)
 if workspace_page == "Lexicon Explorer":
     from versevad.ui.explorer import render_lexicon_explorer
+    from versevad.ui.research import render_historical_analysis_notice
 
+    render_historical_analysis_notice(workspace_page)
     render_lexicon_explorer(_preprocessor())
+if workspace_page == "Analysis Library":
+    from versevad.ui.research import render_analysis_library_workspace
+
+    render_analysis_library_workspace()
 
 _STAGED_WORKSPACE_COPY = {
     "Reference Corpora": (
@@ -887,11 +922,6 @@ _STAGED_WORKSPACE_COPY = {
         "Reference-corpus management and validation arrives in Stage 3. "
         "The installed VerseMap reference model remains available in existing "
         "analytical reports.",
-    ),
-    "Analysis Library": (
-        "Persistent research retrieval",
-        "Saved analyses, recoverable drafts, and contextual notebooks arrive "
-        "in Stage 2.",
     ),
     "VerseMap": (
         "Independent comparative exploration",
@@ -934,6 +964,8 @@ if workspace_page in _STAGED_WORKSPACE_COPY:
 
 
 if workspace_page in {"Single Poem", "Other Text"}:
+    from versevad.ui.research import render_historical_analysis_notice
+
     is_other_text = workspace_page == "Other Text"
     st.session_state.setdefault("project_name", "")
     if not st.session_state.get("_workspace_name_blank_default_migrated"):
@@ -954,6 +986,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
         st.session_state["pronunciation_overrides"] = str(
             pending_pronunciation_overrides
         )
+    render_historical_analysis_notice(workspace_page)
     st.session_state.setdefault("workspace", None)
 
     with st.sidebar:
@@ -966,15 +999,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
         if _hosted_session:
             st.success("Your analysis is isolated to this hosted app session.")
             st.info(
-                "Hosted results are temporary. Download them before the session "
-                "ends; Saved Projects also uses session-only storage here."
+                "Hosted results are temporary. Download them or use Analysis "
+                "Library during this session; Analysis Library and Saved "
+                "Projects both expire when the hosted session ends."
             )
         else:
             st.success("Private by design: analysis stays on this computer.")
             st.info(
-                "Single-text results last only while the app is open. Download "
-                "them before closing, or use Saved Projects for persistent local "
-                "work."
+                "Download results or save them in Analysis Library before "
+                "closing. With deployment mode off, the library persists "
+                "locally."
             )
         st.markdown("### Installation Check")
         if st.button("Run self-test", width="stretch", key="run_self_test"):
@@ -1083,15 +1117,47 @@ if workspace_page in {"Single Poem", "Other Text"}:
         )
         with st.popover("Clear text"):
             st.warning(
-                "This clears the current session text. Completed results remain "
-                "visible but will be marked stale."
+                "Choose what should happen to this text and its notes before "
+                "clearing it. Completed results remain visible but will be "
+                "marked stale."
             )
             st.button(
-                "Confirm clear text",
+                "Keep recoverable draft and clear",
                 disabled=not bool(text),
-                key="confirm_clear_text",
+                key="keep_draft_and_clear_text",
                 on_click=_clear_current_text,
+                args=(workspace_page,),
+                help=(
+                    "Leaves the autosaved draft and its notes in Analysis "
+                    "Library, then detaches this workspace."
+                ),
             )
+            st.button(
+                "Save completed analysis and clear",
+                disabled=not bool(text)
+                or not isinstance(
+                    st.session_state.get("workspace"),
+                    WorkspaceAnalysis,
+                ),
+                key="save_analysis_and_clear_text",
+                on_click=_clear_current_text,
+                args=(workspace_page,),
+                kwargs={"save_analysis": True},
+            )
+            st.button(
+                "Discard unsaved draft and clear",
+                disabled=not bool(text),
+                key="discard_draft_and_clear_text",
+                on_click=_clear_current_text,
+                args=(workspace_page,),
+                kwargs={"discard_draft": True},
+            )
+        clear_message = st.session_state.pop("_clear_text_message", None)
+        if clear_message:
+            st.success(clear_message)
+        clear_error = st.session_state.pop("_clear_text_error", None)
+        if clear_error:
+            st.error(clear_error)
         with st.expander("Optional bibliographic metadata"):
             metadata_columns = st.columns([2, 1])
             with metadata_columns[0]:
@@ -6978,10 +7044,19 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
 
     with download_tab:
+        from versevad.exports.research_notes import (
+            add_research_notes_to_audit_bundle,
+        )
+        from versevad.ui.research import render_note_export_options
+
         st.subheader("Readable First, Audit Trail Second")
         st.write(
             "The compact summary is meant to be opened first. The ZIP adds every "
             "detailed table needed to inspect or reproduce the result."
+        )
+        selected_notes, include_note_metadata = render_note_export_options(
+            workspace_page,
+            key_prefix="workspace_export_notes",
         )
         safe_stem = "".join(
             character if character.isalnum() or character in {"-", "_"} else "_"
@@ -7063,6 +7138,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         ),
                     )
                 )
+                + "|notes:"
+                + "|".join(
+                    f"{note.note_id}:{note.updated_at}"
+                    for note in selected_notes
+                )
+                + f"|note_metadata:{include_note_metadata}"
             ).encode("utf-8")
         ).hexdigest()
         prepared_exports = st.session_state.get("prepared_workspace_exports")
@@ -7082,6 +7163,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         "analysis_cache_enabled",
                         True,
                     ),
+                )
+                audit_bundle = add_research_notes_to_audit_bundle(
+                    audit_bundle,
+                    selected_notes,
+                    include_metadata=include_note_metadata,
                 )
                 with zipfile.ZipFile(io.BytesIO(audit_bundle)) as archive:
                     narrative_report = archive.read(
@@ -7148,7 +7234,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "audit tables. Each selected optional module also includes its own "
             "narrative Word report. ZIP is used only to keep the related CSV and "
             "DOCX files together; VerseVAD no longer generates JSON, TXT, or XLSX "
-            "analysis exports."
+            "analysis exports. When explicitly selected above, research notes "
+            "are added to the Word appendix plus separate notes CSV and Markdown "
+            "files in the full audit bundle."
         )
 
     with help_tab:
