@@ -518,6 +518,9 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       color: var(--color-text-secondary) !important;
       opacity: 1;
     }}
+    [data-testid="InputInstructions"] {{
+      display: none !important;
+    }}
     [data-testid="stFileUploaderDropzone"] {{
       background: var(--color-surface-muted) !important;
       border-color: var(--color-border-strong) !important;

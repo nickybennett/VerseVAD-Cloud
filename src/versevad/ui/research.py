@@ -616,65 +616,6 @@ def active_research_context(workspace: str) -> ActiveResearchContext | None:
     )
 
 
-def autosave_active_draft(workspace: str) -> None:
-    """Persist changed unsaved work once per content signature."""
-
-    context = active_research_context(workspace)
-    if context is None or context.payload is None:
-        return
-    current_item = _library_item_id(workspace)
-    try:
-        if current_item is not None:
-            item = research_repository().get_item(current_item)
-            if item.status == "saved":
-                return
-    except ResearchLibraryError:
-        current_item = None
-    signature = hashlib.sha256(
-        serialize_value(
-            {
-                "parent_type": context.parent_type,
-                "workspace_id": context.workspace_id,
-                "title": context.title,
-                "text_sha256": context.text_sha256,
-                "profile_name": context.profile_name,
-                "summary": context.summary,
-                "settings": context.settings,
-                "data_versions": context.data_versions,
-                "warnings": context.warnings,
-                "analyzed": context.analyzed,
-            }
-        )
-    ).hexdigest()
-    signature_key = f"_research_autosave_signature__{workspace}"
-    if st.session_state.get(signature_key) == signature:
-        return
-    try:
-        item, _, _ = research_repository().save_revision(
-            parent_type="draft",
-            workspace_id=workspace,
-            title=context.title,
-            author=context.author,
-            status="draft",
-            storage_mode="draft",
-            software_version=__version__,
-            payload=context.payload,
-            text_sha256=context.text_sha256,
-            profile_name=context.profile_name,
-            settings=context.settings,
-            data_versions=context.data_versions,
-            warnings=context.warnings,
-            summary=context.summary,
-            item_id=current_item,
-            deduplicate=True,
-        )
-    except ResearchLibraryError as error:
-        st.session_state["_research_library_error"] = str(error)
-        return
-    _set_library_item_id(workspace, item.item_id)
-    st.session_state[signature_key] = signature
-
-
 def _results_only_bundle(context: ActiveResearchContext) -> bytes:
     output = io.BytesIO()
     with zipfile.ZipFile(
@@ -717,15 +658,25 @@ def _results_only_bundle(context: ActiveResearchContext) -> bytes:
 def save_active_context(
     workspace: str,
     *,
+    title: str,
     storage_mode: str,
     save_as_new: bool = False,
     project_id: str = "",
 ) -> tuple[LibraryItem, LibraryRevision]:
     context = active_research_context(workspace)
     if context is None or context.payload is None:
-        raise ResearchLibraryError("There is no active analysis or draft to save.")
+        raise ResearchLibraryError("There is no active analysis to save.")
     if not context.analyzed:
-        storage_mode = "draft"
+        raise ResearchLibraryError(
+            "Complete the analysis before saving it to the library."
+        )
+    saved_title = " ".join(title.split())
+    if not saved_title:
+        raise ResearchLibraryError("Enter a title for the saved analysis.")
+    if len(saved_title) > 200:
+        raise ResearchLibraryError(
+            "Saved analysis titles must be 200 characters or fewer."
+        )
     existing_item_id = _library_item_id(workspace)
     target_item_id = None if save_as_new else existing_item_id
     original_context_id = context.parent_id
@@ -737,9 +688,9 @@ def save_active_context(
             context.parent_type if context.parent_type != "draft" else "analysis"
         ),
         workspace_id=workspace,
-        title=context.title,
+        title=saved_title,
         author=context.author,
-        status="draft" if storage_mode == "draft" else "saved",
+        status="saved",
         storage_mode=storage_mode,
         software_version=__version__,
         payload=context.payload if storage_mode != "results_only" else None,
@@ -767,21 +718,9 @@ def save_active_context(
     return item, revision
 
 
-def release_active_context(
-    workspace: str,
-    *,
-    discard_draft: bool,
-) -> None:
-    """Detach the current workspace, optionally deleting its unsaved draft."""
+def release_active_context(workspace: str) -> None:
+    """Detach the current workspace without creating or deleting a library item."""
 
-    item_id = _library_item_id(workspace)
-    if discard_draft and item_id:
-        try:
-            item = research_repository().get_item(item_id)
-            if item.status == "draft":
-                research_repository().delete_item(item_id)
-        except ResearchLibraryError:
-            pass
     for key in (
         f"_research_library_item__{workspace}",
         f"_research_context_id__{workspace}",
@@ -985,7 +924,7 @@ def render_research_notes_sidebar(workspace: str) -> None:
 def render_analysis_management_sidebar(workspace: str) -> None:
     context = active_research_context(workspace)
     if context is None or context.payload is None:
-        st.caption("Load text or complete an analysis before saving it.")
+        st.caption("Complete an analysis before saving it.")
     else:
         current_id = _library_item_id(workspace)
         current_status = ""
@@ -994,11 +933,18 @@ def render_analysis_management_sidebar(workspace: str) -> None:
                 current_status = research_repository().get_item(current_id).status
             except ResearchLibraryError:
                 current_status = ""
-        if current_status == "draft":
-            st.info("Recoverable draft saved locally.")
-        elif current_status == "saved":
+        if current_status == "saved":
             st.success("This analysis is in the library.")
         if context.analyzed:
+            saved_title = st.text_input(
+                "Saved analysis title",
+                key=f"research_save_title__{workspace}",
+                placeholder=context.title or "Enter a descriptive title",
+                help=(
+                    "Required. VerseVAD saves only when you use one of the "
+                    "explicit save buttons below."
+                ),
+            )
             storage_label = st.selectbox(
                 "Save privacy",
                 options=[
@@ -1027,10 +973,12 @@ def render_analysis_management_sidebar(workspace: str) -> None:
                 key=f"save_analysis__{workspace}",
                 type="primary",
                 width="stretch",
+                disabled=not saved_title.strip(),
             ):
                 try:
                     _, revision = save_active_context(
                         workspace,
+                        title=saved_title,
                         storage_mode=storage_mode,
                         project_id=project_link,
                     )
@@ -1042,10 +990,12 @@ def render_analysis_management_sidebar(workspace: str) -> None:
                 "Save as new",
                 key=f"save_as_new_analysis__{workspace}",
                 width="stretch",
+                disabled=not saved_title.strip(),
             ):
                 try:
                     save_active_context(
                         workspace,
+                        title=saved_title,
                         storage_mode=storage_mode,
                         save_as_new=True,
                         project_id=project_link,
@@ -1056,8 +1006,8 @@ def render_analysis_management_sidebar(workspace: str) -> None:
                     st.error(str(error))
         else:
             st.caption(
-                "Draft changes autosave locally. Complete the analysis to save "
-                "an immutable result revision."
+                "Unsaved work remains only in the current session. Complete the "
+                "analysis, enter a title, and save it explicitly to retain it."
             )
     if st.button(
         "Open Analysis Library",
@@ -1110,8 +1060,10 @@ def render_historical_analysis_notice(workspace: str) -> None:
 
 
 def _item_label(item: LibraryItem) -> str:
-    status = "Draft" if item.status == "draft" else "Saved"
-    return f"{item.title} · {item.workspace_id} · {status} · {item.updated_at[:10]}"
+    return (
+        f"{item.title} · {item.workspace_id} · Saved · "
+        f"{item.updated_at[:10]}"
+    )
 
 
 def _render_item_notebook(item: LibraryItem) -> None:
@@ -1173,8 +1125,8 @@ def _render_item_notebook(item: LibraryItem) -> None:
 def render_analysis_library_workspace() -> None:
     render_workspace_header(
         "Analysis Library",
-        "Retrieve immutable saved results, recover unsaved drafts, and manage "
-        "contextual or result-anchored research notes.",
+        "Retrieve explicitly saved results and manage contextual or "
+        "result-anchored research notes.",
         kicker="Persistent research retrieval",
         status=(
             "Hosted session only"
@@ -1189,7 +1141,7 @@ def render_analysis_library_workspace() -> None:
         )
     else:
         st.success(
-            "Saved analyses, drafts, and notes remain on this computer and are "
+            "Saved analyses and notes remain on this computer and are "
             "excluded from the public source repository."
         )
     try:
@@ -1199,18 +1151,17 @@ def render_analysis_library_workspace() -> None:
         return
     section = st.selectbox(
         "Library Section",
-        options=["Saved Analyses", "Draft Analyses", "Notebook"],
+        options=["Saved Analyses", "Notebook"],
         key="_analysis_library_section",
     )
-    items = repository.list_items(
-        status=(
-            "saved"
-            if section == "Saved Analyses"
-            else "draft" if section == "Draft Analyses" else None
-        )
-    )
+    items = repository.list_items(status="saved")
     if section == "Notebook":
-        all_notes = research_repository().list_notes()
+        saved_ids = {item.item_id for item in items}
+        all_notes = tuple(
+            note
+            for note in research_repository().list_notes()
+            if note.parent_id in saved_ids
+        )
         if not all_notes:
             render_empty_state(
                 "No research notes yet",
@@ -1247,23 +1198,15 @@ def render_analysis_library_workspace() -> None:
         return
     if not items:
         render_empty_state(
-            (
-                "No saved analyses yet"
-                if section == "Saved Analyses"
-                else "No recoverable drafts"
-            ),
-            (
-                "Saved analyses preserve historical results without silently "
-                "recalculating them."
-                if section == "Saved Analyses"
-                else "Drafts appear after text is entered in an analytical workspace."
-            ),
+            "No saved analyses yet",
+            "Saved analyses preserve historical results without silently "
+            "recalculating them.",
             "Use Analysis Management in a workspace to save a result.",
         )
         return
     labels = {_item_label(item): item for item in items}
     selected_item = labels[
-        st.selectbox("Analysis or draft", options=list(labels))
+        st.selectbox("Saved analysis", options=list(labels))
     ]
     revisions = research_repository().list_revisions(selected_item.item_id)
     revision_labels = {
@@ -1294,11 +1237,7 @@ def render_analysis_library_workspace() -> None:
     open_columns = st.columns(2)
     if selected_revision.storage_mode != "results_only":
         if open_columns[0].button(
-            (
-                "Open historical result"
-                if selected_item.status == "saved"
-                else "Recover draft"
-            ),
+            "Open historical result",
             type="primary",
             width="stretch",
         ):
@@ -1322,25 +1261,21 @@ def render_analysis_library_workspace() -> None:
             "cannot be reopened as a live analysis."
         )
     with open_columns[1].popover("Delete from library", width="stretch"):
-        confirmation = st.checkbox(
-            f"Permanently delete this saved item: {selected_item.title}",
-            key=f"delete_library_confirmation__{selected_item.item_id}",
-        )
-        if st.button(
-            "Delete permanently",
-            key=f"delete_library_item__{selected_item.item_id}",
-            disabled=not confirmation,
-            type="primary",
-        ):
+        with st.form(f"delete_library_form__{selected_item.item_id}"):
+            confirmation = st.checkbox(
+                f"Permanently delete this saved item: {selected_item.title}",
+            )
+            delete_submitted = st.form_submit_button(
+                "Delete permanently",
+                disabled=not confirmation,
+                type="primary",
+            )
+        if delete_submitted:
             try:
                 research_repository().delete_item(selected_item.item_id)
             except ResearchLibraryError as error:
                 st.error(str(error))
             else:
-                st.session_state.pop(
-                    f"delete_library_confirmation__{selected_item.item_id}",
-                    None,
-                )
                 st.rerun()
     _render_item_notebook(selected_item)
 
@@ -1413,7 +1348,6 @@ def render_note_export_options(
 
 __all__ = [
     "active_research_context",
-    "autosave_active_draft",
     "hosted_library_is_ephemeral",
     "notes_for_active_context",
     "render_note_export_options",

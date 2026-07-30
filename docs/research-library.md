@@ -1,10 +1,10 @@
-# Analysis Library, Drafts, and Research Notes
+# Analysis Library and Research Notes
 
 ## Purpose
 
 The Analysis Library lets scholars return to a VerseVAD result without
 pretending that a later software version produced the same evidence. It also
-keeps recoverable drafts and context-specific interpretive notes. It does not
+keeps context-specific interpretive notes. It does not
 replace Saved Projects or Personal Corpus: those remain collection databases,
 while the library preserves particular analytical sessions and revisions.
 
@@ -23,28 +23,20 @@ session's isolated temporary directory. It is not durable cloud storage. A
 session restart, timeout, or redeployment can remove it; download important
 reports first.
 
-## Draft lifecycle
+## Explicit-save lifecycle
 
-Single Poem, Other Text, and Compare Poems create a recoverable draft after
-entered text is applied. The draft has a stable ID, so notes can attach before
-the user formally saves an analysis. VerseVAD fingerprints the draft payload
-and does not add another revision when an ordinary rerun contains no change.
-
-The clear-text menu offers three explicit outcomes:
-
-- keep the recoverable draft and detach the current workspace;
-- save a completed full analysis, then clear; or
-- delete only the unsaved draft, then clear.
-
-Discarding a draft never deletes an already saved analysis.
+VerseVAD does not autosave drafts. Entered text and unfinished analysis state
+remain only in the current hosted session until the user completes an
+analysis, enters a saved-analysis title, and selects **Save analysis** or
+**Save as new**. Clearing the workspace discards that unsaved context.
 
 ## Saving an analysis
 
 **Full analysis and source text** stores the supplied text, immutable calculated
 result objects, evidence, warnings, selected profile, customized settings,
 resource/result identities, UI state needed to restore the view, and exact
-software version. **Save analysis** appends a numbered revision. **Save as
-new** creates a separate library item.
+software version. A saved-analysis title is required. **Save analysis** appends
+a numbered revision. **Save as new** creates a separate library item.
 
 **Results only — do not retain source text** stores a readable summary CSV and
 narrative Word report. It intentionally omits the restorable result payload and
@@ -75,14 +67,14 @@ A research note stores:
 - creation and modification dates; and
 - whether it is marked as available for deliberate note-inclusive exports.
 
-Supported contexts include analyses, drafts, comparison sets, projects,
+Supported contexts include saved analyses, comparison sets, projects,
 personal corpora, standalone VerseMap sessions, lexicon lookups, report
 sections, metrics, charts, passages
 or lines, words or phrases, rhyme pairs, and form candidates. The Analysis
 Library Notebook retrieves notes by their original object. Project links do
 not overwrite the original analysis notebook.
 
-Standalone VerseMap creates a session-only recoverable draft and saveable
+Standalone VerseMap can be saved explicitly as a session-only
 `versemap_session` after a comparison is run. Reopening it returns to the
 VerseMap workspace with the historical fixed-profile result; current-version
 reanalysis remains an explicit user action.

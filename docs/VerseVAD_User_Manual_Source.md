@@ -259,13 +259,15 @@ indexed corpus using the fixed, sound-free VerseMap Standard Profile 1.0. The
 map, nearest poems, poet centroids, shared evidence, coverage, release, and
 model identity reuse the same auditable services as embedded VerseMap.
 Interactive Single Poem settings cannot silently alter the comparison profile.
-Results support session-only drafts, research notes, historical saves, Word
+Results support research notes, explicit session-only historical saves, Word
 reports, and full audit bundles; important work should be downloaded before
 the hosted session ends.
 
-**Explore → Corpus Browser** reads corpus inventory, metadata, coverage,
-feature distributions, and individual poem profiles without editing source
-files. **Explore → Form Library** provides every inherited-form definition,
+**Explore → Corpus Browser** reads corpus inventory, metadata, a poem-and-poet
+VerseMap, Standard Profile means and dispersion, sortable poem metrics,
+corpus-relative characteristicity and distinctiveness, feature distributions,
+and individual poem profiles without editing source files. **Explore → Form
+Library** provides every inherited-form definition,
 requirement, weight, source, and limitation without requiring poem analysis.
 
 **Learn → Documentation** presents selected packaged guides and offers the
@@ -273,21 +275,19 @@ complete Word manual. **Learn → Methodology** provides a searchable reader for
 calculation rules, interpretation guidance, provenance, known limitations, and
 validation documentation.
 
-## Analysis Library, drafts, and research notes
+## Analysis Library and research notes
 
-Entering text in Single Poem, Other Text, or Compare Poems, or running
-standalone VerseMap, creates a
-recoverable draft for the current hosted session. Open **Collections →
-Analysis Library → Draft Analyses** to recover it. Unchanged reruns do not add
-duplicate draft revisions.
+VerseVAD does not autosave drafts. Unsaved text and results remain only in the
+current hosted session.
 
-After analysis, **Analysis Management** can retain the full historical result
+After analysis, enter a required saved-analysis title. **Analysis Management**
+can retain the full historical result
 and source text or a non-restorable results-only CSV/Word bundle. **Save
 analysis** appends an immutable revision; **Save as new** creates a separate
 item. Opening a full save identifies its VerseVAD version and never silently
 recalculates it.
 
-Research Notes attach to an analysis, draft, comparison, collection, lookup,
+Research Notes attach to a saved analysis, comparison, collection, lookup,
 section, metric, chart, passage, word, rhyme, or form candidate. Notes are
 excluded from exports by default. Explicit selection adds them to a Word
 appendix and, for full bundles, `research_notes.csv` and
@@ -295,8 +295,8 @@ appendix and, for full bundles, `research_notes.csv` and
 
 Hosted Analysis Library data are isolated but temporary. A timeout, restart,
 or redeployment can remove them, so download important work before the session
-ends. The Clear Text menu asks whether to keep the draft, save a completed
-analysis first, or discard only unsaved work.
+ends. Clear Text discards the current unsaved context; save explicitly first
+if the analysis should remain in the session library.
 
 ## Stop VerseVAD
 

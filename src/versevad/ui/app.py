@@ -342,27 +342,12 @@ def _decimal(value: float | None) -> str:
     return "—" if value is None else f"{value:.3f}"
 
 
-def _clear_current_text(
-    workspace: str,
-    *,
-    discard_draft: bool = False,
-    save_analysis: bool = False,
-) -> None:
-    """Resolve research state, then clear before the text widget is recreated."""
+def _clear_current_text(workspace: str) -> None:
+    """Detach the current unsaved context before clearing the text widget."""
 
-    from versevad.research_library import ResearchLibraryError
-    from versevad.ui.research import release_active_context, save_active_context
+    from versevad.ui.research import release_active_context
 
-    if save_analysis:
-        try:
-            save_active_context(workspace, storage_mode="full")
-            st.session_state["_clear_text_message"] = (
-                "The completed analysis was saved before the text was cleared."
-            )
-        except ResearchLibraryError as error:
-            st.session_state["_clear_text_error"] = str(error)
-            return
-    release_active_context(workspace, discard_draft=discard_draft)
+    release_active_context(workspace)
 
     st.session_state["poem_text"] = ""
     st.session_state.pop("upload_signature", None)
@@ -1097,47 +1082,18 @@ if workspace_page in {"Single Poem", "Other Text"}:
         )
         with st.popover("Clear text"):
             st.warning(
-                "Choose what should happen to this text and its notes before "
-                "clearing it. Completed results remain visible but will be "
-                "marked stale."
+                "This clears the current text and detaches its unsaved analysis "
+                "context. Save the analysis explicitly from the sidebar first if "
+                "you want to keep it."
             )
             st.button(
-                "Keep recoverable draft and clear",
+                "Clear Workspace Text",
                 disabled=not bool(text),
-                key="keep_draft_and_clear_text",
+                key="confirm_clear_text",
                 on_click=_clear_current_text,
                 args=(workspace_page,),
-                help=(
-                    "Leaves the autosaved draft and its notes in Analysis "
-                    "Library, then detaches this workspace."
-                ),
+                type="primary",
             )
-            st.button(
-                "Save completed analysis and clear",
-                disabled=not bool(text)
-                or not isinstance(
-                    st.session_state.get("workspace"),
-                    WorkspaceAnalysis,
-                ),
-                key="save_analysis_and_clear_text",
-                on_click=_clear_current_text,
-                args=(workspace_page,),
-                kwargs={"save_analysis": True},
-            )
-            st.button(
-                "Discard unsaved draft and clear",
-                disabled=not bool(text),
-                key="discard_draft_and_clear_text",
-                on_click=_clear_current_text,
-                args=(workspace_page,),
-                kwargs={"discard_draft": True},
-            )
-        clear_message = st.session_state.pop("_clear_text_message", None)
-        if clear_message:
-            st.success(clear_message)
-        clear_error = st.session_state.pop("_clear_text_error", None)
-        if clear_error:
-            st.error(clear_error)
         with st.expander("Optional bibliographic metadata"):
             metadata_columns = st.columns([2, 1])
             with metadata_columns[0]:
@@ -1235,6 +1191,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
         profile_options = builtin_profile_names + custom_profile_labels + [
             "Custom"
         ]
+        pending_profile = st.session_state.pop(
+            "_pending_module_preset",
+            None,
+        )
+        profile_notice = st.session_state.pop(
+            "_analysis_profile_notice",
+            None,
+        )
+        if pending_profile in profile_options:
+            st.session_state["module_preset"] = pending_profile
         legacy_profile_names = {
             "Essential": "Affect and Emotion",
             "Literary": "Computational Close Reading",
@@ -1283,6 +1249,8 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Keep configuring manually, or save the current settings as a "
                 "named custom profile."
             )
+        if profile_notice:
+            st.success(profile_notice)
         if apply_preset:
             if selected_preset == "Custom":
                 st.info("Custom keeps the current manual selections unchanged.")
@@ -1363,10 +1331,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
                                 ),
                             )
                             saved_name = saved_profile.name
-                        st.session_state["module_preset"] = (
+                        st.session_state["_pending_module_preset"] = (
                             f"Custom · {saved_name}"
                         )
-                        st.success(
+                        st.session_state["_analysis_profile_notice"] = (
                             "Custom analysis profile saved"
                             + (
                                 " for this hosted session."
@@ -1395,8 +1363,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     )
                 else:
                     delete_custom_profile(selected_custom_name)
-                st.session_state["module_preset"] = "Custom"
-                st.success("Custom analysis profile deleted.")
+                st.session_state["_pending_module_preset"] = "Custom"
+                st.session_state["_analysis_profile_notice"] = (
+                    "Custom analysis profile deleted."
+                )
                 st.rerun()
             st.caption(
                 "Hosted custom profiles last only for the current session."

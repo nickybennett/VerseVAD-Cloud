@@ -147,3 +147,18 @@ read-only. It lists and browses only corpora packaged with the deployment and
 does not offer create, replace, rebuild, or delete controls because hosted
 filesystem changes are not durable user storage. Users who need a private
 reference corpus should use the downloadable edition.
+
+For every indexed corpus, **Explore → Corpus Browser** provides a
+poem-and-poet-centroid VerseMap; a sortable and downloadable Standard Profile
+table; corpus means, population standard deviations, medians, ranges, and
+coverage; per-dimension distributions and poem-level standardized deviations;
+and corpus-relative centroid distance, characteristicity percentile, and
+distinctiveness percentile.
+
+Characteristicity is the reverse rank of a poem's coverage-renormalized,
+profile-weighted RMS z-distance from the selected corpus centroid.
+Distinctiveness is the corresponding forward rank. These are descriptive
+within-corpus positions, not probabilities, quality judgments, or authorship
+tests. A reference corpus is not automatically copied into Saved Projects;
+the fixed comparative index remains read-only and separate from editable
+project batches.

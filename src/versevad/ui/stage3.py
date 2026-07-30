@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import re
+from bisect import bisect_left, bisect_right
 from pathlib import Path
 from typing import Iterable
 
@@ -107,13 +109,199 @@ def _issues_frame(result) -> pd.DataFrame:
     )
 
 
+def _corpus_profile_frames(index) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Build corpus summaries and coverage-aware centroid distances."""
+
+    features = tuple(index.features)
+    total_weight = sum(item.weight for item in features)
+    raw_by_feature = {
+        item.feature_id: pd.Series(
+            [
+                point.value_map.get(item.feature_id)
+                for point in index.poems
+                if point.value_map.get(item.feature_id) is not None
+            ],
+            dtype=float,
+        )
+        for item in features
+    }
+    summary_rows = []
+    for feature in features:
+        definition = FEATURE_BY_ID[feature.feature_id]
+        series = raw_by_feature[feature.feature_id]
+        summary_rows.append(
+            {
+                "Dimension": definition.label,
+                "Group": definition.group_id.replace("_", " ").title(),
+                "Available Poems": len(series),
+                "Corpus Coverage": (
+                    len(series) / len(index.poems) if index.poems else None
+                ),
+                "Corpus Mean": series.mean() if len(series) else None,
+                "Population SD": (
+                    series.std(ddof=0) if len(series) else None
+                ),
+                "Median": series.median() if len(series) else None,
+                "Minimum": series.min() if len(series) else None,
+                "Maximum": series.max() if len(series) else None,
+                "Profile Weight": feature.weight,
+            }
+        )
+
+    rows: list[dict[str, object]] = []
+    for point in index.poems:
+        values = point.value_map
+        weighted_squared_distance = 0.0
+        available_weight = 0.0
+        for feature in features:
+            value = values.get(feature.feature_id)
+            if value is None:
+                continue
+            definition = FEATURE_BY_ID[feature.feature_id]
+            transformed = (
+                math.log1p(max(float(value), 0.0))
+                if definition.transform == "log1p"
+                else float(value)
+            )
+            z_score = (
+                (transformed - feature.mean) / feature.population_sd
+                if feature.population_sd > 1e-12
+                else 0.0
+            )
+            weighted_squared_distance += feature.weight * z_score**2
+            available_weight += feature.weight
+        distance = (
+            math.sqrt(weighted_squared_distance / available_weight)
+            if available_weight
+            else None
+        )
+        row: dict[str, object] = {
+            "Poem": point.title,
+            "Poet": point.poet_name,
+            "Poem ID": point.point_id,
+            "Source Path": point.relative_path,
+            "Component 1": point.coordinate_1,
+            "Component 2": point.coordinate_2,
+            "Profile Evidence Weight": (
+                available_weight / total_weight if total_weight else None
+            ),
+            "Centroid Distance": distance,
+        }
+        row.update(
+            {
+                FEATURE_BY_ID[feature.feature_id].label: values.get(
+                    feature.feature_id
+                )
+                for feature in features
+            }
+        )
+        rows.append(row)
+
+    distances = sorted(
+        float(row["Centroid Distance"])
+        for row in rows
+        if row["Centroid Distance"] is not None
+    )
+    count = len(distances)
+    for row in rows:
+        value = row["Centroid Distance"]
+        if value is None or not count:
+            row["Characteristicity Percentile"] = None
+            row["Distinctiveness Percentile"] = None
+            continue
+        numeric = float(value)
+        lower = bisect_left(distances, numeric)
+        equal = bisect_right(distances, numeric) - lower
+        distinctiveness = (lower + 0.5 * equal) / count
+        row["Distinctiveness Percentile"] = distinctiveness
+        row["Characteristicity Percentile"] = 1.0 - distinctiveness
+    return pd.DataFrame(summary_rows), pd.DataFrame(rows)
+
+
+def _render_corpus_versemap(index) -> None:
+    poets = tuple(sorted({point.poet_name for point in index.poems}))
+    selected_poets = st.multiselect(
+        "Poets shown",
+        options=poets,
+        default=poets,
+        key="corpus_browser_map_poets",
+    )
+    selected_set = set(selected_poets)
+    rows = [
+        {
+            "Kind": "Poem",
+            "Poet": point.poet_name,
+            "Title": point.title,
+            "Component 1": point.coordinate_1,
+            "Component 2": point.coordinate_2,
+        }
+        for point in index.poems
+        if point.poet_name in selected_set
+    ]
+    rows.extend(
+        {
+            "Kind": "Poet centroid",
+            "Poet": point.poet_name,
+            "Title": point.poet_name,
+            "Component 1": point.coordinate_1,
+            "Component 2": point.coordinate_2,
+        }
+        for point in index.poets
+        if point.poet_name in selected_set
+    )
+    if not rows:
+        st.info("Select at least one poet to display the corpus map.")
+        return
+    frame = pd.DataFrame(rows)
+    chart = (
+        alt.Chart(frame)
+        .mark_circle(strokeWidth=1)
+        .encode(
+            x=alt.X("Component 1:Q", title="Component 1"),
+            y=alt.Y("Component 2:Q", title="Component 2"),
+            color=alt.Color("Kind:N", title="Point type"),
+            shape=alt.Shape("Kind:N", title="Point type"),
+            size=alt.Size(
+                "Kind:N",
+                scale=alt.Scale(
+                    domain=["Poem", "Poet centroid"],
+                    range=[55, 180],
+                ),
+                legend=None,
+            ),
+            opacity=alt.Opacity(
+                "Kind:N",
+                scale=alt.Scale(
+                    domain=["Poem", "Poet centroid"],
+                    range=[0.55, 1.0],
+                ),
+                legend=None,
+            ),
+            tooltip=[
+                alt.Tooltip("Kind:N"),
+                alt.Tooltip("Poet:N"),
+                alt.Tooltip("Title:N"),
+                alt.Tooltip("Component 1:Q", format=".3f"),
+                alt.Tooltip("Component 2:Q", format=".3f"),
+            ],
+        )
+        .properties(height=560)
+        .interactive()
+    )
+    st.altair_chart(publication_chart(chart), width="stretch")
+    st.caption(
+        "Poems and poet centroids use different point styles. PCA components "
+        "compress the full Standard Profile for visualization; analytical "
+        "distances and characteristicity use the full weighted feature space."
+    )
+
+
 def render_reference_corpora_workspace() -> None:
     render_workspace_header(
         "Reference Corpora",
         (
-            "Inspect the built-in public-domain collection and, in local "
-            "installations, create and maintain private corpora for Corpus "
-            "Browser and VerseMap."
+            "Create, validate, update, index, or remove comparative corpora. "
+            "Use Corpus Browser for read-only inspection and analysis."
         ),
         kicker="Validated comparative collections",
         status="Ready",
@@ -147,8 +335,9 @@ def render_reference_corpora_workspace() -> None:
                 "model identity used for comparison."
             )
             st.info(
-                "Corpus Browser is read-only. Standalone VerseMap can use any "
-                "listed corpus whose index is marked Ready."
+                "After an index is built, the corpus appears automatically in "
+                "Corpus Browser and in standalone VerseMap. Reference Corpora "
+                "does not duplicate it into a Saved Project."
             )
         return
 
@@ -548,9 +737,16 @@ def render_corpus_browser_workspace() -> None:
     except ReferenceCorpusError as error:
         st.error(str(error))
         return
+    summary_frame, poems_frame = _corpus_profile_frames(index)
     section = st.selectbox(
         "Report Section",
-        ("Overview", "Contents", "Distributions", "Poem Profiles"),
+        (
+            "Overview",
+            "VerseMap",
+            "Standard Profile Table",
+            "Distributions",
+            "Poem Profiles",
+        ),
         key="corpus_browser_section",
     )
     if section == "Overview":
@@ -570,28 +766,12 @@ def render_corpus_browser_workspace() -> None:
                 f"Model: {index.model_id}",
                 language=None,
             )
-        with st.expander("Coverage by Registered Dimension", expanded=False):
+        with st.expander(
+            "Standard Profile Means, Dispersion, and Coverage",
+            expanded=False,
+        ):
             render_dataframe(
-                pd.DataFrame(
-                    [
-                        {
-                            "Dimension": FEATURE_BY_ID[item.feature_id].label,
-                            "Group": FEATURE_BY_ID[item.feature_id].group_id.replace(
-                                "_", " "
-                            ).title(),
-                            "Available Poems": item.available_reference_count,
-                            "Corpus Coverage": (
-                                item.available_reference_count / len(index.poems)
-                                if index.poems
-                                else None
-                            ),
-                            "Reference Mean": item.raw_mean,
-                            "Reference SD": item.raw_population_sd,
-                            "Weight": item.weight,
-                        }
-                        for item in index.features
-                    ]
-                ),
+                summary_frame,
                 hide_index=True,
                 width="stretch",
                 column_config={
@@ -600,28 +780,104 @@ def render_corpus_browser_workspace() -> None:
                     )
                 },
             )
+            st.caption(
+                "Population SD describes poem-to-poem dispersion within the "
+                "selected corpus. Missing values remain missing and reduce the "
+                "available-poem count; they are not replaced with a neutral score."
+            )
+        st.info(
+            "Reference Corpora creates and services indexes. Corpus Browser is "
+            "the read-only place to inspect their maps, distributions, poem "
+            "profiles, and corpus-relative characteristicity."
+        )
         return
-    if section == "Contents":
+
+    if section == "VerseMap":
+        _render_corpus_versemap(index)
+        return
+
+    if section == "Standard Profile Table":
         query = st.text_input(
             "Filter titles or poets",
             key="corpus_browser_query",
         ).strip().casefold()
-        rows = [
-            {
-                "Poem": item.title,
-                "Poet": item.poet_name,
-                "Poem ID": item.point_id,
-                "Source Path": item.relative_path,
-            }
-            for item in index.poems
-            if not query
-            or query in f"{item.title} {item.poet_name}".casefold()
-        ]
+        sort_options = (
+            "Characteristicity Percentile",
+            "Distinctiveness Percentile",
+            "Centroid Distance",
+            "Poem",
+            "Poet",
+            *(
+                FEATURE_BY_ID[item.feature_id].label
+                for item in index.features
+            ),
+        )
+        sort_columns = st.columns([3, 1])
+        sort_by = sort_columns[0].selectbox(
+            "Sort poems by",
+            options=sort_options,
+            key="corpus_browser_sort_by",
+        )
+        ascending = sort_columns[1].checkbox(
+            "Ascending",
+            value=sort_by in {"Poem", "Poet", "Centroid Distance"},
+            key="corpus_browser_sort_ascending",
+        )
+        filtered = poems_frame
+        if query:
+            matches = (
+                filtered["Poem"].astype(str)
+                + " "
+                + filtered["Poet"].astype(str)
+            ).str.casefold().str.contains(re.escape(query), regex=True)
+            filtered = filtered.loc[matches]
+        filtered = filtered.sort_values(
+            sort_by,
+            ascending=ascending,
+            na_position="last",
+            kind="stable",
+        )
         render_dataframe(
-            pd.DataFrame(rows, columns=("Poem", "Poet", "Poem ID", "Source Path")),
+            filtered,
             hide_index=True,
             width="stretch",
             height=560,
+            column_config={
+                "Profile Evidence Weight": st.column_config.ProgressColumn(
+                    min_value=0.0,
+                    max_value=1.0,
+                    format="percent",
+                ),
+                "Characteristicity Percentile": (
+                    st.column_config.ProgressColumn(
+                        min_value=0.0,
+                        max_value=1.0,
+                        format="percent",
+                    )
+                ),
+                "Distinctiveness Percentile": (
+                    st.column_config.ProgressColumn(
+                        min_value=0.0,
+                        max_value=1.0,
+                        format="percent",
+                    )
+                ),
+            },
+        )
+        st.download_button(
+            "Download Standard Profile Table (CSV)",
+            data=filtered.to_csv(index=False).encode("utf-8"),
+            file_name=f"{selected.corpus_id.replace(':', '_')}_standard_profile.csv",
+            mime="text/csv",
+            key=f"download_corpus_profile_{selected.corpus_id}",
+        )
+        st.caption(
+            "Centroid Distance is a coverage-renormalized, profile-weighted RMS "
+            "z-distance from this corpus's own centroid. Characteristicity is "
+            "the reverse percentile rank (higher means more corpus-typical); "
+            "Distinctiveness is the forward percentile rank (higher means more "
+            "unusual). They are descriptive ranks, not probabilities, quality "
+            "scores, or authorship claims."
         )
         return
     if section == "Distributions":
@@ -678,6 +934,42 @@ def render_corpus_browser_workspace() -> None:
     point = poem_labels[selected_label]
     st.markdown(f"### {point.title}")
     st.caption(f"{point.poet_name} | {point.point_id}")
+    point_summary = poems_frame.loc[
+        poems_frame["Poem ID"] == point.point_id
+    ].iloc[0]
+    profile_metrics = st.columns(4)
+    profile_metrics[0].metric(
+        "Centroid distance",
+        (
+            f"{point_summary['Centroid Distance']:.3f}"
+            if pd.notna(point_summary["Centroid Distance"])
+            else "Unavailable"
+        ),
+    )
+    profile_metrics[1].metric(
+        "Characteristicity",
+        (
+            f"{point_summary['Characteristicity Percentile']:.1%}"
+            if pd.notna(point_summary["Characteristicity Percentile"])
+            else "Unavailable"
+        ),
+    )
+    profile_metrics[2].metric(
+        "Distinctiveness",
+        (
+            f"{point_summary['Distinctiveness Percentile']:.1%}"
+            if pd.notna(point_summary["Distinctiveness Percentile"])
+            else "Unavailable"
+        ),
+    )
+    profile_metrics[3].metric(
+        "Profile evidence weight",
+        (
+            f"{point_summary['Profile Evidence Weight']:.1%}"
+            if pd.notna(point_summary["Profile Evidence Weight"])
+            else "Unavailable"
+        ),
+    )
     feature_by_id = {item.feature_id: item for item in index.features}
     render_dataframe(
         pd.DataFrame(
@@ -686,8 +978,27 @@ def render_corpus_browser_workspace() -> None:
                     "Dimension": definition.label,
                     "Group": definition.group_id.replace("_", " ").title(),
                     "Poem Value": point.value_map.get(feature_id),
-                    "Reference Mean": feature_by_id[feature_id].raw_mean,
-                    "Reference SD": feature_by_id[feature_id].raw_population_sd,
+                    "Corpus Mean": feature_by_id[feature_id].raw_mean,
+                    "Corpus SD": feature_by_id[feature_id].raw_population_sd,
+                    "Standardized Deviation": (
+                        (
+                            (
+                                math.log1p(
+                                    max(
+                                        float(point.value_map[feature_id]),
+                                        0.0,
+                                    )
+                                )
+                                if definition.transform == "log1p"
+                                else float(point.value_map[feature_id])
+                            )
+                            - feature_by_id[feature_id].mean
+                        )
+                        / feature_by_id[feature_id].population_sd
+                        if point.value_map.get(feature_id) is not None
+                        and feature_by_id[feature_id].population_sd > 1e-12
+                        else None
+                    ),
                 }
                 for feature_id, definition in FEATURE_BY_ID.items()
                 if feature_id in feature_by_id
@@ -696,6 +1007,12 @@ def render_corpus_browser_workspace() -> None:
         hide_index=True,
         width="stretch",
         height=560,
+    )
+    st.caption(
+        "Standardized Deviation is the poem's z-score within this corpus for "
+        "that dimension. Positive values are above the corpus mean; negative "
+        "values are below it. Corpus-relative ranks do not imply literary "
+        "quality, influence, or authorship."
     )
     with st.expander("Source Text", expanded=False):
         if not point.relative_path:
@@ -832,7 +1149,7 @@ _DOCUMENTATION_SOURCES = (
     (
         "Analysis Library",
         "docs/research-library.md",
-        "Saved analyses, drafts, revisions, notes, and privacy.",
+        "Explicit saves, historical revisions, notes, and privacy.",
     ),
     ("Project README", "README.md", "Project overview, installation, and entry points."),
 )

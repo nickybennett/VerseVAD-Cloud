@@ -124,6 +124,8 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
             in sheet
         )
         assert '[data-testid="stTextInputRootElement"]' in sheet
+        assert '[data-testid="InputInstructions"]' in sheet
+        assert "display: none !important" in sheet
         assert 'button[data-testid^="stBaseButton-primary"]' in sheet
         assert '[data-testid="stFormSubmitButton"] button' in sheet
         assert '[data-testid="stDownloadButton"] button' in sheet

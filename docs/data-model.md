@@ -587,11 +587,12 @@ and filters remain Streamlit session state. They do not alter schema 4.
 
 The session-only hosted Analysis Library uses its own schema-version-1 SQLite
 database. `library_items` indexes stable context/workspace identity, status,
-title, current revision, optional project link, and timestamps.
-`library_revisions` stores immutable numbered full/results-only/draft records
+user-supplied saved title, current revision, optional project link, and
+timestamps. `library_revisions` stores immutable numbered full/results-only records
 with hashes, profile, software version, settings, provenance identities,
 warnings, summary, optional restricted-JSON payload, and optional report
-bundle. `research_notes` stores parent and analysis/project associations,
+bundle. Legacy draft records remain readable at the repository layer but are
+not created or exposed by the interface. `research_notes` stores parent and analysis/project associations,
 module, metric, anchor, title/body, tags, export eligibility, and timestamps.
 
 Results-only rows have a null result payload and cannot recreate source text.

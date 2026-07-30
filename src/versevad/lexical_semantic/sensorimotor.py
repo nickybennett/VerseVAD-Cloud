@@ -984,16 +984,15 @@ class SensorimotorModule:
             for observation in observations
             if observation.included_in_stopword_view
         )
-        retained_phrase_ids = {
+        retained_match_ids = {
             token_id
             for observation in filtered_observations
-            if observation.source_is_multiword
             for token_id in observation.token_ids
         }
         filtered_eligible = tuple(
             token
             for token in eligible_tokens
-            if token.token_id in retained_phrase_ids
+            if token.token_id in retained_match_ids
             or (
                 token.normalized_form not in policy.active_words
                 and token.normalized_lemma not in policy.active_words

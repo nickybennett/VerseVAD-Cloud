@@ -147,7 +147,7 @@ def test_hosted_reference_corpora_are_read_only(
     }
 
 
-def test_recovering_an_early_draft_discards_transient_button_state(
+def test_analysis_library_does_not_expose_legacy_drafts(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -178,21 +178,10 @@ def test_recovering_an_early_draft_discards_transient_button_state(
     section = next(
         field for field in app.selectbox if field.label == "Library Section"
     )
-    section.set_value("Draft Analyses")
-    app.run(timeout=45)
-    _button(app, "Recover draft").click()
-    app.run(timeout=45)
-    app.session_state["_workspace_route_override"] = "Single Poem"
-    app.run(timeout=45)
 
     assert not app.exception
-    title = next(
-        field
-        for field in app.text_input
-        if field.label == "Poem title or working label"
-    )
-    assert title.value == "Recoverable draft"
-    assert app.session_state["poem_text"] == "A restored line."
+    assert list(section.options) == ["Saved Analyses", "Notebook"]
+    assert "Recover draft" not in {button.label for button in app.button}
 
 
 def test_analysis_library_deletes_the_selected_item_by_id(
@@ -408,6 +397,32 @@ def test_interface_state_migration_and_preset_emit_no_widget_default_warning(
 
     assert not app.exception
     assert "created with a default value" not in caplog.text
+
+
+def test_saving_custom_analysis_profile_defers_selectbox_state_update(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "VERSEVAD_ANALYSIS_PROFILES_PATH",
+        str(tmp_path / "analysis-profiles.json"),
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=45).run()
+    profile_name = next(
+        field
+        for field in app.text_input
+        if field.label == "Custom profile name"
+    )
+    profile_name.input("My Close Reading")
+    app.run(timeout=30)
+    _button(app, "Save Current Settings").click()
+    app.run(timeout=45)
+
+    assert not app.exception
+    preset = next(
+        field for field in app.selectbox if field.label == "Analysis profile"
+    )
+    assert preset.value == "Custom · My Close Reading"
 
 
 def test_interface_warns_and_filters_when_research_resources_are_absent(
@@ -648,6 +663,48 @@ def test_interface_reuses_single_text_workflow_for_other_text() -> None:
     )
 
 
+def test_other_text_handles_protected_contractions_with_sensorimotor_enabled(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "VERSEVAD_RESEARCH_LIBRARY_PATH",
+        str(tmp_path / "analysis-library.sqlite3"),
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=60).run()
+    _open_workspace(app, "Other Text")
+    title = next(
+        field
+        for field in app.text_input
+        if field.label == "Text title or working label"
+    )
+    text = next(
+        field
+        for field in app.text_area
+        if field.label == "Paste the text exactly as you want it analyzed"
+    )
+    sensorimotor = next(
+        field
+        for field in app.checkbox
+        if field.label
+        == "Sensorimotor imagery & embodiment (Lancaster norms)"
+    )
+    title.input("Contraction coverage")
+    text.input(
+        "You're not going to believe that I can't do this. It won't work."
+    )
+    sensorimotor.set_value(True)
+    app.run(timeout=60)
+    _button(app, "Analyze Text").click()
+    app.run(timeout=90)
+
+    assert not app.exception
+    assert not any(
+        "matched count cannot exceed" in error.value.lower()
+        for error in app.error
+    )
+
+
 def test_interface_persists_application_appearance_without_analysis_state(
     tmp_path,
     monkeypatch,
@@ -694,14 +751,14 @@ def test_clear_text_uses_widget_callback_without_session_state_error(
     app.text_area[0].input("Temporary poem text.")
     app.run(timeout=30)
 
-    clear_button = _button(app, "Keep recoverable draft and clear")
+    clear_button = _button(app, "Clear Workspace Text")
     assert not clear_button.disabled
     clear_button.click()
     app.run(timeout=30)
 
     assert not app.exception
     assert app.text_area[0].value == ""
-    assert _button(app, "Keep recoverable draft and clear").disabled
+    assert _button(app, "Clear Workspace Text").disabled
 
 
 def test_affective_tables_render_when_no_tokens_match_the_lexicon(

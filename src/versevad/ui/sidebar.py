@@ -141,7 +141,6 @@ def render_context_sidebar(workspace: str) -> None:
     # Imported lazily because the research workspace uses shared design
     # primitives, while the design shell itself imports this sidebar module.
     from versevad.ui.research import (
-        autosave_active_draft,
         render_analysis_management_sidebar,
         render_research_notes_sidebar,
     )
@@ -158,8 +157,6 @@ def render_context_sidebar(workspace: str) -> None:
     }
 
     heading, context = _context_heading(workspace)
-    if workspace in analytical:
-        autosave_active_draft(workspace)
     with st.sidebar:
         library_error = st.session_state.pop("_research_library_error", None)
         if isinstance(library_error, str):

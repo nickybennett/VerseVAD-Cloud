@@ -92,6 +92,7 @@ def _module(tmp_path: Path) -> SensorimotorModule:
             _row("stone", auditory=5.0),
             _row("dark night", auditory=4.0, dominant="Visual"),
             _row("the", auditory=0.0),
+            _row("not", auditory=0.5),
             _row("idea", auditory=1.0),
         ],
     )
@@ -242,6 +243,26 @@ def test_empty_and_unmatched_inputs_do_not_invent_zero_ratings(
     assert unmatched_auditory.statistics.mean is None
     assert unmatched.profile().token_coverage == 0.0
     assert unmatched.unmatched_tokens[0].normalized_form == "quorvax"
+
+
+def test_protected_contraction_lemma_remains_eligible_in_stopword_view(
+    tmp_path: Path,
+    preprocessor,
+) -> None:
+    result = _analyze(_module(tmp_path), preprocessor, "can't")
+
+    coverage = next(
+        row
+        for row in result.module_result.coverage
+        if row.coverage_id
+        == "sensorimotor.stopwords_excluded_token_coverage"
+    )
+    assert coverage.eligible_count == 1
+    assert coverage.matched_count == 1
+    assert result.profile(
+        "Stopwords excluded",
+        "token",
+    ).matched_observation_count == 1
 
 
 def test_module_resource_states_and_determinism(

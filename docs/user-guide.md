@@ -74,14 +74,14 @@ running a poem analysis. **Learn → Documentation** and **Methodology** read th
 packaged guides inside VerseVAD; the complete Word manual remains
 downloadable.
 
-## Analysis Library, recoverable drafts, and research notes
+## Analysis Library and research notes
 
-Entering text in Single Poem, Other Text, or Compare Poems creates a private
-recoverable draft after the value is applied. Use **Collections → Analysis
-Library → Draft Analyses** to recover it. Unchanged reruns do not create
-duplicate draft revisions.
+VerseVAD does not autosave drafts. Unsaved text and results remain only in the
+current hosted session. Complete an analysis, enter a saved-analysis title,
+and use **Analysis Management** when you want to retain it.
 
-After analysis, open **Analysis Management** in the sidebar. **Full analysis
+After analysis, open **Analysis Management** in the sidebar, enter the required
+saved-analysis title, and choose a storage mode. **Full analysis
 and source text** retains an exactly restorable historical result.
 **Results only — do not retain source text** keeps only a summary CSV and
 narrative Word report and cannot reopen the source. **Save analysis** appends
@@ -91,7 +91,7 @@ Opening a full save never silently recalculates it. VerseVAD identifies the
 saved version and offers continued historical viewing or preparation for an
 explicit current-version reanalysis.
 
-Research Notes attach to the analysis, draft, comparison, collection, or
+Research Notes attach to the saved analysis, comparison, collection, or
 Lexicon Explorer lookup and may be anchored to a section, metric, chart,
 passage, word, rhyme, or form candidate. The Analysis Library Notebook retrieves
 and edits them after workspace changes.
@@ -102,8 +102,7 @@ Word appendix, and full audit bundles also receive `research_notes.csv` and
 
 The hosted Analysis Library uses isolated temporary session storage. A timeout,
 restart, or redeployment can remove it, so download important work before the
-session ends. See [Analysis Library, drafts, and research
-notes](research-library.md).
+session ends. See [Analysis Library and research notes](research-library.md).
 
 Research data are not included in a public VerseVAD checkout. Before first
 analysis, follow the

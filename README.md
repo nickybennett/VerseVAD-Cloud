@@ -41,18 +41,21 @@ analysis profiles last for the browser session and never retain poem text or
 results. PoetryID presents category fit as its primary descriptive archetype
 and nearest centroid as a secondary candidate.
 
-**Analysis Library** now preserves single-text analyses, comparison sets,
-Lexicon Explorer lookups, drafts, and contextual research notes for the current
-isolated hosted session. Saves use immutable revisions and reopen as historical
-results without silent recalculation. Users can retain full analysis/text or a
+**Analysis Library** preserves explicitly saved single-text analyses,
+comparison sets, Lexicon Explorer lookups, and contextual research notes for
+the current isolated hosted session. Nothing autosaves as a draft. Saves use
+immutable revisions and reopen as historical results without silent
+recalculation. Users can retain full analysis/text or a
 non-restorable results-only CSV/Word bundle. Notes remain excluded from exports
 unless explicitly selected. Hosted library data are temporary and should be
 downloaded before the session ends.
 
 The final workspace architecture is complete. **Reference Corpora** inventories
 the built-in comparison collection. **VerseMap** can analyze a poem directly
-against the indexed hosted corpus, while **Corpus Browser** provides read-only
-contents, coverage, distributions, and poem profiles. **Form Library** exposes
+against the indexed hosted corpus, while **Corpus Browser** provides a
+read-only map, Standard Profile means and dispersion, sortable poem metrics,
+corpus-relative characteristicity and distinctiveness, distributions, and
+poem profiles. **Form Library** exposes
 the inherited-form registry as an educational reference, and
 **Documentation** plus **Methodology** make packaged guidance, calculations,
 provenance, and limitations searchable in the application. Private
@@ -286,7 +289,7 @@ See:
 - [Data model](docs/data-model.md)
 - [Testing strategy](docs/testing.md)
 - [Beginner user guide](docs/user-guide.md)
-- [Analysis Library, drafts, and research notes](docs/research-library.md)
+- [Analysis Library and research notes](docs/research-library.md)
 - [Private Streamlit Community Cloud deployment](docs/streamlit-community-cloud.md)
 - [Comprehensive Word user manual](docs/VerseVAD_User_Manual.docx)
 - [Values and terminology Word guide](docs/VerseVAD_Values_and_Terminology_Guide.docx)

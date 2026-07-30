@@ -596,11 +596,12 @@ unavailable because LibreOffice is not installed on the Windows host.
 ## Research-workspace Stage 2 validation
 
 Focused tests verify restricted serialization of real immutable analyses,
-refusal of external classes, numbered historical revisions, unchanged-draft
-deduplication, results-only non-restorability, note lifecycle and draft
-promotion, Word note appendices, metadata-private notes CSVs, audit-bundle note
-artifacts, fixed navigation, and draft recovery. Hosted tests use temporary
-session database paths and never persist fixture text across tests.
+refusal of external classes, numbered historical revisions, backward-compatible
+legacy-draft storage, results-only non-restorability, note lifecycle and
+transactional reparenting, Word note appendices, metadata-private notes CSVs,
+audit-bundle note artifacts, fixed navigation, explicit save behavior, and
+suppression of legacy drafts. Hosted tests use temporary session database paths
+and never persist fixture text across tests.
 
 ## Project / Corpus deletion rerun repair
 
@@ -666,8 +667,8 @@ Cloud-specific assertions confirm that corpus mutation controls are absent
 while packaged-corpus browsing, fixed Standard Profile VerseMap, session-only
 saved analyses, research notes, and exports remain usable.
 
-The final 2026-07-30 run passed all `404` private-cloud tests; the mirrored
-public/local repository passed all `402`. Live browser checks opened every
+The final 2026-07-30 run passed all `412` private-cloud tests; the mirrored
+public/local repository passed all `410`. Live browser checks opened every
 final-stage route, confirmed nonblank sidebars, exercised an 820-pixel
 responsive layout, and reported no console warnings or errors. Both rebuilt
 Word manuals passed package, content, and accessibility checks with zero

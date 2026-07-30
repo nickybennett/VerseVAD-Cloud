@@ -491,14 +491,18 @@ and privacy mode.
 
 Full saves retain immutable results and source text. Results-only saves retain
 only a summary CSV and narrative Word report and cannot restore source text.
-Draft revisions deduplicate unchanged payloads. Notes preserve context,
-anchors, tags, dates, and explicit export eligibility; promotion from a draft
-to a completed analysis occurs transactionally.
+The current interface creates no automatic draft revisions; legacy
+draft-capable schema fields remain readable for backward compatibility. Notes
+preserve context, anchors, tags, dates, and explicit export eligibility;
+reparenting from a temporary in-session context to a completed analysis occurs
+transactionally.
 
-`versevad.ui.research` restores a saved object to its originating workspace and
-shows a version notice rather than silently recalculating. Selected notes are
-appended through `versevad.exports.research_notes`; exclusion remains the
-default and metadata requires a separate opt-in.
+`versevad.ui.research` creates no library item until the user completes an
+analysis, enters a title, and explicitly saves it. It restores a saved object
+to its originating workspace and shows a version notice rather than silently
+recalculating. Selected notes are appended through
+`versevad.exports.research_notes`; exclusion remains the default and metadata
+requires a separate opt-in.
 
 ## Expansion Stage 14 meter and performance architecture
 
