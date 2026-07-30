@@ -6,6 +6,24 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Completed the final top-level workspace architecture. Reference Corpora,
+  standalone VerseMap, Form Library, Corpus Browser, Documentation, and
+  Methodology now render working interfaces rather than planned-state copy.
+- Added private local reference-corpus creation, UTF-8/path validation,
+  incremental file maintenance, Standard Profile 1.0 index builds, read-only
+  checks, and exact-confirmation deletion under ignored `projects/` storage.
+  Hosted deployments keep the built-in reference corpus read-only.
+- Added selectable-corpus standalone VerseMap with session drafts, historical
+  Analysis Library saves, contextual notes, and note-aware CSV/Word bundles.
+- Added read-only corpus inventories, release/model identities, feature
+  coverage, distributions, poem profiles, and safely constrained source-text
+  viewing.
+- Added searchable inherited-form definitions/rules and packaged
+  documentation/methodology readers. Every conditional sidebar now provides
+  either applicable research controls or generic context, navigation, and
+  privacy information.
+- Tightened the narrow-window navigation breakpoint so hosted navigation and
+  the appearance/settings/help controls remain readable without overlap.
 - Implemented the hosted **Analysis Library** with immutable revisions,
   recoverable drafts, full-text versus results-only privacy choices,
   historical viewing without silent recalculation, Save As New, optional

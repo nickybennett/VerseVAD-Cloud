@@ -915,52 +915,32 @@ if workspace_page == "Analysis Library":
     from versevad.ui.research import render_analysis_library_workspace
 
     render_analysis_library_workspace()
+if workspace_page == "Reference Corpora":
+    from versevad.ui.stage3 import render_reference_corpora_workspace
 
-_STAGED_WORKSPACE_COPY = {
-    "Reference Corpora": (
-        "Curated and user-managed reference collections",
-        "Reference-corpus management and validation arrives in Stage 3. "
-        "The installed VerseMap reference model remains available in existing "
-        "analytical reports.",
-    ),
-    "VerseMap": (
-        "Independent comparative exploration",
-        "The standalone selectable-corpus VerseMap workspace arrives in Stage "
-        "3. Existing analytical VerseMap reports remain available.",
-    ),
-    "Form Library": (
-        "Inherited-form reference",
-        "The educational form registry workspace arrives in Stage 3. "
-        "Inherited Form Analysis remains available under Sound & Form.",
-    ),
-    "Corpus Browser": (
-        "Read-only corpus inspection",
-        "Read-only corpus metadata, coverage, and profile browsing arrives in "
-        "Stage 3.",
-    ),
-    "Documentation": (
-        "VerseVAD guidance",
-        "The in-application documentation reader arrives in Stage 3. The "
-        "versioned README and docs folder remain authoritative.",
-    ),
-    "Methodology": (
-        "Calculations, limitations, and provenance",
-        "The registry-driven methodology workspace arrives in Stage 3. "
-        "Current module methodology panels and audit exports remain available.",
-    ),
-}
-if workspace_page in _STAGED_WORKSPACE_COPY:
-    staged_kicker, staged_description = _STAGED_WORKSPACE_COPY[workspace_page]
-    render_workspace_header(
-        workspace_page,
-        staged_description,
-        kicker=staged_kicker,
-        status="Planned",
-    )
-    st.info(
-        "This route is part of the new VerseVAD architecture and is reserved "
-        "for its scheduled implementation stage."
-    )
+    render_reference_corpora_workspace()
+if workspace_page == "VerseMap":
+    from versevad.ui.stage3 import render_standalone_versemap_workspace
+    from versevad.ui.research import render_historical_analysis_notice
+
+    render_historical_analysis_notice(workspace_page)
+    render_standalone_versemap_workspace(_preprocessor(), resource_readiness)
+if workspace_page == "Form Library":
+    from versevad.ui.stage3 import render_form_library_workspace
+
+    render_form_library_workspace()
+if workspace_page == "Corpus Browser":
+    from versevad.ui.stage3 import render_corpus_browser_workspace
+
+    render_corpus_browser_workspace()
+if workspace_page == "Documentation":
+    from versevad.ui.stage3 import render_documentation_workspace
+
+    render_documentation_workspace()
+if workspace_page == "Methodology":
+    from versevad.ui.stage3 import render_methodology_workspace
+
+    render_methodology_workspace()
 
 
 if workspace_page in {"Single Poem", "Other Text"}:

@@ -192,7 +192,7 @@ For the temporary one-poem path, application services create one
 Structural, sentence, token, dependency, entity, and coverage records therefore
 cannot drift between source-specific analyses in the same request.
 
-## Planned package boundaries
+## Package boundaries
 
 ```text
 src/versevad/
@@ -201,10 +201,16 @@ src/versevad/
   analysis/       matching, coverage, summaries, comparisons
   db/             schema, repositories, transactions, migrations
   exports/        CSV, Excel, HTML, and chart-data outputs
+  reference_corpora.py  discovery, validation, indexing, and safe maintenance
   ui/             Streamlit pages and plain-language presentation
 scripts/          diagnostics, setup helpers, and developer utilities
 tests/            unit, integration, migration, and synthetic validation tests
 ```
+
+The final research-workspace layer is kept in `versevad.ui.stage3`. It
+orchestrates existing VerseMap, corpus, form-registry, documentation, and
+methodology services; it does not duplicate analytical calculations in
+Streamlit page code.
 
 ## Traceability design
 
@@ -443,7 +449,11 @@ construction and result objects. **Saved Projects** continues to use schema 4
 and the same session-isolated corpus orchestrator; only its presentation label
 changed. Personal Corpus is omitted from hosted navigation. Explorer continues
 to call the same `explore_lexicons` service; its lookup and matching behavior
-did not change.
+did not change. Stage 3 implements read-only Reference Corpora, standalone
+VerseMap, Corpus Browser, Form Library, Documentation, and Methodology as
+first-class hosted routes. `versevad.reference_corpora` performs corpus
+discovery and validation; mutation controls remain disabled in the hosted
+edition because Community Cloud storage is not a durable private corpus store.
 
 Fifteen single-text result tabs are reorganized into seven report families.
 Within a family, each analytical module has a large native expander with a

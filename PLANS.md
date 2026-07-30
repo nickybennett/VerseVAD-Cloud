@@ -1,5 +1,32 @@
 # VerseVAD Implementation Plan
 
+## Completed research-workspace architecture Stage 3
+
+- [x] Replace every remaining planned route with a working **Reference
+  Corpora**, standalone **VerseMap**, **Form Library**, **Corpus Browser**,
+  **Documentation**, or **Methodology** workspace.
+- [x] Add a shared reference-corpus registry used by management, browsing, and
+  VerseMap rather than duplicating corpus discovery or model loading.
+- [x] Keep the built-in public-domain corpus read-only while allowing local
+  installations to create, validate, add to, index, and exactly confirm
+  deletion of private reference corpora under ignored project storage.
+- [x] Add standalone selectable-corpus VerseMap analysis under the pinned
+  Standard Profile 1.0, with drafts, saved historical results, research notes,
+  and note-aware CSV/Word audit bundles.
+- [x] Add read-only corpus contents, release/model identity, coverage,
+  dimension distributions, poem profiles, and safely opened source text.
+- [x] Turn the complete inherited-form registry into a searchable educational
+  library of definitions, requirements, weights, limitations, and sources.
+- [x] Add packaged in-application documentation and searchable methodology,
+  provenance, VerseMap, form-registry, and data-model readers.
+- [x] Ensure every workspace sidebar contains contextual research controls or
+  generic workspace information, related navigation, and privacy guidance.
+- [x] Keep hosted reference-corpus management read-only and retain user-created
+  corpora only in the downloadable local edition.
+- [x] Cover private-corpus path safety and lifecycle, all live routes,
+  nonblank sidebars, cross-platform styling, documentation, and exports with
+  automated and browser validation.
+
 ## Completed research-workspace architecture Stage 2
 
 - [x] Implement **Analysis Library** for saved analyses, recoverable drafts,

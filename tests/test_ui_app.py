@@ -46,7 +46,11 @@ def _open_workspace(app: AppTest, workspace: str) -> AppTest:
 
 
 def _section_navigation(app: AppTest, label: str):
-    control_type = "selectbox" if label == "Report section" else "button_group"
+    control_type = (
+        "selectbox"
+        if label.casefold() == "report section"
+        else "button_group"
+    )
     return next(
         control
         for control in app.get(control_type)
@@ -75,6 +79,72 @@ def test_every_registered_workspace_opens_without_an_exception(
     for workspace in dict.fromkeys(route.workspace_id for route in ROUTES):
         _open_workspace(app, workspace)
         assert not app.exception, f"{workspace}: {app.exception}"
+
+
+def test_final_library_and_learning_workspaces_are_live_and_have_sidebars(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "VERSEVAD_RESEARCH_LIBRARY_PATH",
+        str(tmp_path / "analysis-library.sqlite3"),
+    )
+    monkeypatch.setenv(
+        "VERSEVAD_REFERENCE_CORPORA_ROOT",
+        str(tmp_path / "reference-corpora"),
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=45).run()
+
+    for workspace in (
+        "Reference Corpora",
+        "VerseMap",
+        "Form Library",
+        "Corpus Browser",
+        "Documentation",
+        "Methodology",
+    ):
+        _open_workspace(app, workspace)
+        assert not app.exception, f"{workspace}: {app.exception}"
+        assert any(heading.value == workspace for heading in app.title)
+        assert "Quick Navigation" in {
+            panel.label for panel in app.expander
+        }
+        assert not any(
+            "scheduled implementation stage" in message.value
+            for message in app.info
+        )
+
+
+def test_hosted_reference_corpora_are_read_only(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("VERSEVAD_CLOUD_DEPLOYMENT", "1")
+    monkeypatch.setenv(
+        "VERSEVAD_RESEARCH_LIBRARY_PATH",
+        str(tmp_path / "analysis-library.sqlite3"),
+    )
+    monkeypatch.setenv(
+        "VERSEVAD_REFERENCE_CORPORA_ROOT",
+        str(tmp_path / "reference-corpora"),
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=45).run()
+    _open_workspace(app, "Reference Corpora")
+    section = _section_navigation(app, "Report Section")
+    section.set_value("Create & Maintain")
+    app.run(timeout=30)
+
+    assert not app.exception
+    assert any(
+        "provides the built-in corpus read-only" in message.value
+        for message in app.info
+    )
+    assert "Create and Validate Corpus" not in {
+        button.label for button in app.button
+    }
+    assert "Delete Permanently" not in {
+        button.label for button in app.button
+    }
 
 
 def test_recovering_an_early_draft_discards_transient_button_state(

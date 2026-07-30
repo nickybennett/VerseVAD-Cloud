@@ -50,6 +50,7 @@ _RESEARCHABLE_WORKSPACES = {
     "Saved Projects",
     "Personal Corpus",
     "Lexicon Explorer",
+    "VerseMap",
 }
 _SESSION_STATE_EXCLUSIONS = {
     "appearance_mode",
@@ -57,6 +58,7 @@ _SESSION_STATE_EXCLUSIONS = {
     "workspace",
     "poem_comparison_set",
     "lexicon_explorer_result",
+    "standalone_versemap_analysis",
     "prepared_workspace_exports",
 }
 _TRANSIENT_UI_STATE_PREFIXES = (
@@ -208,6 +210,9 @@ def _capture_ui_state(workspace: str) -> dict[str, object]:
         ) or (
             workspace == "Lexicon Explorer"
             and key.startswith("explorer_")
+        ) or (
+            workspace == "VerseMap"
+            and key.startswith("standalone_versemap_")
         )
         if relevant and _safe_session_value(value):
             state[key] = value
@@ -328,6 +333,15 @@ def _draft_payload(workspace: str) -> dict[str, object] | None:
             "kind": "comparison_draft",
             "workspace_id": workspace,
             "poems": poems,
+            "ui_state": _capture_ui_state(workspace),
+        }
+    if workspace == "VerseMap":
+        text = str(st.session_state.get("standalone_versemap_text", ""))
+        if not text.strip():
+            return None
+        return {
+            "kind": "versemap_draft",
+            "workspace_id": workspace,
             "ui_state": _capture_ui_state(workspace),
         }
     return None
@@ -511,6 +525,75 @@ def active_research_context(workspace: str) -> ActiveResearchContext | None:
             data_versions={"versevad": __version__},
             warnings=tuple(result.notices),
             analyzed=True,
+        )
+    if workspace == "VerseMap":
+        analysis = st.session_state.get("standalone_versemap_analysis")
+        if isinstance(analysis, WorkspaceAnalysis):
+            return ActiveResearchContext(
+                parent_type="versemap_session",
+                parent_id=parent_id,
+                workspace_id=workspace,
+                title=analysis.request.title,
+                author=str(
+                    st.session_state.get("standalone_versemap_author", "")
+                ),
+                payload={
+                    "kind": "workspace_analysis",
+                    "workspace_id": workspace,
+                    "analysis": analysis,
+                    "ui_state": _capture_ui_state(workspace),
+                    "metadata": {
+                        "author": str(
+                            st.session_state.get(
+                                "standalone_versemap_author", ""
+                            )
+                        )
+                    },
+                },
+                text_sha256=analysis.document.text_sha256,
+                profile_name="VerseMap Standard Profile 1.0",
+                summary={
+                    "workspace": workspace,
+                    "title": analysis.request.title,
+                    "reference_release": (
+                        analysis.versemap.reference_release_id
+                        if analysis.versemap is not None
+                        else ""
+                    ),
+                    "model_id": (
+                        analysis.versemap.model_id
+                        if analysis.versemap is not None
+                        else ""
+                    ),
+                },
+                settings=_request_settings(analysis),
+                data_versions=_analysis_versions(analysis),
+                warnings=_analysis_warnings(analysis),
+                analyzed=True,
+            )
+        draft = _draft_payload(workspace)
+        if draft is None:
+            return None
+        text = str(st.session_state.get("standalone_versemap_text", ""))
+        return ActiveResearchContext(
+            parent_type="draft",
+            parent_id=parent_id,
+            workspace_id=workspace,
+            title=str(
+                st.session_state.get("standalone_versemap_title", "")
+            ).strip()
+            or "Untitled VerseMap draft",
+            author=str(
+                st.session_state.get("standalone_versemap_author", "")
+            ),
+            payload=draft,
+            text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            profile_name="VerseMap Standard Profile 1.0",
+            summary={"workspace": workspace, "draft": True},
+            settings=_capture_ui_state(workspace),
+            data_versions={"versevad": __version__},
+            warnings=(),
+            analyzed=False,
         )
     # Collection contexts can receive notes even when their own persistence
     # remains in the dedicated project/personal-corpus repositories.
@@ -744,17 +827,29 @@ def restore_library_revision(
         analysis = payload.get("analysis")
         if not isinstance(analysis, WorkspaceAnalysis):
             raise ResearchLibraryError("Saved single-text result is malformed.")
-        st.session_state["workspace"] = analysis
-        st.session_state["poem_title"] = analysis.request.title
-        st.session_state["poem_text"] = analysis.request.original_text
-        st.session_state["project_name"] = analysis.request.project_name
+        if workspace == "VerseMap":
+            st.session_state["standalone_versemap_analysis"] = analysis
+            st.session_state["standalone_versemap_title"] = analysis.request.title
+            st.session_state["standalone_versemap_text"] = (
+                analysis.request.original_text
+            )
+        else:
+            st.session_state["workspace"] = analysis
+            st.session_state["poem_title"] = analysis.request.title
+            st.session_state["poem_text"] = analysis.request.original_text
+            st.session_state["project_name"] = analysis.request.project_name
         metadata = payload.get("metadata")
         if isinstance(metadata, dict):
-            st.session_state["text_author"] = str(metadata.get("author", ""))
-            st.session_state["text_year"] = str(metadata.get("year", ""))
-            st.session_state["text_source_notes"] = str(
-                metadata.get("source_notes", "")
-            )
+            if workspace == "VerseMap":
+                st.session_state["standalone_versemap_author"] = str(
+                    metadata.get("author", "")
+                )
+            else:
+                st.session_state["text_author"] = str(metadata.get("author", ""))
+                st.session_state["text_year"] = str(metadata.get("year", ""))
+                st.session_state["text_source_notes"] = str(
+                    metadata.get("source_notes", "")
+                )
     elif kind == "comparison_set":
         comparison = payload.get("comparison")
         if not isinstance(comparison, PoemComparisonSet):
@@ -783,6 +878,8 @@ def restore_library_revision(
                     poem.get("text", "")
                 )
             st.session_state["compare_poem_ids"] = poem_ids
+    elif kind == "versemap_draft":
+        pass
     else:
         raise ResearchLibraryError("This saved analysis has an unknown kind.")
     _set_library_item_id(workspace, item.item_id)
@@ -1001,6 +1098,9 @@ def render_historical_analysis_notice(workspace: str) -> None:
             st.session_state.pop("poem_comparison_set", None)
         elif workspace == "Lexicon Explorer":
             st.session_state.pop("lexicon_explorer_result", None)
+        elif workspace == "VerseMap":
+            st.session_state.pop("standalone_versemap_analysis", None)
+            st.session_state.pop("standalone_versemap_signature", None)
         st.session_state.pop("_historical_analysis", None)
         st.info(
             "Historical inputs and settings are restored. Use the workspace's "

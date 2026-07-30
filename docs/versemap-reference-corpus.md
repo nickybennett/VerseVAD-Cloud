@@ -133,3 +133,17 @@ The derived analytical files are tied to the release ID and pinned profile.
 They do not contain the installed research lexicons themselves. User poems,
 personal corpora, projects, and project databases remain local and are never
 added to the reference release.
+
+## Local private reference corpora and hosted limits
+
+The downloadable edition supports private reference corpora through
+**Collections → Reference Corpora**. They are stored under the Git-ignored
+`projects/reference_corpora/<corpus-name>/` directory and may be validated,
+updated, indexed with the deterministic Standard Profile 1.0, browsed, used in
+standalone VerseMap, or removed after exact-name confirmation.
+
+The hosted Community Cloud edition deliberately exposes reference corpora as
+read-only. It lists and browses only corpora packaged with the deployment and
+does not offer create, replace, rebuild, or delete controls because hosted
+filesystem changes are not durable user storage. Users who need a private
+reference corpus should use the downloadable edition.

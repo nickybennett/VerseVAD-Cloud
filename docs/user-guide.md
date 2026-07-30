@@ -6,11 +6,12 @@ VerseVAD organizes its workspaces under four top-level sections:
 **Analyze**, **Collections**, **Explore**, and **Learn**. Analyze contains
 **Single Poem**, **Compare Poems**, **Other Text**, and **Lexicon Explorer**.
 Collections contains **Saved Projects** (the workspace previously labeled
-Project / Corpus), the working **Analysis Library**, and a reserved destination
-for Reference Corpora. Personal Corpus remains local-only and does not appear in
-the hosted edition. Explore and Learn expose the current Lexicon Explorer and
-clearly marked destinations for later standalone VerseMap, form-library,
-corpus-browser, documentation, and methodology work. Single-text and
+Project / Corpus), the working **Analysis Library**, and read-only **Reference
+Corpora**. Personal Corpus and private reference-corpus maintenance remain
+local-only and do not appear in the hosted edition. Explore contains the
+standalone **VerseMap**, **Lexicon Explorer**, **Form Library**, and **Corpus
+Browser**; Learn contains the packaged **Documentation** and **Methodology**
+readers. Single-text and
 comparison-set analyses remain temporary until saved in the session-only
 Analysis Library or downloaded.
 Corpus projects, preserved text versions, metadata, completed results, and
@@ -29,8 +30,10 @@ in place and verifies their SHA-256 checksums.
 
 Select a top-level section in the header, then choose its workspace. The
 sidebar changes with the active context while keeping familiar locations for
-the current object, analysis profile, settings, comparison resources, later
-research notes/management, and exports.
+the current object, analysis profile, settings, comparison resources, research
+notes/management, and exports. Library, browsing, and learning workspaces use a
+compact About panel, relevant navigation links, and a privacy note, so the
+sidebar is never an unexplained blank region.
 
 The top navigation is an opaque fixed bar, so it remains readable while the
 report scrolls. Its four labels expand in size and spacing on wide windows,
@@ -50,6 +53,26 @@ lexicons, modules, preprocessing, stopword treatment, and weighting choices.
 Results place poem values side by side and, where meaningful, show an
 equal-poem mean and the population standard deviation of poem-level values.
 These are descriptive summaries rather than significance tests.
+
+## Reference corpora and the Explore workspaces
+
+**Collections → Reference Corpora** inventories the indexed corpora packaged
+with this deployment. The hosted edition is deliberately read-only: it cannot
+create, modify, rebuild, or delete private reference corpora because Community
+Cloud storage is not durable user storage. Those operations remain available
+in the downloadable local edition.
+
+**Explore → VerseMap** compares one supplied poem with an indexed corpus using
+the fixed, sound-free VerseMap Standard Profile 1.0. It records release, model,
+coverage, and eligible-token evidence and can participate in the session-only
+Analysis Library and research-notes workflow.
+
+**Explore → Corpus Browser** is a read-only view of corpus inventory, coverage,
+feature distributions, and poem-level profiles. **Form Library** exposes all
+inherited-form definitions, rules, weights, sources, and limitations without
+running a poem analysis. **Learn → Documentation** and **Methodology** read the
+packaged guides inside VerseVAD; the complete Word manual remains
+downloadable.
 
 ## Analysis Library, recoverable drafts, and research notes
 

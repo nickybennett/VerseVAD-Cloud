@@ -59,6 +59,7 @@ def render_versemap(
     *,
     show_poem_neighbors: bool = True,
     export_key: str = "single",
+    note_workspace: str | None = None,
 ) -> None:
     st.subheader("VerseMap")
     st.write(
@@ -260,6 +261,32 @@ def render_versemap(
             f"{result.configuration.minimum_shared_weight:.0%} shared weight."
         )
         bundle = export_versemap_bundle(result, text_title=result.profile.title)
+        if note_workspace:
+            from versevad.exports.research_notes import (
+                append_research_notes_to_docx,
+                research_notes_csv,
+                research_notes_markdown,
+            )
+            from versevad.ui.research import render_note_export_options
+
+            selected_notes, include_note_metadata = render_note_export_options(
+                note_workspace,
+                key_prefix=f"versemap_export_notes_{export_key}",
+            )
+            if selected_notes:
+                bundle["versemap_report.docx"] = append_research_notes_to_docx(
+                    bundle["versemap_report.docx"],
+                    selected_notes,
+                    include_metadata=include_note_metadata,
+                )
+                bundle["research_notes.csv"] = research_notes_csv(
+                    selected_notes,
+                    include_metadata=include_note_metadata,
+                )
+                bundle["research_notes.md"] = research_notes_markdown(
+                    selected_notes,
+                    include_metadata=include_note_metadata,
+                )
         st.download_button(
             "Download VerseMap CSV and Word Report",
             data=_zip_bundle(bundle),

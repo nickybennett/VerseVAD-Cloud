@@ -915,6 +915,23 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       [data-testid="stTopNavSection"] p {{
         font-size: .94rem !important;
       }}
+      .stApp:has([data-testid="stSidebar"][aria-expanded="true"])
+        [data-testid="stToolbar"] .rc-overflow {{
+        column-gap: 0 !important;
+      }}
+      .stApp:has([data-testid="stSidebar"][aria-expanded="true"])
+        [data-testid="stTopNavSection"] {{
+        padding: .3rem .12rem !important;
+      }}
+      .stApp:has([data-testid="stSidebar"][aria-expanded="true"])
+        [data-testid="stTopNavSection"] p {{
+        font-size: .74rem !important;
+      }}
+      .stApp:has([data-testid="stSidebar"][aria-expanded="true"])
+        [data-testid="stTopNavSection"] svg {{
+        height: .8rem !important;
+        width: .8rem !important;
+      }}
     }}
     [data-testid="stMetric"] {{
       background: var(--color-surface);

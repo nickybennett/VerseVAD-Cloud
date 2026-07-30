@@ -49,6 +49,16 @@ non-restorable results-only CSV/Word bundle. Notes remain excluded from exports
 unless explicitly selected. Hosted library data are temporary and should be
 downloaded before the session ends.
 
+The final workspace architecture is complete. **Reference Corpora** inventories
+the built-in comparison collection. **VerseMap** can analyze a poem directly
+against the indexed hosted corpus, while **Corpus Browser** provides read-only
+contents, coverage, distributions, and poem profiles. **Form Library** exposes
+the inherited-form registry as an educational reference, and
+**Documentation** plus **Methodology** make packaged guidance, calculations,
+provenance, and limitations searchable in the application. Private
+reference-corpus creation remains available only in the downloadable local
+edition because hosted storage is temporary.
+
 The one-text report uses a persistent dropdown, all large report panels start
 collapsed while remaining independently expandable, and the native sidebar
 arrow hides or restores the sidebar while the wide workspace resizes. In

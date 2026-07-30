@@ -76,10 +76,16 @@ A research note stores:
 - whether it is marked as available for deliberate note-inclusive exports.
 
 Supported contexts include analyses, drafts, comparison sets, projects,
-personal corpora, lexicon lookups, report sections, metrics, charts, passages
+personal corpora, standalone VerseMap sessions, lexicon lookups, report
+sections, metrics, charts, passages
 or lines, words or phrases, rhyme pairs, and form candidates. The Analysis
 Library Notebook retrieves notes by their original object. Project links do
 not overwrite the original analysis notebook.
+
+Standalone VerseMap creates a session-only recoverable draft and saveable
+`versemap_session` after a comparison is run. Reopening it returns to the
+VerseMap workspace with the historical fixed-profile result; current-version
+reanalysis remains an explicit user action.
 
 ## Export privacy
 
