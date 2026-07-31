@@ -132,7 +132,11 @@ def _corpus_profile_frames(index) -> tuple[pd.DataFrame, pd.DataFrame]:
         summary_rows.append(
             {
                 "Dimension": definition.label,
-                "Group": definition.group_id.replace("_", " ").title(),
+                "Group": (
+                    definition.group_id.replace("_", " ").title()
+                    .replace("Vad", "VAD")
+                    .replace("Pos", "POS")
+                ),
                 "Available Poems": len(series),
                 "Corpus Coverage": (
                     len(series) / len(index.poems) if index.poems else None
@@ -710,6 +714,211 @@ def render_standalone_versemap_workspace(
         )
 
 
+def _corpus_browser_poem_feature_frame(index, point) -> pd.DataFrame:
+    feature_by_id = {item.feature_id: item for item in index.features}
+    return pd.DataFrame(
+        [
+            {
+                "Dimension": definition.label,
+                "Group": (
+                    definition.group_id.replace("_", " ").title()
+                    .replace("Vad", "VAD")
+                    .replace("Pos", "POS")
+                ),
+                "Poem Value": point.value_map.get(feature_id),
+                "Corpus Mean": feature_by_id[feature_id].raw_mean,
+                "Corpus SD": feature_by_id[feature_id].raw_population_sd,
+                "Standardized Deviation": (
+                    (
+                        (
+                            math.log1p(
+                                max(float(point.value_map[feature_id]), 0.0)
+                            )
+                            if definition.transform == "log1p"
+                            else float(point.value_map[feature_id])
+                        )
+                        - feature_by_id[feature_id].mean
+                    )
+                    / feature_by_id[feature_id].population_sd
+                    if point.value_map.get(feature_id) is not None
+                    and feature_by_id[feature_id].population_sd > 1e-12
+                    else None
+                ),
+            }
+            for feature_id, definition in FEATURE_BY_ID.items()
+            if feature_id in feature_by_id
+        ]
+    )
+
+
+def _render_corpus_browser_poem(index, poems_frame, point) -> None:
+    point_summary = poems_frame.loc[
+        poems_frame["Poem ID"] == point.point_id
+    ].iloc[0]
+    st.markdown(f"### {point.title}")
+    st.caption(f"{point.poet_name} · corpus-relative Standard Profile 1.0")
+    profile_metrics = st.columns(4)
+    profile_metrics[0].metric(
+        "Centroid Distance",
+        (
+            f"{point_summary['Centroid Distance']:.3f}"
+            if pd.notna(point_summary["Centroid Distance"])
+            else "Unavailable"
+        ),
+    )
+    profile_metrics[1].metric(
+        "Characteristicity",
+        (
+            f"{point_summary['Characteristicity Percentile']:.1%}"
+            if pd.notna(point_summary["Characteristicity Percentile"])
+            else "Unavailable"
+        ),
+    )
+    profile_metrics[2].metric(
+        "Distinctiveness",
+        (
+            f"{point_summary['Distinctiveness Percentile']:.1%}"
+            if pd.notna(point_summary["Distinctiveness Percentile"])
+            else "Unavailable"
+        ),
+    )
+    profile_metrics[3].metric(
+        "Profile Evidence",
+        (
+            f"{point_summary['Profile Evidence Weight']:.1%}"
+            if pd.notna(point_summary["Profile Evidence Weight"])
+            else "Unavailable"
+        ),
+    )
+    report = st.selectbox(
+        "Report Section",
+        ("Profile Overview", "Metric Detail", "Source Text"),
+        key="corpus_browser_poem_report",
+    )
+    feature_frame = _corpus_browser_poem_feature_frame(index, point)
+    if report == "Profile Overview":
+        overview_rows = []
+        for group, rows in feature_frame.groupby("Group", sort=False):
+            available = rows.dropna(subset=["Standardized Deviation"])
+            if available.empty:
+                largest_dimension = "Unavailable"
+                mean_absolute = None
+            else:
+                largest_index = available[
+                    "Standardized Deviation"
+                ].abs().idxmax()
+                largest_dimension = available.loc[largest_index, "Dimension"]
+                mean_absolute = available[
+                    "Standardized Deviation"
+                ].abs().mean()
+            overview_rows.append(
+                {
+                    "Profile Area": group,
+                    "Available Dimensions": len(available),
+                    "Registered Dimensions": len(rows),
+                    "Mean Absolute Deviation": mean_absolute,
+                    "Largest Departure": largest_dimension,
+                }
+            )
+        render_dataframe(
+            pd.DataFrame(overview_rows).style.format(
+                {"Mean Absolute Deviation": "{:.3f}"},
+                na_rep="—",
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Mean Absolute Deviation summarizes how far this poem sits from its "
+            "corpus mean within each profile area, in standardized units. Use "
+            "Metric Detail to inspect direction and individual dimensions."
+        )
+        return
+    if report == "Metric Detail":
+        groups = tuple(dict.fromkeys(feature_frame["Group"].tolist()))
+        group = st.selectbox(
+            "Profile Area",
+            groups,
+            key="corpus_browser_poem_group",
+        )
+        selected = feature_frame.loc[feature_frame["Group"] == group].copy()
+        chart_frame = selected.dropna(subset=["Standardized Deviation"])
+        if not chart_frame.empty:
+            chart_data = chart_frame.rename(
+                columns={
+                    "Poem Value": "poem_value",
+                    "Corpus Mean": "corpus_mean",
+                    "Standardized Deviation": "z_score",
+                }
+            )
+            chart = (
+                alt.Chart(chart_data)
+                .mark_bar()
+                .encode(
+                    x=alt.X(
+                        "z_score:Q",
+                        stack=None,
+                        scale=alt.Scale(zero=True),
+                        title="Standardized deviation from corpus mean",
+                    ),
+                    y=alt.Y("Dimension:N", sort=None, title=None),
+                    color=alt.condition(
+                        "datum.z_score >= 0",
+                        alt.value(PUBLICATION_CHART_COLORS[0]),
+                        alt.value(PUBLICATION_CHART_COLORS[1]),
+                    ),
+                    tooltip=[
+                        "Dimension:N",
+                        alt.Tooltip(
+                            "poem_value:Q",
+                            title="Poem Value",
+                            format=".3f",
+                        ),
+                        alt.Tooltip(
+                            "corpus_mean:Q",
+                            title="Corpus Mean",
+                            format=".3f",
+                        ),
+                        alt.Tooltip(
+                            "z_score:Q",
+                            title="Standardized Deviation",
+                            format=".3f",
+                        ),
+                    ],
+                )
+                .properties(height=max(220, min(560, len(selected) * 34)))
+            )
+            st.altair_chart(publication_chart(chart), width="stretch")
+        render_dataframe(
+            selected.style.format(
+                {
+                    "Poem Value": "{:.3f}",
+                    "Corpus Mean": "{:.3f}",
+                    "Corpus SD": "{:.3f}",
+                    "Standardized Deviation": "{:+.3f}",
+                },
+                na_rep="—",
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Positive standardized deviations are above the selected corpus "
+            "mean; negative values are below it. These are descriptive z-scores."
+        )
+        return
+    if not point.relative_path:
+        st.caption("No source path is recorded for this profile.")
+        return
+    source = (index.source_root / point.relative_path).resolve()
+    try:
+        source.relative_to(index.source_root.resolve())
+        text = source.read_text(encoding="utf-8-sig")
+        st.code(text, language=None, wrap_lines=True)
+    except (ValueError, OSError, UnicodeError):
+        st.warning("The recorded source text could not be opened safely.")
+
+
 def render_corpus_browser_workspace() -> None:
     render_workspace_header(
         "Corpus Browser",
@@ -738,6 +947,22 @@ def render_corpus_browser_workspace() -> None:
         st.error(str(error))
         return
     summary_frame, poems_frame = _corpus_profile_frames(index)
+    poem_scope_labels = {
+        item.point_id: f"{item.poet_name} · {item.title}"
+        for item in index.poems
+    }
+    scope = st.selectbox(
+        "Result Scope",
+        ("Whole Corpus", *tuple(poem_scope_labels)),
+        format_func=lambda value: (
+            value if value == "Whole Corpus" else poem_scope_labels[value]
+        ),
+        key="corpus_browser_scope",
+    )
+    if scope != "Whole Corpus":
+        point = next(item for item in index.poems if item.point_id == scope)
+        _render_corpus_browser_poem(index, poems_frame, point)
+        return
     section = st.selectbox(
         "Report Section",
         (
@@ -745,7 +970,6 @@ def render_corpus_browser_workspace() -> None:
             "VerseMap",
             "Standard Profile Table",
             "Distributions",
-            "Poem Profiles",
         ),
         key="corpus_browser_section",
     )
@@ -837,8 +1061,41 @@ def render_corpus_browser_workspace() -> None:
             na_position="last",
             kind="stable",
         )
+        dimension_groups: dict[str, list[str]] = {}
+        for feature in index.features:
+            definition = FEATURE_BY_ID[feature.feature_id]
+            dimension_groups.setdefault(
+                definition.group_id.replace("_", " ").title()
+                .replace("Vad", "VAD")
+                .replace("Pos", "POS"),
+                [],
+            ).append(definition.label)
+        display_group = st.selectbox(
+            "Displayed Metric Group",
+            ("Corpus Relationship", *tuple(dimension_groups)),
+            key="corpus_browser_table_group",
+            help=(
+                "The screen shows one readable metric family at a time. The CSV "
+                "download retains every Standard Profile dimension."
+            ),
+        )
+        display_columns = [
+            "Poem",
+            "Poet",
+            "Centroid Distance",
+            "Characteristicity Percentile",
+            "Distinctiveness Percentile",
+            "Profile Evidence Weight",
+        ]
+        if display_group != "Corpus Relationship":
+            display_columns.extend(dimension_groups[display_group])
+        if sort_by in filtered.columns and sort_by not in display_columns:
+            display_columns.append(sort_by)
+        display_frame = filtered[
+            [column for column in display_columns if column in filtered.columns]
+        ]
         render_dataframe(
-            filtered,
+            display_frame,
             hide_index=True,
             width="stretch",
             height=560,
@@ -877,7 +1134,8 @@ def render_corpus_browser_workspace() -> None:
             "the reverse percentile rank (higher means more corpus-typical); "
             "Distinctiveness is the forward percentile rank (higher means more "
             "unusual). They are descriptive ranks, not probabilities, quality "
-            "scores, or authorship claims."
+            "scores, or authorship claims. The visible table is intentionally "
+            "concise; the download contains the complete profile matrix."
         )
         return
     if section == "Distributions":

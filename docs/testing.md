@@ -667,9 +667,20 @@ Cloud-specific assertions confirm that corpus mutation controls are absent
 while packaged-corpus browsing, fixed Standard Profile VerseMap, session-only
 saved analyses, research notes, and exports remain usable.
 
-The final 2026-07-30 run passed all `412` private-cloud tests; the mirrored
-public/local repository passed all `410`. Live browser checks opened every
+The final 2026-07-30 run passed all `414` private-cloud tests; the mirrored
+public/local repository passed all `412`. Live browser checks opened every
 final-stage route, confirmed nonblank sidebars, exercised an 820-pixel
 responsive layout, and reported no console warnings or errors. Both rebuilt
 Word manuals passed package, content, and accessibility checks with zero
 accessibility findings.
+
+## Corpus-report and comparison-set regression
+
+The final corpus-presentation pass exercises completed two-poem and three-poem
+comparison sets through the hosted-compatible Streamlit interface. It also
+creates an analyzed two-poem session project, verifies the Whole
+Corpus/individual-poem Result Scope selector and Analysis Report selector, and
+confirms that the former work/line/stanza audit matrix is absent from the
+front end. Corpus Browser was checked against the 2,315-poem built-in index at
+whole-corpus, poem-overview, and metric-detail scopes. Complete low-level rows
+remain covered by the existing CSV, Word, and module-audit export tests.

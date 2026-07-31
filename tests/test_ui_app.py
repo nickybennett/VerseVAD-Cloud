@@ -4,7 +4,9 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 import versevad.application as application_services
+from versevad.corpus import CorpusAnalysisConfiguration, analyze_corpus
 from versevad.db.repository import CorpusTextImport, ProjectRepository
+from versevad.preprocessing import SpacyEnglishPreprocessor
 from versevad.research_library import ResearchLibraryRepository
 from versevad.ui.navigation import ROUTES
 from versevad.ui.preferences import AppearanceMode, load_preferences
@@ -495,6 +497,156 @@ def test_interface_opens_compare_poems_workspace() -> None:
         "Paste the poem exactly as it should be analyzed"
     ) == 3
     assert "Analyze 3 Poems" in [button.label for button in app.button]
+
+
+def test_compare_poems_analyzes_two_and_three_poem_sets(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "VERSEVAD_RESEARCH_LIBRARY_PATH",
+        str(tmp_path / "analysis-library.sqlite3"),
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=90).run()
+    _open_workspace(app, "Compare Poems")
+
+    titles = [
+        field
+        for field in app.text_input
+        if field.label == "Title or working label"
+    ]
+    poems = [
+        area
+        for area in app.text_area
+        if area.label == "Paste the poem exactly as it should be analyzed"
+    ]
+    for field, value in zip(titles, ("First", "Second"), strict=True):
+        field.input(value)
+    for field, value in zip(
+        poems,
+        (
+            "Bright birds sing.\nNight falls.",
+            "Dark winds rise.\nMorning comes.",
+        ),
+        strict=True,
+    ):
+        field.input(value)
+    next(
+        field
+        for field in app.multiselect
+        if field.label == "Affective lexicons"
+    ).set_value([])
+    next(
+        field
+        for field in app.multiselect
+        if field.label == "Additional modules"
+    ).set_value(["lexical_style"])
+    app.run(timeout=60)
+    _button(app, "Analyze 2 Poems").click()
+    app.run(timeout=90)
+
+    assert not app.exception
+    report = next(
+        field for field in app.selectbox if field.label == "Report Section"
+    )
+    assert report.value == "Overview"
+
+    _button(app, "Add Another Poem").click()
+    app.run(timeout=60)
+    titles = [
+        field
+        for field in app.text_input
+        if field.label == "Title or working label"
+    ]
+    poems = [
+        area
+        for area in app.text_area
+        if area.label == "Paste the poem exactly as it should be analyzed"
+    ]
+    titles[-1].input("Third")
+    poems[-1].input("Rain meets stone.\nSilence stays.")
+    app.run(timeout=60)
+    _button(app, "Analyze 3 Poems").click()
+    app.run(timeout=90)
+
+    assert not app.exception
+    report = next(
+        field for field in app.selectbox if field.label == "Report Section"
+    )
+    assert report.value == "Overview"
+
+
+def _populate_lexical_style_corpus(database_path: Path) -> str:
+    repository = ProjectRepository(database_path)
+    project = repository.create_project("Readable Corpus Reports")
+    repository.import_texts(
+        project.project_id,
+        (
+            CorpusTextImport(
+                "First",
+                "first.txt",
+                "first.txt",
+                "Bright birds sing.\nNight falls.",
+            ),
+            CorpusTextImport(
+                "Second",
+                "second.txt",
+                "second.txt",
+                "Dark winds rise.\nMorning comes.",
+            ),
+        ),
+    )
+    analyze_corpus(
+        repository,
+        project.project_id,
+        lexicon_ids=(),
+        preprocessor=SpacyEnglishPreprocessor(),
+        module_configuration=CorpusAnalysisConfiguration(
+            include_lexical_style=True
+        ),
+    )
+    return project.project_id
+
+
+def test_saved_corpus_uses_scope_and_report_selectors(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    database_path = tmp_path / "projects.sqlite3"
+    monkeypatch.setenv("VERSEVAD_DATABASE_PATH", str(database_path))
+    monkeypatch.setenv(
+        "VERSEVAD_RESEARCH_LIBRARY_PATH",
+        str(tmp_path / "analysis-library.sqlite3"),
+    )
+    project_id = _populate_lexical_style_corpus(database_path)
+    app = AppTest.from_file(str(APP_PATH), default_timeout=90).run()
+    app.session_state["_workspace_route_override"] = "Saved Projects"
+    app.session_state["active_corpus_project"] = project_id
+    app.session_state[
+        f"corpus_project_section_{project_id}"
+    ] = "Analyze & Compare"
+    app.run(timeout=90)
+
+    assert not app.exception
+    scope = next(
+        field for field in app.selectbox if field.label == "Result Scope"
+    )
+    report = next(
+        field
+        for field in app.selectbox
+        if field.label == "Analysis Report"
+        and "Structure" in field.options
+    )
+    assert list(scope.options) == ["Whole Corpus", "First", "Second"]
+    assert "Structure" in report.options
+    assert not any(
+        "Work, line, and stanza results" in block.value
+        for block in app.markdown
+    )
+    scope.set_value(scope.options[1])
+    app.run(timeout=90)
+    assert not app.exception
+    assert any(field.label == "Analysis" for field in app.selectbox)
 
 
 def test_corpus_workspace_exposes_phase5_review_scenarios(

@@ -871,6 +871,431 @@ def _render_profiles(metrics, total_works: int) -> None:
     )
 
 
+_WHOLE_CORPUS_SCOPE = "__whole_corpus__"
+_CORPUS_REPORT_MODULES = {
+    "Lexical Character, Imagery & Embodiment": (
+        "concreteness",
+        "frequency",
+        "aoa",
+        "sensorimotor",
+    ),
+    "Sound & Form": (
+        "pronunciation",
+        "meter",
+        "phonology",
+        "inherited_form",
+    ),
+    "Structure": ("lexical_style",),
+    "PoetryID": ("poetry_id",),
+    "VerseMap": ("versemap",),
+}
+_CORPUS_MODULE_LABELS = {
+    "concreteness": "Concreteness",
+    "frequency": "Frequency & Rarity",
+    "aoa": "Acquisition & Readability",
+    "sensorimotor": "Sensorimotor Imagery & Embodiment",
+    "pronunciation": "Pronunciation, Syllables & Stress",
+    "meter": "Candidate Meter & Rhythmic Regularity",
+    "phonology": "Rhyme & Recurring Sound",
+    "inherited_form": "Inherited Form Analysis",
+    "lexical_style": "Lexical & Structural Measures",
+    "poetry_id": "PoetryID",
+    "versemap": "VerseMap",
+}
+
+
+def _humanize_metric(value: str) -> str:
+    return (
+        value.rsplit(".", 1)[-1]
+        .replace("_", " ")
+        .replace("vad", "VAD")
+        .replace("hdd", "HD-D")
+        .replace("mattr", "MATTR")
+        .replace("mtld", "MTLD")
+        .strip()
+        .title()
+        .replace("Vad", "VAD")
+        .replace("Hd-D", "HD-D")
+        .replace("Mattr", "MATTR")
+        .replace("Mtld", "MTLD")
+    )
+
+
+def _corpus_result_scope_options(
+    texts,
+    metrics,
+    module_metrics,
+) -> tuple[tuple[str, str], ...]:
+    """Return Whole Corpus plus only poems represented in the latest batch."""
+
+    analyzed_ids = {row.text_id for row in metrics} | {
+        row.text_id for row in module_metrics
+    }
+    return (
+        (_WHOLE_CORPUS_SCOPE, "Whole Corpus"),
+        *(
+            (text.text_id, text.title)
+            for text in texts
+            if text.text_id in analyzed_ids
+        ),
+    )
+
+
+def _available_corpus_report_families(
+    metrics,
+    module_metrics,
+    coverage,
+    warnings,
+) -> tuple[str, ...]:
+    """Expose only report families backed by the latest completed batch."""
+
+    available = []
+    if metrics:
+        available.append("Affective Evidence")
+    module_names = {row.module_name for row in module_metrics}
+    for family, family_modules in _CORPUS_REPORT_MODULES.items():
+        if module_names.intersection(family_modules):
+            available.append(family)
+    if coverage or warnings:
+        available.append("Evidence & Diagnostics")
+    return tuple(available)
+
+
+def _render_corpus_affective_report(
+    metrics,
+    *,
+    selected_text_id: str | None,
+    state_prefix: str,
+) -> None:
+    selected_metrics = tuple(
+        row
+        for row in metrics
+        if selected_text_id is None or row.text_id == selected_text_id
+    )
+    comparisons = corpus_vad_work_comparisons(selected_metrics)
+    if not comparisons:
+        st.info("No normalized VAD means are available for this selection.")
+        return
+    if selected_text_id is None:
+        _render_profiles(
+            selected_metrics,
+            len({row.text_id for row in selected_metrics}),
+        )
+        st.markdown("#### Poem-Level Comparison")
+
+    lexicons = sorted({row.lexicon for row in comparisons})
+    views = [
+        view
+        for view in ("all_matched", "stopwords_excluded")
+        if any(row.analysis_view == view for row in comparisons)
+    ]
+    weightings = [
+        weighting
+        for weighting in ("token", "type")
+        if any(row.weighting == weighting for row in comparisons)
+    ]
+    controls = st.columns(3)
+    lexicon = controls[0].selectbox(
+        "Lexicon",
+        options=lexicons,
+        key=f"{state_prefix}_affective_lexicon",
+    )
+    analysis_view = controls[1].selectbox(
+        "Token scope",
+        options=views,
+        format_func=lambda value: (
+            "All matched tokens"
+            if value == "all_matched"
+            else "Stopwords excluded"
+        ),
+        key=f"{state_prefix}_affective_view",
+    )
+    weighting = controls[2].selectbox(
+        "Weighting",
+        options=weightings,
+        format_func=lambda value: (
+            "Token weighted" if value == "token" else "Type weighted"
+        ),
+        key=f"{state_prefix}_affective_weighting",
+    )
+    chosen = tuple(
+        row
+        for row in comparisons
+        if row.lexicon == lexicon
+        and row.analysis_view == analysis_view
+        and row.weighting == weighting
+    )
+    long_frame = pd.DataFrame(
+        [
+            {
+                "Poem": row.title,
+                "Dimension": row.dimension.title(),
+                "Mean": row.mean,
+                "Within-Poem SD": row.population_standard_deviation,
+                "Matched Observations": row.observations,
+                "Coverage": row.coverage,
+            }
+            for row in chosen
+        ]
+    )
+    if long_frame.empty:
+        st.info("No compatible VAD rows are available for this configuration.")
+        return
+
+    if selected_text_id is not None:
+        cards = st.columns(3)
+        for column, dimension in zip(
+            cards,
+            ("Valence", "Arousal", "Dominance"),
+            strict=True,
+        ):
+            values = long_frame.loc[
+                long_frame["Dimension"] == dimension,
+                "Mean",
+            ]
+            column.metric(
+                f"{dimension} Mean",
+                f"{values.iloc[0]:.3f}" if not values.empty else "Unavailable",
+            )
+        chart = (
+            alt.Chart(long_frame)
+            .mark_bar()
+            .encode(
+                x=alt.X(
+                    "Mean:Q",
+                    scale=alt.Scale(domain=[0.0, 1.0]),
+                    title="Normalized lexical rating",
+                ),
+                y=alt.Y("Dimension:N", sort=("Valence", "Arousal", "Dominance")),
+                color=alt.Color(
+                    "Dimension:N",
+                    scale=alt.Scale(
+                        range=["#a7503a", "#457889", "#75638f"]
+                    ),
+                    legend=None,
+                ),
+                tooltip=[
+                    "Dimension:N",
+                    alt.Tooltip("Mean:Q", format=".3f"),
+                    alt.Tooltip("Within-Poem SD:Q", format=".3f"),
+                    alt.Tooltip("Coverage:Q", format=".1%"),
+                ],
+            )
+            .properties(height=220)
+        )
+    else:
+        chart = (
+            alt.Chart(long_frame)
+            .mark_circle(size=80, opacity=0.78)
+            .encode(
+                x=alt.X(
+                    "Mean:Q",
+                    scale=alt.Scale(zero=False),
+                    title="Normalized poem-level mean",
+                ),
+                y=alt.Y(
+                    "Dimension:N",
+                    sort=("Valence", "Arousal", "Dominance"),
+                    title=None,
+                ),
+                color=alt.Color("Poem:N"),
+                tooltip=[
+                    "Poem:N",
+                    "Dimension:N",
+                    alt.Tooltip("Mean:Q", format=".3f"),
+                    alt.Tooltip("Within-Poem SD:Q", format=".3f"),
+                    alt.Tooltip("Coverage:Q", format=".1%"),
+                ],
+            )
+            .properties(height=250)
+        )
+    st.altair_chart(publication_chart(chart), width="stretch")
+
+    summary = (
+        long_frame.pivot_table(
+            index="Poem",
+            columns="Dimension",
+            values=["Mean", "Within-Poem SD"],
+            aggfunc="first",
+        )
+        .sort_index(axis=1, level=1)
+    )
+    summary.columns = [
+        f"{dimension} {measure.replace('Within-Poem ', '')}"
+        for measure, dimension in summary.columns
+    ]
+    summary = summary.reset_index()
+    render_dataframe(
+        summary.style.format(
+            {
+                column: "{:.3f}"
+                for column in summary.columns
+                if column != "Poem"
+            },
+            na_rep="—",
+        ),
+        hide_index=True,
+        width="stretch",
+        height=min(420, 76 + len(summary) * 35),
+    )
+    st.caption(
+        "Means and SDs use one source, token scope, and weighting at a time. "
+        "Within-poem SD describes dispersion among matched lexical ratings; it "
+        "is not uncertainty or variation among poems."
+    )
+
+    load_metric_names = {
+        "vad_rating_total",
+        "vad_above_midpoint_load",
+        "vad_below_midpoint_load",
+        "vad_net_midpoint_load",
+        "vad_absolute_midpoint_load",
+    }
+    loads = tuple(
+        row
+        for row in selected_metrics
+        if row.metric in load_metric_names
+        and row.lexicon == lexicon
+        and row.analysis_view == analysis_view
+        and row.weighting == weighting
+    )
+    if loads:
+        with st.expander("Cumulative Lexical Load", expanded=False):
+            dimensions = sorted({row.dimension.title() for row in loads})
+            measures = sorted({row.metric for row in loads})
+            load_controls = st.columns(2)
+            dimension = load_controls[0].selectbox(
+                "Dimension",
+                options=dimensions,
+                key=f"{state_prefix}_load_dimension",
+            )
+            measure = load_controls[1].selectbox(
+                "Measure",
+                options=measures,
+                format_func=_humanize_metric,
+                key=f"{state_prefix}_load_measure",
+            )
+            load_frame = pd.DataFrame(
+                [
+                    {
+                        "Poem": row.title,
+                        "Value": row.value,
+                        "Matched Observations": row.observations,
+                        "Coverage": row.coverage,
+                    }
+                    for row in loads
+                    if row.dimension.title() == dimension
+                    and row.metric == measure
+                ]
+            )
+            render_dataframe(
+                load_frame.style.format(
+                    {"Value": "{:.3f}", "Coverage": "{:.1%}"},
+                    na_rep="—",
+                ),
+                hide_index=True,
+                width="stretch",
+                height=min(360, 76 + len(load_frame) * 35),
+            )
+            st.caption(
+                "Cumulative load remains length- and repetition-sensitive. The "
+                "complete set of load measures remains available in the export."
+            )
+
+
+def _render_poem_module_summary(
+    rows,
+    *,
+    module_name: str,
+    state_prefix: str,
+) -> None:
+    document_rows = tuple(row for row in rows if row.scope == "document")
+    if not document_rows:
+        st.info(
+            "This module has no poem-level summary for the selected poem. "
+            "Line-, stanza-, and token-level audit evidence remains in exports."
+        )
+        return
+
+    contexts = sorted({row.scope_id or "Document Summary" for row in document_rows})
+    context = st.selectbox(
+        "Source or analysis context",
+        options=contexts,
+        key=f"{state_prefix}_{module_name}_context",
+    )
+    selected = tuple(
+        row
+        for row in document_rows
+        if (row.scope_id or "Document Summary") == context
+    )
+    frame = pd.DataFrame(
+        [
+            {
+                "Metric": _humanize_metric(row.metric_id),
+                "Value": heterogeneous_display_value(row.value),
+                "Unit or Scale": row.unit or "—",
+                "Weighting": _humanize_metric(row.weighting) if row.weighting else "—",
+                "Observations": row.observation_count,
+                "Interpretive Note": row.note or "—",
+            }
+            for row in selected
+        ]
+    )
+    render_dataframe(
+        frame,
+        hide_index=True,
+        width="stretch",
+        height=min(440, 76 + len(frame) * 35),
+    )
+
+    numeric_rows = tuple(
+        row
+        for row in selected
+        if not isinstance(row.value, bool)
+        and isinstance(row.value, (int, float))
+    )
+    units = sorted({row.unit or "Unspecified" for row in numeric_rows})
+    if numeric_rows and units:
+        unit = st.selectbox(
+            "Chart scale",
+            options=units,
+            key=f"{state_prefix}_{module_name}_chart_unit",
+        )
+        chart_frame = pd.DataFrame(
+            [
+                {
+                    "Metric": _humanize_metric(row.metric_id),
+                    "Value": float(row.value),
+                }
+                for row in numeric_rows
+                if (row.unit or "Unspecified") == unit
+            ][:18]
+        )
+        if not chart_frame.empty:
+            chart = (
+                alt.Chart(chart_frame)
+                .mark_bar()
+                .encode(
+                    x=alt.X(
+                        "Value:Q",
+                        scale=alt.Scale(zero=False),
+                        title=unit,
+                    ),
+                    y=alt.Y("Metric:N", sort=None, title=None),
+                    tooltip=[
+                        "Metric:N",
+                        alt.Tooltip("Value:Q", format=".3f"),
+                    ],
+                )
+                .properties(height=max(180, min(520, len(chart_frame) * 30)))
+            )
+            st.altair_chart(publication_chart(chart), width="stretch")
+    st.caption(
+        "This view intentionally shows poem-level summaries only. Complete line, "
+        "stanza, token, configuration, and audit records remain downloadable."
+    )
+
+
 def _render_corpus_modules(
     repository: ProjectRepository,
     project_id: str,
@@ -879,21 +1304,46 @@ def _render_corpus_modules(
     warnings,
     results,
     aggregates,
+    *,
+    allowed_modules: tuple[str, ...] | None = None,
+    selected_text_id: str | None = None,
+    state_prefix: str = "corpus_results",
 ) -> None:
-    st.subheader("Additional Module Results")
-    st.write(
-        "These results were produced by the same reusable modules as the one-poem "
-        "workspace. Work-level evidence is preserved; collection summaries never "
-        "silently replace missing values or mix incompatible configurations."
+    filtered_metrics = tuple(
+        row
+        for row in metrics
+        if (allowed_modules is None or row.module_name in allowed_modules)
+        and (selected_text_id is None or row.text_id == selected_text_id)
     )
-    available_modules = sorted({row.module_name for row in metrics})
+    available_modules = sorted({row.module_name for row in filtered_metrics})
+    if not available_modules:
+        st.info("No compatible module results are available for this selection.")
+        return
     selected_module = st.selectbox(
-        "Module to inspect",
+        "Analysis",
         options=available_modules,
-        format_func=lambda value: value.replace("_", " ").title(),
-        key=f"corpus_module_inspect_{project_id}",
+        format_func=lambda value: _CORPUS_MODULE_LABELS.get(
+            value,
+            value.replace("_", " ").title(),
+        ),
+        key=f"{state_prefix}_module_{project_id}",
     )
-    selected = tuple(row for row in metrics if row.module_name == selected_module)
+    selected = tuple(
+        row for row in filtered_metrics if row.module_name == selected_module
+    )
+    if selected_text_id is not None:
+        _render_poem_module_summary(
+            selected,
+            module_name=selected_module,
+            state_prefix=state_prefix,
+        )
+        return
+
+    st.write(
+        "Whole-corpus summaries give every compatible poem one vote unless an "
+        "observation-weighted mean is explicitly shown. Missing evidence remains "
+        "missing and the full audit rows stay in exports."
+    )
     total_works = len({row.text_id for row in selected})
     profiles = corpus_module_profiles(selected, total_works=total_works)
     if profiles:
@@ -1210,6 +1660,47 @@ def _render_corpus_modules(
             width="stretch",
         )
 
+    st.caption(
+        "Detailed work, line, stanza, token, denominator, and warning records "
+        "are intentionally omitted from this report view. They remain available "
+        "in the corpus and per-work audit exports."
+    )
+    artifact_results = [
+        row for row in results if row.module_name == selected_module
+    ]
+    if artifact_results:
+        with st.expander("Download a Work's Module Audit Bundle"):
+            chosen = st.selectbox(
+                "Work",
+                options=artifact_results,
+                format_func=lambda row: row.title,
+                key=(
+                    f"{state_prefix}_artifact_{project_id}_{selected_module}"
+                ),
+            )
+            try:
+                archive = repository.build_module_artifact_zip(
+                    chosen.run_id,
+                    chosen.module_name,
+                )
+            except ValueError:
+                st.info("This module did not produce separate audit files.")
+            else:
+                st.download_button(
+                    "Download Module Audit ZIP",
+                    data=archive,
+                    file_name=(
+                        f"{_safe_filename(chosen.title)}_"
+                        f"{_safe_filename(chosen.module_name)}.zip"
+                    ),
+                    mime="application/zip",
+                    key=(
+                        f"{state_prefix}_download_{project_id}_"
+                        f"{chosen.run_id}_{chosen.module_name}"
+                    ),
+                )
+    return
+
     st.markdown("**Work, line, and stanza results**")
     scopes = sorted({row.scope for row in selected})
     selected_scopes = st.multiselect(
@@ -1329,6 +1820,199 @@ def _render_corpus_modules(
                         f"{chosen.run_id}_{chosen.module_name}"
                     ),
                 )
+
+
+def _render_corpus_diagnostics(
+    coverage,
+    warnings,
+    *,
+    selected_text_id: str | None,
+    state_prefix: str,
+) -> None:
+    selected_coverage = tuple(
+        row
+        for row in coverage
+        if selected_text_id is None or row.text_id == selected_text_id
+    )
+    selected_warnings = tuple(
+        row
+        for row in warnings
+        if selected_text_id is None or row.text_id == selected_text_id
+    )
+    module_names = sorted(
+        {row.module_name for row in selected_coverage}
+        | {row.module_name for row in selected_warnings}
+    )
+    if not module_names:
+        st.info("No coverage or warning records are available for this selection.")
+        return
+    module_name = st.selectbox(
+        "Analysis",
+        options=module_names,
+        format_func=lambda value: _CORPUS_MODULE_LABELS.get(
+            value,
+            value.replace("_", " ").title(),
+        ),
+        key=f"{state_prefix}_diagnostic_module",
+    )
+    module_coverage = tuple(
+        row for row in selected_coverage if row.module_name == module_name
+    )
+    module_warnings = tuple(
+        row for row in selected_warnings if row.module_name == module_name
+    )
+    if module_coverage:
+        coverage_frame = pd.DataFrame(
+            [
+                {
+                    "Poem": row.title,
+                    "Measure": _humanize_metric(row.coverage_id),
+                    "Scope": row.scope.replace("_", " ").title(),
+                    "Eligible": row.eligible_count,
+                    "Matched": row.matched_count,
+                    "Unmatched": row.unmatched_count,
+                    "Coverage": row.coverage_rate,
+                    "Note": row.note or "—",
+                }
+                for row in module_coverage
+                if row.scope == "document"
+            ]
+        )
+        if coverage_frame.empty:
+            st.info(
+                "No poem-level coverage summary is available. Detailed coverage "
+                "records remain in the export."
+            )
+        else:
+            render_dataframe(
+                coverage_frame.style.format(
+                    {"Coverage": "{:.1%}"},
+                    na_rep="—",
+                ),
+                hide_index=True,
+                width="stretch",
+                height=min(440, 76 + len(coverage_frame) * 35),
+            )
+    if module_warnings:
+        st.markdown("#### Warnings")
+        render_dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Poem": row.title,
+                        "Severity": row.severity.title(),
+                        "Message": row.message,
+                        "Technical Detail": row.technical_detail or "—",
+                    }
+                    for row in module_warnings
+                ]
+            ),
+            hide_index=True,
+            width="stretch",
+            height=min(380, 76 + len(module_warnings) * 35),
+        )
+    elif not module_coverage:
+        st.success("No warnings were recorded for this analysis.")
+    st.caption(
+        "Token- and item-level unmatched evidence remains available in the "
+        "statistical and full-audit exports."
+    )
+
+
+def _render_completed_corpus_results(
+    repository: ProjectRepository,
+    project_id: str,
+    texts,
+    metrics,
+    module_metrics,
+    module_coverage,
+    module_warnings,
+    module_results,
+    module_aggregates,
+) -> None:
+    st.divider()
+    st.subheader("Completed Analysis Results")
+    st.write(
+        "Choose the whole corpus or one poem, then choose a familiar report "
+        "family. The interface shows concise summaries and charts; complete "
+        "statistical and audit records remain available from Export."
+    )
+    scope_options = _corpus_result_scope_options(
+        texts,
+        metrics,
+        module_metrics,
+    )
+    scope_labels = dict(scope_options)
+    reports = _available_corpus_report_families(
+        metrics,
+        module_metrics,
+        module_coverage,
+        module_warnings,
+    )
+    if not reports:
+        st.info("The completed batch contains no reportable results.")
+        return
+    controls = st.columns(2)
+    scope_id = controls[0].selectbox(
+        "Result Scope",
+        options=tuple(scope_labels),
+        format_func=lambda value: scope_labels[value],
+        key=f"corpus_result_scope_{project_id}",
+    )
+    report_family = controls[1].selectbox(
+        "Analysis Report",
+        options=reports,
+        key=f"corpus_result_family_{project_id}",
+    )
+    selected_text_id = (
+        None if scope_id == _WHOLE_CORPUS_SCOPE else scope_id
+    )
+    if selected_text_id is None:
+        st.caption(
+            "Whole Corpus uses compatible collection summaries and equal-poem "
+            "comparisons. It never treats the corpus as one concatenated poem."
+        )
+    else:
+        selected_text = next(
+            text for text in texts if text.text_id == selected_text_id
+        )
+        st.markdown(f"### {selected_text.title}")
+        st.caption(
+            f"{selected_text.author or 'Author not recorded'} · "
+            "latest complete compatible corpus batch"
+        )
+
+    state_prefix = f"corpus_result_{project_id}_{scope_id}"
+    if report_family == "Affective Evidence":
+        _render_corpus_affective_report(
+            metrics,
+            selected_text_id=selected_text_id,
+            state_prefix=state_prefix,
+        )
+        return
+    if report_family == "Evidence & Diagnostics":
+        _render_corpus_diagnostics(
+            module_coverage,
+            module_warnings,
+            selected_text_id=selected_text_id,
+            state_prefix=state_prefix,
+        )
+        return
+    if report_family == "VerseMap" and selected_text_id is None:
+        _render_versemap_tab(repository, project_id)
+        return
+    _render_corpus_modules(
+        repository,
+        project_id,
+        module_metrics,
+        module_coverage,
+        module_warnings,
+        module_results,
+        module_aggregates,
+        allowed_modules=_CORPUS_REPORT_MODULES[report_family],
+        selected_text_id=selected_text_id,
+        state_prefix=state_prefix,
+    )
 
 
 def _render_analysis_tab(
@@ -1968,6 +2652,19 @@ def _render_analysis_tab(
     if not metrics and not module_metrics:
         st.info("No complete corpus batch is available yet.")
         return
+    _render_completed_corpus_results(
+        repository,
+        project_id,
+        texts,
+        metrics,
+        module_metrics,
+        module_coverage,
+        module_warnings,
+        module_results,
+        module_aggregates,
+    )
+    _render_batch_comparison(repository, project_id)
+    return
     if module_metrics:
         st.divider()
         _render_corpus_modules(

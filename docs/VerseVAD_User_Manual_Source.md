@@ -266,7 +266,10 @@ the hosted session ends.
 **Explore → Corpus Browser** reads corpus inventory, metadata, a poem-and-poet
 VerseMap, Standard Profile means and dispersion, sortable poem metrics,
 corpus-relative characteristicity and distinctiveness, feature distributions,
-and individual poem profiles without editing source files. **Explore → Form
+and individual poem profiles without editing source files. Choose **Whole
+Corpus** or a specific poem before choosing a report section. On-screen
+whole-corpus tables show one metric family at a time; CSV downloads retain the
+complete Standard Profile matrix. **Explore → Form
 Library** provides every inherited-form definition,
 requirement, weight, source, and limitation without requiring poem analysis.
 
@@ -1368,9 +1371,14 @@ rhyme automatically includes the pronunciation dependency. The corpus path
 calls the same tested modules as Single Poem and does not duplicate their
 calculations.
 
-## Filter and compare
+## Inspect and compare completed results
 
-Filter the completed batch by collection, author, or genre. Select one or both analysis views. Compare work-level token- or type-weighted means without mixing those weightings silently.
+Choose **Whole Corpus** or a specific poem under **Result Scope**, then choose
+an available **Analysis Report**. Whole Corpus presents compatible collection
+summaries and poem comparisons; an individual poem presents document-level
+tables and charts. Affective Evidence separately controls lexicon, token scope,
+and token/type weighting. Complete low-level evidence stays in the CSV, Word,
+and module-audit exports rather than filling the front-end report.
 
 ## Long and short works
 

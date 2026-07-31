@@ -1233,10 +1233,10 @@ def _render_comparison_set_results(
         options=("Token weighted", "Type weighted"),
         key="comparison_set_weighting",
     )
-    report_section = render_stateful_section_navigation(
-        _REPORT_SECTIONS,
-        state_key="comparison_set_report_section",
-        label="Report Section",
+    report_section = st.selectbox(
+        "Report Section",
+        options=_REPORT_SECTIONS,
+        key="comparison_set_report_section",
     )
     analysis_view = (
         "stopwords_excluded"

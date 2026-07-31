@@ -53,9 +53,9 @@ downloaded before the session ends.
 The final workspace architecture is complete. **Reference Corpora** inventories
 the built-in comparison collection. **VerseMap** can analyze a poem directly
 against the indexed hosted corpus, while **Corpus Browser** provides a
-read-only map, Standard Profile means and dispersion, sortable poem metrics,
-corpus-relative characteristicity and distinctiveness, distributions, and
-poem profiles. **Form Library** exposes
+read-only Whole Corpus/individual poem scope selector with concise map,
+Standard Profile, distribution, and poem-profile reports. Complete profile
+matrices remain downloadable. **Form Library** exposes
 the inherited-form registry as an educational reference, and
 **Documentation** plus **Methodology** make packaged guidance, calculations,
 provenance, and limitations searchable in the application. Private
