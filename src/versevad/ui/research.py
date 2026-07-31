@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import re
 import sqlite3
 import zipfile
 from dataclasses import dataclass, fields
@@ -42,6 +43,7 @@ from versevad.ui.design import (
     render_empty_state,
     render_workspace_header,
 )
+from versevad.ui.profiles import PROFILE_WIDGET_KEYS
 
 
 _RESEARCHABLE_WORKSPACES = {
@@ -53,50 +55,59 @@ _RESEARCHABLE_WORKSPACES = {
     "Lexicon Explorer",
     "VerseMap",
 }
-_SESSION_STATE_EXCLUSIONS = {
-    "appearance_mode",
-    "workspace_page",
-    "workspace",
-    "poem_comparison_set",
-    "lexicon_explorer_result",
-    "standalone_versemap_analysis",
-    "prepared_workspace_exports",
+_SINGLE_TEXT_STATE_KEYS = frozenset(
+    {
+        "project_name",
+        "poem_title",
+        "poem_text",
+        "text_author",
+        "text_year",
+        "text_source_notes",
+        "pronunciation_overrides",
+        "module_preset",
+        "one_poem_stopword_mode",
+        "one_poem_stopword_mode_label",
+        "one_poem_protected_stopwords",
+        "one_poem_custom_stopword_additions",
+        "one_poem_custom_stopword_removals",
+        *PROFILE_WIDGET_KEYS,
+    }
+)
+_COMPARE_STATE_KEYS = frozenset(
+    {
+        "compare_poem_ids",
+        "compare_next_poem_number",
+        "compare_analysis_profile",
+        "compare_lexicons",
+        "compare_modules",
+        "compare_stopword_mode",
+        "compare_stopword_mode_label",
+        "compare_protected_stopwords",
+        "compare_custom_stopword_additions",
+        "compare_custom_stopword_removals",
+    }
+)
+_EXPLORER_STATE_KEYS = frozenset({"explorer_value_display"})
+_VERSEMAP_STATE_KEYS = frozenset(
+    {
+        "standalone_versemap_title",
+        "standalone_versemap_author",
+        "standalone_versemap_text",
+        "standalone_versemap_corpus",
+        "standalone_versemap_neighbors",
+        "standalone_versemap_shared_weight",
+    }
+)
+_COMPARE_TEXT_KEY = re.compile(
+    r"^compare_[A-Za-z0-9-]+_(?:title|text)$"
+)
+_RESTORABLE_UI_STATE_BY_WORKSPACE = {
+    "Single Poem": _SINGLE_TEXT_STATE_KEYS,
+    "Other Text": _SINGLE_TEXT_STATE_KEYS,
+    "Compare Poems": _COMPARE_STATE_KEYS,
+    "Lexicon Explorer": _EXPLORER_STATE_KEYS,
+    "VerseMap": _VERSEMAP_STATE_KEYS,
 }
-_TRANSIENT_UI_STATE_PREFIXES = (
-    "add_",
-    "analyze_",
-    "apply_",
-    "clear_",
-    "delete_",
-    "discard_",
-    "download_",
-    "keep_",
-    "load_",
-    "open_",
-    "prepare_",
-    "release_",
-    "remove_",
-    "run_",
-    "save_",
-)
-_TRANSIENT_UI_STATE_FRAGMENTS = (
-    "_add_",
-    "_analyze",
-    "_apply_",
-    "_audio",
-    "_clear",
-    "_delete",
-    "_download",
-    "_remove_",
-    "_restore",
-    "_save",
-)
-_NON_RESTORABLE_UI_STATE_FRAGMENTS = (
-    "upload",
-    "download",
-    "export",
-    "_import_",
-)
 
 
 @dataclass(frozen=True)
@@ -156,31 +167,40 @@ def _safe_session_value(value: object) -> bool:
         return False
 
 
-def _is_transient_ui_state_key(key: str) -> bool:
-    """Return whether ``key`` belongs to an action widget, not a setting."""
+def _is_restorable_ui_state_key(
+    key: str,
+    workspace: str | None = None,
+) -> bool:
+    """Return whether ``key`` is registered as durable analytical state.
 
-    return key.startswith(_TRANSIENT_UI_STATE_PREFIXES) or any(
-        fragment in key for fragment in _TRANSIENT_UI_STATE_FRAGMENTS
-    )
+    Streamlit action, upload, download, and form-submit widgets forbid replayed
+    assignments. An allowlist is deliberately safer than naming every current
+    and future transient widget: new controls are excluded until explicitly
+    registered as durable state.
+    """
 
-
-def _is_nonreplayable_widget_state_key(key: str) -> bool:
-    """Return whether ``key`` belongs to an action, upload, or export widget."""
-
-    return _is_transient_ui_state_key(key) or any(
-        fragment in key
-        for fragment in _NON_RESTORABLE_UI_STATE_FRAGMENTS
+    if not key or key.startswith("_"):
+        return False
+    if workspace == "Compare Poems" and _COMPARE_TEXT_KEY.fullmatch(key):
+        return True
+    if workspace is not None:
+        return key in _RESTORABLE_UI_STATE_BY_WORKSPACE.get(
+            workspace,
+            frozenset(),
+        )
+    return (
+        any(
+            key in keys
+            for keys in _RESTORABLE_UI_STATE_BY_WORKSPACE.values()
+        )
+        or _COMPARE_TEXT_KEY.fullmatch(key) is not None
     )
 
 
 def _is_nonrestorable_ui_state_key(key: str) -> bool:
-    """Return whether Streamlit forbids or should not replay this widget state."""
+    """Return whether a key is not registered for safe historical replay."""
 
-    return (
-        key in _SESSION_STATE_EXCLUSIONS
-        or key.startswith("_")
-        or _is_nonreplayable_widget_state_key(key)
-    )
+    return not _is_restorable_ui_state_key(key)
 
 
 def _capture_ui_state(workspace: str) -> dict[str, object]:
@@ -188,54 +208,9 @@ def _capture_ui_state(workspace: str) -> dict[str, object]:
 
     state: dict[str, object] = {}
     for key, value in st.session_state.items():
-        if _is_nonrestorable_ui_state_key(key):
+        if not _is_restorable_ui_state_key(key, workspace):
             continue
-        relevant = (
-            workspace == "Compare Poems" and key.startswith("compare_")
-        ) or (
-            workspace in {"Single Poem", "Other Text"}
-            and (
-                key
-                in {
-                    "project_name",
-                    "poem_title",
-                    "poem_text",
-                    "text_author",
-                    "text_year",
-                    "text_source_notes",
-                    "pronunciation_overrides",
-                }
-                or any(
-                    marker in key
-                    for marker in (
-                        "profile",
-                        "preset",
-                        "lexicon",
-                        "phrase",
-                        "match",
-                        "stopword",
-                        "concreteness",
-                        "frequency",
-                        "aoa",
-                        "sensorimotor",
-                        "pronunciation",
-                        "meter",
-                        "phonolog",
-                        "lexical",
-                        "poetry",
-                        "inherited",
-                        "versemap",
-                    )
-                )
-            )
-        ) or (
-            workspace == "Lexicon Explorer"
-            and key.startswith("explorer_")
-        ) or (
-            workspace == "VerseMap"
-            and key.startswith("standalone_versemap_")
-        )
-        if relevant and _safe_session_value(value):
+        if _safe_session_value(value):
             state[key] = value
     return state
 
@@ -751,22 +726,23 @@ def release_active_context(workspace: str) -> None:
         st.session_state.pop(key, None)
 
 
-def _apply_ui_state(ui_state: object) -> None:
+def _apply_ui_state(ui_state: object, *, workspace: str) -> None:
     if not isinstance(ui_state, dict):
         return
-    # Drafts written by the first Stage 2 preview could contain momentary
-    # Streamlit button values. Remove them before restoring durable controls;
-    # assigning a value to a button key is invalid on its next render.
-    for existing_key in tuple(st.session_state):
+    # Older saves could contain momentary Streamlit widget values. Remove only
+    # those legacy payload keys from current state, then replay the registered
+    # durable subset. This prevents every future action/upload widget from
+    # requiring another name-based exception.
+    for legacy_key in ui_state:
         if (
-            isinstance(existing_key, str)
-            and _is_nonreplayable_widget_state_key(existing_key)
+            isinstance(legacy_key, str)
+            and not _is_restorable_ui_state_key(legacy_key, workspace)
         ):
-            st.session_state.pop(existing_key, None)
+            st.session_state.pop(legacy_key, None)
     for key, value in ui_state.items():
         if (
             isinstance(key, str)
-            and not _is_nonrestorable_ui_state_key(key)
+            and _is_restorable_ui_state_key(key, workspace)
         ):
             st.session_state[key] = value
 
@@ -780,7 +756,7 @@ def restore_library_revision(
         raise ResearchLibraryError("This saved analysis has an unknown payload.")
     kind = payload.get("kind")
     workspace = str(payload.get("workspace_id") or item.workspace_id)
-    _apply_ui_state(payload.get("ui_state"))
+    _apply_ui_state(payload.get("ui_state"), workspace=workspace)
     if kind == "workspace_analysis":
         analysis = payload.get("analysis")
         if not isinstance(analysis, WorkspaceAnalysis):

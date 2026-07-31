@@ -226,13 +226,29 @@ def test_analysis_library_deletes_the_selected_item_by_id(
 
 
 def test_saved_ui_state_rejects_action_and_upload_widget_keys() -> None:
-    from versevad.ui.research import _is_nonrestorable_ui_state_key
+    from versevad.ui.research import (
+        _is_nonrestorable_ui_state_key,
+        _is_restorable_ui_state_key,
+    )
 
     assert _is_nonrestorable_ui_state_key("one_poem_restore_stopwords")
     assert _is_nonrestorable_ui_state_key("one_poem_import_stopwords")
     assert _is_nonrestorable_ui_state_key("uploaded_poem")
+    assert _is_nonrestorable_ui_state_key("future_action_without_known_name")
     assert not _is_nonrestorable_ui_state_key(
         "one_poem_custom_stopword_additions"
+    )
+    assert _is_restorable_ui_state_key(
+        "compare_poem-3_text",
+        "Compare Poems",
+    )
+    assert not _is_restorable_ui_state_key(
+        "compare_poem-3_upload",
+        "Compare Poems",
+    )
+    assert not _is_restorable_ui_state_key(
+        "standalone_versemap_upload",
+        "VerseMap",
     )
 
 
@@ -268,6 +284,8 @@ def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
                 "one_poem_restore_stopwords": False,
                 "one_poem_import_stopwords": None,
                 "uploaded_poem": None,
+                "future_action_without_known_name": True,
+                "download_summary": False,
             },
             "metadata": {},
         },
@@ -287,6 +305,8 @@ def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
     assert "one_poem_restore_stopwords" not in app.session_state
     assert "one_poem_import_stopwords" not in app.session_state
     assert "uploaded_poem" not in app.session_state
+    assert "future_action_without_known_name" not in app.session_state
+    assert "download_summary" not in app.session_state
 
 
 def test_interface_starts_with_beginner_input_workflow() -> None:

@@ -773,6 +773,10 @@ All notable VerseVAD changes will be recorded here.
 
 ### Fixed
 
+- Replaced historical-save widget-key heuristics with an allowlist of durable
+  analytical state. Legacy action, upload, download, audio, and future
+  unregistered widget values are ignored instead of being assigned through
+  Streamlit session state.
 - Prevented Arrow serialization warnings when Lexicon Explorer or generic
   Project/Corpus result tables display source fields that legitimately mix
   numbers, text, booleans, and missing values. Only the presentation column is
