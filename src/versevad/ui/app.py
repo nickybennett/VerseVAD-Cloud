@@ -219,6 +219,7 @@ from versevad.ui.sensorimotor import render_sensorimotor
 from versevad.ui.dataframes import rounded_display_data
 from versevad.versemap import VerseMapConfiguration
 from versevad.ui.stopwords import render_stopword_settings
+from versevad.ui.vad_overview import preferred_overview_vad_lexicon_id
 from versevad.ui.profiles import (
     PROFILE_WIDGET_KEYS,
     apply_profile_settings,
@@ -365,11 +366,16 @@ def _frame(rows, rename: dict[str, str] | None = None) -> pd.DataFrame:
     return data.rename(columns=rename or {})
 
 
-def _stateful_expander(label: str, *, state_key: str):
+def _stateful_expander(
+    label: str,
+    *,
+    state_key: str,
+    expanded: bool = False,
+):
     """Return a default-collapsed expander with a stable analytical label."""
 
     del state_key
-    return st.expander(label, expanded=False)
+    return st.expander(label, expanded=expanded)
 
 
 def _render_bottom_collapse_button(label: str, *, state_key: str) -> None:
@@ -385,10 +391,15 @@ def _bottom_collapsible_expander(
     *,
     state_key: str,
     collapse_label: str,
+    expanded: bool = False,
 ):
     """Create a report expander with a compact collapse action at its end."""
 
-    expander = _stateful_expander(label, state_key=state_key)
+    expander = _stateful_expander(
+        label,
+        state_key=state_key,
+        expanded=expanded,
+    )
 
     @contextmanager
     def _contents():
@@ -400,6 +411,22 @@ def _bottom_collapsible_expander(
             )
 
     return _contents()
+
+
+def _open_pronunciation_resolution(
+    report_state_key: str,
+    pronunciation_result_id: str,
+) -> None:
+    """Navigate to and reveal the existing pronunciation-review controls."""
+
+    st.session_state[report_state_key] = "Sound & Form"
+    st.session_state[
+        f"_{report_state_key}_focus_pronunciation_attention"
+    ] = True
+    if pronunciation_result_id:
+        st.session_state[
+            f"show_out_of_dictionary_{pronunciation_result_id}"
+        ] = True
 
 
 def _queue_pronunciation_resolutions(
@@ -609,14 +636,14 @@ def _render_pronunciation_attention_contents(pronunciation) -> None:
                         f"`{selected}`"
                     )
 
+    out_of_dictionary_key = (
+        "show_out_of_dictionary_" + pronunciation.module_result.result_id
+    )
+    st.session_state.setdefault(out_of_dictionary_key, False)
     show_out_of_dictionary = (
         st.toggle(
             "Show Out-of-Dictionary Words",
-            value=False,
-            key=(
-                "show_out_of_dictionary_"
-                + pronunciation.module_result.result_id
-            ),
+            key=out_of_dictionary_key,
             help=(
                 "Reveal provisional G2P candidates and session approval "
                 "controls for words absent from CMUdict."
@@ -798,10 +825,14 @@ def _render_pronunciation_attention_contents(pronunciation) -> None:
 
 
 @st.fragment
-def _render_pronunciation_attention(pronunciation) -> None:
+def _render_pronunciation_attention(
+    pronunciation,
+    *,
+    expanded: bool = False,
+) -> None:
     """Render pronunciation review in a compact, default-collapsed panel."""
 
-    with st.expander("Words Needing Attention", expanded=False):
+    with st.expander("Words Needing Attention", expanded=expanded):
         _render_pronunciation_attention_contents(pronunciation)
 
 
@@ -2934,6 +2965,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
         if is_other_text
         else "single_poem_report_section"
     )
+    focus_pronunciation_attention = bool(
+        st.session_state.pop(
+            f"_{report_state_key}_focus_pronunciation_attention",
+            False,
+        )
+    )
     _, report_containers = render_stateful_section_navigation(
         "Report section",
         report_sections,
@@ -3022,6 +3059,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             ),
             state_key=f"{report_state_key}_pronunciation",
             collapse_label="Pronunciation, Syllables & Stress",
+            expanded=focus_pronunciation_attention,
         )
         meter_tab = _bottom_collapsible_expander(
             _section_label("Meter & Rhythm", workspace.meter is not None),
@@ -3291,11 +3329,19 @@ if workspace_page in {"Single Poem", "Other Text"}:
         affective_summary, lexical_summary, sound_summary, structure_summary = (
             st.columns(4)
         )
+        overview_vad_rows = tuple(
+            row
+            for row in vad_views(workspace)
+            if row.analysis_view == "All matched tokens"
+        )
+        primary_vad_lexicon_id = preferred_overview_vad_lexicon_id(
+            row.lexicon_id for row in overview_vad_rows
+        )
         primary_vad = next(
             (
                 row
-                for row in vad_views(workspace)
-                if row.analysis_view == "All matched tokens"
+                for row in overview_vad_rows
+                if row.lexicon_id == primary_vad_lexicon_id
             ),
             None,
         )
@@ -3398,6 +3444,28 @@ if workspace_page in {"Single Poem", "Other Text"}:
             if workspace.lexical_style is not None:
                 st.write("Lexical diversity and word-count profiles complete")
             st.caption("Open Structure for language and line/stanza measures.")
+
+        pronunciation_action = st.columns([1, 1.5, 1])[1]
+        pronunciation_result_id = (
+            workspace.pronunciation.module_result.result_id
+            if workspace.pronunciation is not None
+            else ""
+        )
+        pronunciation_action.button(
+            "Resolve Pronunciation",
+            icon=":material/hearing:",
+            type="secondary",
+            width="stretch",
+            key=f"{report_state_key}_resolve_pronunciation",
+            disabled=workspace.pronunciation is None,
+            on_click=_open_pronunciation_resolution,
+            args=(report_state_key, pronunciation_result_id),
+            help=(
+                "Open Sound & Form and reveal Words Needing Attention."
+                if workspace.pronunciation is not None
+                else "Pronunciation was not enabled for this analysis."
+            ),
+        )
 
         st.markdown(
             '<div class="versevad-callout"><strong>Begin here:</strong> Coverage is the '
@@ -5419,7 +5487,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "A vertical bar separates words."
             )
 
-            _render_pronunciation_attention(pronunciation)
+            _render_pronunciation_attention(
+                pronunciation,
+                expanded=focus_pronunciation_attention,
+            )
 
             with st.expander(
                 f"Pronunciation token audit ({len(pronunciation.token_audit):,} rows)"

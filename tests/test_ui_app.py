@@ -1148,6 +1148,12 @@ def test_lexical_trajectory_source_change_retains_affective_report_section() -> 
     _button(app, "Analyze Poem").click()
     app.run(timeout=60)
 
+    assert any(
+        caption.value == "NRC VAD Lexicon v2.1"
+        for caption in app.caption
+    )
+    assert _button(app, "Resolve Pronunciation").disabled
+
     navigation = _section_navigation(app, "Report section")
     navigation.set_value("Affective Evidence")
     app.run(timeout=60)
@@ -1651,14 +1657,30 @@ def test_interface_keeps_g2p_unmatched_until_user_approves_edit() -> None:
     _button(app, "Analyze Poem").click()
     app.run(timeout=90)
 
+    resolve_pronunciation = _button(app, "Resolve Pronunciation")
+    assert not resolve_pronunciation.disabled
+    resolve_pronunciation.click()
+    app.run(timeout=90)
+
+    assert _section_navigation(app, "Report section").value == "Sound & Form"
+    pronunciation_panel = next(
+        panel
+        for panel in app.expander
+        if panel.label.startswith("Pronunciation, Syllables & Stress")
+    )
+    assert pronunciation_panel.proto.expanded
+    attention_panel = next(
+        panel
+        for panel in app.expander
+        if panel.label == "Words Needing Attention"
+    )
+    assert attention_panel.proto.expanded
     out_of_dictionary = next(
         field
         for field in app.toggle
         if field.label == "Show Out-of-Dictionary Words"
     )
-    assert not out_of_dictionary.value
-    out_of_dictionary.set_value(True)
-    app.run(timeout=90)
+    assert out_of_dictionary.value
 
     predicted = next(
         field

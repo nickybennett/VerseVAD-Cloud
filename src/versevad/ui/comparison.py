@@ -48,6 +48,10 @@ from versevad.ui.design import (
 )
 from versevad.ui.profiles import load_custom_profiles
 from versevad.ui.stopwords import render_stopword_settings
+from versevad.ui.vad_overview import (
+    overview_metric_matches_vad_preference,
+    preferred_overview_vad_lexicon_id,
+)
 
 
 _MODULE_LABELS = {
@@ -263,6 +267,29 @@ def _comparison_frame(
         [location[1] for location in locations],
     )
     return frame
+
+
+def _prefer_overview_vad_source(frame: pd.DataFrame) -> pd.DataFrame:
+    """Keep one fixed-priority VAD source in compact Overview snapshots."""
+
+    if frame.empty or "Metric ID" not in frame:
+        return frame
+    metric_ids = frame["Metric ID"].fillna("").astype(str)
+    vad_lexicon_ids = tuple(
+        metric_id.split(".", 2)[1]
+        for metric_id in metric_ids
+        if metric_id.startswith("vad.") and metric_id.count(".") >= 2
+    )
+    preferred = preferred_overview_vad_lexicon_id(vad_lexicon_ids)
+    if preferred is None:
+        return frame
+    keep = metric_ids.map(
+        lambda metric_id: overview_metric_matches_vad_preference(
+            metric_id,
+            preferred,
+        )
+    )
+    return frame.loc[keep]
 
 
 def _numeric(value: object) -> float | None:
@@ -606,13 +633,15 @@ def _render_comparison_results(comparison: PoemComparison) -> None:
                 r"^aoa\.mean$|^lexical_style\..*statistics\.mean$|"
                 r"^lexical_style\.mean_alphabetic_characters_per_token$"
             )
-            overview = frame[
-                frame["Metric ID"].str.contains(
-                    core_metric_ids,
-                    regex=True,
-                    na=False,
-                )
-            ].head(14)
+            overview = _prefer_overview_vad_source(
+                frame[
+                    frame["Metric ID"].str.contains(
+                        core_metric_ids,
+                        regex=True,
+                        na=False,
+                    )
+                ]
+            ).head(14)
             st.markdown("#### Core Comparison Snapshot")
             st.caption(
                 "A compact orientation only. Open the matching report subsection "
@@ -1275,14 +1304,16 @@ def _render_comparison_set_results(
             "Categorical Metrics",
             int(frame["Category Summary"].notna().sum()) if not frame.empty else 0,
         )
-        core = frame[
-            frame["Metric ID"].str.contains(
-                "vad\\.|concreteness.*mean|frequency.*rarity|"
-                "lexical_style.*mean|poetry_id\\.categorical",
-                regex=True,
-                na=False,
-            )
-        ].head(18)
+        core = _prefer_overview_vad_source(
+            frame[
+                frame["Metric ID"].str.contains(
+                    "vad\\.|concreteness.*mean|frequency.*rarity|"
+                    "lexical_style.*mean|poetry_id\\.categorical",
+                    regex=True,
+                    na=False,
+                )
+            ]
+        ).head(18)
         if not core.empty:
             st.markdown("#### Core Comparison Snapshot")
             render_dataframe(
