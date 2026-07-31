@@ -1190,6 +1190,12 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     app.text_area[0].input("joy love peace light happy calm strong")
     app.multiselect[0].set_value(["nrc_vad_v1"])
     app.run(timeout=60)
+    poetry_id_sources = next(
+        field
+        for field in app.multiselect
+        if field.label == "PoetryID VAD sources"
+    )
+    assert poetry_id_sources.value == ["nrc_vad_v1"]
     poetry_id = next(
         field
         for field in app.checkbox

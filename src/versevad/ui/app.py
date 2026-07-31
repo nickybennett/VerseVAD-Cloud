@@ -1149,6 +1149,23 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.session_state[module_key] = False
             else:
                 st.session_state.setdefault(module_key, False)
+        poetry_id_widget_defaults = {
+            "poetry_id_weightings": ["token", "type"],
+            "poetry_id_views": ["all_matched", "stopwords_excluded"],
+            "poetry_id_custom_thresholds": False,
+            "poetry_id_valence_low": 0.4,
+            "poetry_id_valence_high": 0.6,
+            "poetry_id_arousal_low": 0.4,
+            "poetry_id_arousal_high": 0.6,
+            "poetry_id_dominance_low": 0.4,
+            "poetry_id_dominance_high": 0.6,
+            "poetry_id_min_tokens": 5,
+            "poetry_id_min_types": 3,
+            "poetry_id_min_token_coverage": 0.2,
+            "poetry_id_min_type_coverage": 0.2,
+        }
+        for widget_key, default_value in poetry_id_widget_defaults.items():
+            st.session_state.setdefault(widget_key, default_value)
         if "selected_lexicons" not in st.session_state:
             st.session_state["selected_lexicons"] = list(spec_by_id)
         else:
@@ -1504,6 +1521,25 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 for lexicon_id in selected_lexicons
                 if lexicon_id in SUPPORTED_VAD_LEXICON_IDS
             ]
+            if "poetry_id_sources" not in st.session_state:
+                st.session_state["poetry_id_sources"] = list(
+                    available_poetry_id_sources
+                )
+            else:
+                current_poetry_id_sources = st.session_state[
+                    "poetry_id_sources"
+                ]
+                if not isinstance(current_poetry_id_sources, (list, tuple)):
+                    current_poetry_id_sources = []
+                valid_poetry_id_sources = [
+                    source
+                    for source in current_poetry_id_sources
+                    if source in available_poetry_id_sources
+                ]
+                if valid_poetry_id_sources != list(current_poetry_id_sources):
+                    st.session_state["poetry_id_sources"] = (
+                        valid_poetry_id_sources
+                    )
             if not available_poetry_id_sources:
                 st.session_state["include_poetry_id"] = False
             include_poetry_id = st.checkbox(
@@ -1524,7 +1560,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
             poetry_id_sources = st.multiselect(
                 "PoetryID VAD sources",
                 options=available_poetry_id_sources,
-                default=available_poetry_id_sources,
                 format_func=lambda lexicon_id: spec_by_id[lexicon_id].display_name,
                 disabled=not include_poetry_id,
                 key="poetry_id_sources",
@@ -1536,14 +1571,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
             poetry_id_weightings = st.multiselect(
                 "PoetryID weighting views",
                 options=["token", "type"],
-                default=["token", "type"],
                 disabled=not include_poetry_id,
                 key="poetry_id_weightings",
             )
             poetry_id_views = st.multiselect(
                 "PoetryID analysis views",
                 options=["all_matched", "stopwords_excluded"],
-                default=["all_matched", "stopwords_excluded"],
                 format_func=lambda value: (
                     "All matched tokens (including stopwords)"
                     if value == "all_matched"
@@ -1564,10 +1597,28 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 available_character_dimensions.append("frequency")
             if include_aoa:
                 available_character_dimensions.append("age_of_acquisition")
+            if "poetry_id_lexical_dimensions" not in st.session_state:
+                st.session_state["poetry_id_lexical_dimensions"] = list(
+                    available_character_dimensions
+                )
+            else:
+                current_character_dimensions = st.session_state[
+                    "poetry_id_lexical_dimensions"
+                ]
+                if not isinstance(current_character_dimensions, (list, tuple)):
+                    current_character_dimensions = []
+                valid_character_dimensions = [
+                    dimension
+                    for dimension in current_character_dimensions
+                    if dimension in available_character_dimensions
+                ]
+                if valid_character_dimensions != list(current_character_dimensions):
+                    st.session_state["poetry_id_lexical_dimensions"] = (
+                        valid_character_dimensions
+                    )
             poetry_id_lexical_dimensions = st.multiselect(
                 "Secondary PoetryID lexical character",
                 options=available_character_dimensions,
-                default=available_character_dimensions,
                 format_func=lambda value: value.replace("_", " ").title(),
                 disabled=not include_poetry_id,
                 key="poetry_id_lexical_dimensions",
@@ -2002,7 +2053,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
             st.markdown("**PoetryID settings**")
             poetry_id_custom_thresholds = st.checkbox(
                 "Use custom fixed VAD thresholds",
-                value=False,
                 disabled=not include_poetry_id,
                 key="poetry_id_custom_thresholds",
                 help=(
@@ -2024,7 +2074,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         "Low maximum",
                         min_value=0.0,
                         max_value=0.99,
-                        value=0.4,
                         step=0.01,
                         key=f"poetry_id_{dimension}_low",
                         disabled=(
@@ -2036,7 +2085,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         "High minimum",
                         min_value=0.01,
                         max_value=1.0,
-                        value=0.6,
                         step=0.01,
                         key=f"poetry_id_{dimension}_high",
                         disabled=(
@@ -2053,7 +2101,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Minimum matched tokens",
                 min_value=1,
                 max_value=1000,
-                value=5,
                 key="poetry_id_min_tokens",
                 disabled=not include_poetry_id,
             )
@@ -2061,7 +2108,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Minimum matched types",
                 min_value=1,
                 max_value=1000,
-                value=3,
                 key="poetry_id_min_types",
                 disabled=not include_poetry_id,
             )
@@ -2071,7 +2117,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Minimum token coverage",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.2,
                 step=0.05,
                 key="poetry_id_min_token_coverage",
                 disabled=not include_poetry_id,
@@ -2082,7 +2127,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Minimum type coverage",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.2,
                 step=0.05,
                 key="poetry_id_min_type_coverage",
                 disabled=not include_poetry_id,
