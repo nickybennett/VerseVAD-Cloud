@@ -11,6 +11,7 @@ from versevad.application import (
     WorkspaceAnalysis,
     run_workspace_analysis,
 )
+from versevad.core.documents import StructuralUnitKind
 from versevad.research_library import (
     LIBRARY_SCHEMA_VERSION,
     ResearchLibraryError,
@@ -43,6 +44,12 @@ def test_workspace_round_trips_through_restricted_json(preprocessor) -> None:
     assert isinstance(restored, WorkspaceAnalysis)
     assert restored == workspace
     assert restored.request.original_text == workspace.request.original_text
+    assert restored.poem_document is not None
+    assert len(restored.poem_document.lines) == 2
+    assert all(
+        line.kind is StructuralUnitKind.LINE
+        for line in restored.poem_document.lines
+    )
     assert serialize_value(restored) == serialize_value(workspace)
 
 
@@ -53,10 +60,23 @@ def test_historical_string_enum_settings_are_migrated(preprocessor) -> None:
         "phrase_policy",
         PhrasePolicy.PHRASE_PREFERRED.value,
     )
+    assert workspace.poem_document is not None
+    historical_line = next(
+        unit
+        for unit in workspace.poem_document.structural_units
+        if unit.kind is StructuralUnitKind.LINE
+    )
+    object.__setattr__(
+        historical_line,
+        "kind",
+        StructuralUnitKind.LINE.value,
+    )
 
     restored = deserialize_value(serialize_value(workspace))
 
     assert restored.request.phrase_policy is PhrasePolicy.PHRASE_PREFERRED
+    assert restored.poem_document is not None
+    assert len(restored.poem_document.lines) == 2
 
 
 def test_serializer_rejects_non_versevad_dataclasses() -> None:

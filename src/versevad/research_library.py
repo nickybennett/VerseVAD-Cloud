@@ -21,7 +21,7 @@ from dataclasses import MISSING, dataclass, fields, is_dataclass
 from datetime import date, datetime, time, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args, get_type_hints
 from uuid import uuid4
 
 
@@ -90,7 +90,31 @@ def _qualified_name(value: object) -> str:
     return f"{cls.__module__}:{cls.__qualname__}"
 
 
+def _enum_type_from_annotation(annotation: object) -> type[Enum] | None:
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return annotation
+    for argument in get_args(annotation):
+        enum_type = _enum_type_from_annotation(argument)
+        if enum_type is not None:
+            return enum_type
+    return None
+
+
 def _encode(value: object) -> object:
+    # Enum must be checked before primitive types because StrEnum and IntEnum
+    # are also instances of str and int. Persisting them as primitives loses
+    # identity-sensitive behavior in historical results.
+    if isinstance(value, Enum):
+        qualified_name = _qualified_name(value)
+        if not qualified_name.startswith(_ALLOWED_CLASS_PREFIX):
+            raise ResearchLibraryError(
+                f"Cannot serialize enum outside VerseVAD: {qualified_name}"
+            )
+        return {
+            "$type": "enum",
+            "class": qualified_name,
+            "name": value.name,
+        }
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
     if isinstance(value, bytes):
@@ -106,17 +130,6 @@ def _encode(value: object) -> object:
         return {"$type": "date", "value": value.isoformat()}
     if isinstance(value, time):
         return {"$type": "time", "value": value.isoformat()}
-    if isinstance(value, Enum):
-        qualified_name = _qualified_name(value)
-        if not qualified_name.startswith(_ALLOWED_CLASS_PREFIX):
-            raise ResearchLibraryError(
-                f"Cannot serialize enum outside VerseVAD: {qualified_name}"
-            )
-        return {
-            "$type": "enum",
-            "class": qualified_name,
-            "name": value.name,
-        }
     if is_dataclass(value) and not isinstance(value, type):
         qualified_name = _qualified_name(value)
         if not qualified_name.startswith(_ALLOWED_CLASS_PREFIX):
@@ -210,6 +223,10 @@ def _decode(value: object) -> object:
         if not isinstance(raw_fields, dict):
             raise ResearchLibraryError("Saved dataclass fields are malformed.")
         class_fields = {field.name: field for field in fields(cls)}
+        try:
+            class_type_hints = get_type_hints(cls)
+        except (NameError, TypeError):
+            class_type_hints = {}
         accepted = set(class_fields)
         unknown = set(raw_fields) - accepted
         if unknown:
@@ -240,8 +257,12 @@ def _decode(value: object) -> object:
             # their plain string values. Coerce those historical values to
             # the current enum type without rerunning dataclass validation or
             # recalculating the immutable analysis.
-            if isinstance(field.default, Enum) and isinstance(field_value, str):
+            enum_type = _enum_type_from_annotation(
+                class_type_hints.get(field_name)
+            )
+            if enum_type is None and isinstance(field.default, Enum):
                 enum_type = type(field.default)
+            if enum_type is not None and isinstance(field_value, str):
                 try:
                     field_value = enum_type(field_value)
                 except ValueError:

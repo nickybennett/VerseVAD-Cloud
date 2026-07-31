@@ -3118,8 +3118,26 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         "Concreteness matches": row.concreteness_matched_tokens,
                     }
                     for row in trajectory
-                ]
+                ],
+                columns=[
+                    "Line",
+                    "Text",
+                    "Valence",
+                    "Arousal",
+                    "Dominance",
+                    "Concreteness",
+                    "Concreteness (source 1-5)",
+                    "VAD matches",
+                    "Concreteness matches",
+                ],
             )
+            if trajectory_frame.empty:
+                st.info(
+                    "Line-level lexical trajectory evidence is unavailable in this "
+                    "saved result. The remaining historical analysis is still "
+                    "viewable; prepare a current-version reanalysis to rebuild this "
+                    "chart."
+                )
             chart_columns = ["Valence", "Arousal", "Dominance"]
             if workspace.concreteness is not None:
                 chart_columns.append("Concreteness")
