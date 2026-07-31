@@ -212,6 +212,7 @@ def test_analysis_library_deletes_the_selected_item_by_id(
         if checkbox.label
         == 'Permanently delete this saved item: "The Red Wheelbarrow"'
     )
+    assert not _button(app, "Delete permanently").disabled
     confirmation.set_value(True)
     app.run(timeout=30)
     _button(app, "Delete permanently").click()
@@ -222,6 +223,12 @@ def test_analysis_library_deletes_the_selected_item_by_id(
         saved.item_id != item.item_id
         for saved in repository.list_items()
     )
+
+
+def test_saved_ui_state_treats_stopword_restore_as_an_action() -> None:
+    from versevad.ui.research import _is_transient_ui_state_key
+
+    assert _is_transient_ui_state_key("one_poem_restore_stopwords")
 
 
 def test_interface_starts_with_beginner_input_workflow() -> None:
@@ -956,6 +963,9 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
 
     assert not app.exception
     assert any("Analysis complete" in message.value for message in app.success)
+    assert any(
+        field.label == "Saved analysis title" for field in app.text_input
+    )
     report_navigation = _section_navigation(app, "Report section")
     assert report_navigation.options == REPORT_SECTIONS
     assert report_navigation.value == "Overview"

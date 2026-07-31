@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import sqlite3
 import zipfile
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -87,6 +88,7 @@ _TRANSIENT_UI_STATE_FRAGMENTS = (
     "_delete",
     "_download",
     "_remove_",
+    "_restore",
     "_save",
 )
 
@@ -838,7 +840,14 @@ def restore_library_revision(
 def _current_notes(
     context: ActiveResearchContext,
 ) -> tuple[ResearchNote, ...]:
-    return research_repository().list_notes(parent_id=context.parent_id)
+    repository = research_repository()
+    try:
+        return repository.list_notes(parent_id=context.parent_id)
+    except (OSError, sqlite3.Error) as error:
+        raise ResearchLibraryError(
+            "VerseVAD could not read the private analysis library at "
+            f"{repository.database_path}."
+        ) from error
 
 
 def render_research_notes_sidebar(workspace: str) -> None:
@@ -1267,16 +1276,21 @@ def render_analysis_library_workspace() -> None:
             )
             delete_submitted = st.form_submit_button(
                 "Delete permanently",
-                disabled=not confirmation,
                 type="primary",
             )
         if delete_submitted:
-            try:
-                research_repository().delete_item(selected_item.item_id)
-            except ResearchLibraryError as error:
-                st.error(str(error))
+            if not confirmation:
+                st.warning(
+                    "Select the confirmation checkbox before permanently "
+                    "deleting this saved analysis."
+                )
             else:
-                st.rerun()
+                try:
+                    research_repository().delete_item(selected_item.item_id)
+                except ResearchLibraryError as error:
+                    st.error(str(error))
+                else:
+                    st.rerun()
     _render_item_notebook(selected_item)
 
 

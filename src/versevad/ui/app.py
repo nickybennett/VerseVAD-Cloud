@@ -2619,6 +2619,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
         st.session_state.pop("_apply_pronunciation_resolutions", False)
     )
     analyze_clicked = analyze_clicked or automatic_pronunciation_update
+    completion_notice = st.session_state.pop(
+        "_single_text_analysis_completion_notice",
+        "",
+    )
+    if completion_notice:
+        st.success(completion_notice)
 
     if analyze_clicked:
         try:
@@ -2733,16 +2739,23 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "_pronunciation_resolution_count",
                     0,
                 )
-                st.success(
+                completion_notice = (
                     f"{applied_count} pronunciation choice(s) applied; "
                     "readability, pronunciation, meter, sound, and inherited-form "
                     "evidence are updated."
                 )
             else:
-                st.success(
+                completion_notice = (
                     "Analysis complete. Start with Overview; use Evidence & "
                     "Diagnostics when you want to inspect why."
                 )
+            st.session_state[
+                "_single_text_analysis_completion_notice"
+            ] = completion_notice
+            # The shared sidebar is rendered before the workspace body. Run
+            # once more after storing the result so Analysis Management sees
+            # the completed context immediately.
+            st.rerun()
         except (TextImportError, WorkspaceAnalysisError, ValueError) as error:
             st.error(str(error))
         except Exception as error:  # pragma: no cover - defensive UI boundary
