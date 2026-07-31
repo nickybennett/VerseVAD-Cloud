@@ -667,8 +667,8 @@ Cloud-specific assertions confirm that corpus mutation controls are absent
 while packaged-corpus browsing, fixed Standard Profile VerseMap, session-only
 saved analyses, research notes, and exports remain usable.
 
-The final 2026-07-30 run passed all `414` private-cloud tests; the mirrored
-public/local repository passed all `412`. Live browser checks opened every
+The final 2026-07-30 run passed all `416` private-cloud tests; the mirrored
+public/local repository passed all `414`. Live browser checks opened every
 final-stage route, confirmed nonblank sidebars, exercised an 820-pixel
 responsive layout, and reported no console warnings or errors. Both rebuilt
 Word manuals passed package, content, and accessibility checks with zero
@@ -684,3 +684,13 @@ confirms that the former work/line/stanza audit matrix is absent from the
 front end. Corpus Browser was checked against the 2,315-poem built-in index at
 whole-corpus, poem-overview, and metric-detail scopes. Complete low-level rows
 remain covered by the existing CSV, Word, and module-audit export tests.
+
+## Saved-analysis restoration regression
+
+Historical-result tests now include legacy payloads containing transient
+button state, stopword-import uploader state, and poem-uploader state. VerseVAD
+must discard those nonrestorable widget values while retaining analytical
+settings and source text. The interface suite also verifies that completed
+Single Poem results expose save controls immediately and that confirmed
+library deletion completes in one submission. A real-browser restore of the
+legacy payload completed without Streamlit or console errors.

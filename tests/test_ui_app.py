@@ -225,10 +225,68 @@ def test_analysis_library_deletes_the_selected_item_by_id(
     )
 
 
-def test_saved_ui_state_treats_stopword_restore_as_an_action() -> None:
-    from versevad.ui.research import _is_transient_ui_state_key
+def test_saved_ui_state_rejects_action_and_upload_widget_keys() -> None:
+    from versevad.ui.research import _is_nonrestorable_ui_state_key
 
-    assert _is_transient_ui_state_key("one_poem_restore_stopwords")
+    assert _is_nonrestorable_ui_state_key("one_poem_restore_stopwords")
+    assert _is_nonrestorable_ui_state_key("one_poem_import_stopwords")
+    assert _is_nonrestorable_ui_state_key("uploaded_poem")
+    assert not _is_nonrestorable_ui_state_key(
+        "one_poem_custom_stopword_additions"
+    )
+
+
+def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    library_path = tmp_path / "analysis-library.sqlite3"
+    monkeypatch.setenv("VERSEVAD_RESEARCH_LIBRARY_PATH", str(library_path))
+    analysis = application_services.run_workspace_analysis(
+        application_services.AnalysisRequest(
+            project_name="",
+            title="Historical restore validation",
+            original_text="Bright leaves turn in the evening air.",
+            lexicon_ids=(),
+        ),
+        preprocessor=SpacyEnglishPreprocessor(),
+    )
+    repository = ResearchLibraryRepository(library_path)
+    repository.save_revision(
+        parent_type="analysis",
+        workspace_id="Single Poem",
+        title="Historical restore validation",
+        software_version="1.0.0",
+        payload={
+            "kind": "workspace_analysis",
+            "workspace_id": "Single Poem",
+            "analysis": analysis,
+            "ui_state": {
+                "poem_title": "Historical restore validation",
+                "poem_text": "Bright leaves turn in the evening air.",
+                "module_preset": "Custom",
+                "one_poem_restore_stopwords": False,
+                "one_poem_import_stopwords": None,
+                "uploaded_poem": None,
+            },
+            "metadata": {},
+        },
+        storage_mode="full",
+        status="saved",
+    )
+
+    app = AppTest.from_file(str(APP_PATH), default_timeout=60).run()
+    _open_workspace(app, "Analysis Library")
+    _button(app, "Open historical result").click()
+    app.run(timeout=60)
+
+    assert not app.exception
+    assert app.session_state["workspace"].request.title == (
+        "Historical restore validation"
+    )
+    assert "one_poem_restore_stopwords" not in app.session_state
+    assert "one_poem_import_stopwords" not in app.session_state
+    assert "uploaded_poem" not in app.session_state
 
 
 def test_interface_starts_with_beginner_input_workflow() -> None:

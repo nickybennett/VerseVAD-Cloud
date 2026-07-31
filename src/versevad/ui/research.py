@@ -91,6 +91,12 @@ _TRANSIENT_UI_STATE_FRAGMENTS = (
     "_restore",
     "_save",
 )
+_NON_RESTORABLE_UI_STATE_FRAGMENTS = (
+    "upload",
+    "download",
+    "export",
+    "_import_",
+)
 
 
 @dataclass(frozen=True)
@@ -158,18 +164,31 @@ def _is_transient_ui_state_key(key: str) -> bool:
     )
 
 
+def _is_nonreplayable_widget_state_key(key: str) -> bool:
+    """Return whether ``key`` belongs to an action, upload, or export widget."""
+
+    return _is_transient_ui_state_key(key) or any(
+        fragment in key
+        for fragment in _NON_RESTORABLE_UI_STATE_FRAGMENTS
+    )
+
+
+def _is_nonrestorable_ui_state_key(key: str) -> bool:
+    """Return whether Streamlit forbids or should not replay this widget state."""
+
+    return (
+        key in _SESSION_STATE_EXCLUSIONS
+        or key.startswith("_")
+        or _is_nonreplayable_widget_state_key(key)
+    )
+
+
 def _capture_ui_state(workspace: str) -> dict[str, object]:
     """Capture user-visible controls without transient uploads or result bytes."""
 
     state: dict[str, object] = {}
     for key, value in st.session_state.items():
-        if (
-            key in _SESSION_STATE_EXCLUSIONS
-            or key.startswith("_")
-            or _is_transient_ui_state_key(key)
-        ):
-            continue
-        if "upload" in key or "download" in key or "export" in key:
+        if _is_nonrestorable_ui_state_key(key):
             continue
         relevant = (
             workspace == "Compare Poems" and key.startswith("compare_")
@@ -741,15 +760,13 @@ def _apply_ui_state(ui_state: object) -> None:
     for existing_key in tuple(st.session_state):
         if (
             isinstance(existing_key, str)
-            and _is_transient_ui_state_key(existing_key)
+            and _is_nonreplayable_widget_state_key(existing_key)
         ):
             st.session_state.pop(existing_key, None)
     for key, value in ui_state.items():
         if (
             isinstance(key, str)
-            and key not in _SESSION_STATE_EXCLUSIONS
-            and not key.startswith("_")
-            and not _is_transient_ui_state_key(key)
+            and not _is_nonrestorable_ui_state_key(key)
         ):
             st.session_state[key] = value
 
