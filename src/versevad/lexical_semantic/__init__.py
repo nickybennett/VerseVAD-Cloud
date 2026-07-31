@@ -31,11 +31,16 @@ from versevad.lexical_semantic.frequency import (
     FrequencyModuleError,
 )
 from versevad.lexical_semantic.readability import (
+    PoeticReadingEaseComponent,
+    PoeticReadingEaseSummary,
     ReadabilityAnalysisResult,
     ReadabilityConfiguration,
     ReadabilityModule,
     ReadabilitySummary,
     ReadabilityWordAudit,
+    attach_poetic_reading_ease,
+    calculate_poetic_reading_ease,
+    poetic_reading_ease_band,
 )
 from versevad.lexical_semantic.sentiment import (
     VADER_CITATION,
@@ -82,6 +87,8 @@ __all__ = [
     "FrequencyMatchMethod",
     "FrequencyModule",
     "FrequencyModuleError",
+    "PoeticReadingEaseComponent",
+    "PoeticReadingEaseSummary",
     "ReadabilityAnalysisResult",
     "ReadabilityConfiguration",
     "ReadabilityModule",
@@ -100,4 +107,7 @@ __all__ = [
     "VaderSentimentConfiguration",
     "VaderSentimentModule",
     "attach_aoa_relationships",
+    "attach_poetic_reading_ease",
+    "calculate_poetic_reading_ease",
+    "poetic_reading_ease_band",
 ]

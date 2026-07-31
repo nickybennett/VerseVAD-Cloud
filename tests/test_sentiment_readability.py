@@ -1,5 +1,6 @@
 import csv
 import io
+from dataclasses import replace
 
 import pytest
 
@@ -9,6 +10,7 @@ from versevad.exports.sentiment import export_vader_sentiment_bundle
 from versevad.lexical_semantic.readability import (
     ReadabilityConfiguration,
     ReadabilityModule,
+    calculate_poetic_reading_ease,
 )
 from versevad.lexical_semantic.sentiment import VaderSentimentModule
 from versevad.preprocessing import create_text_document
@@ -121,3 +123,83 @@ def test_readability_uses_session_pronunciation_override_before_heuristic(
     assert resolved_word.syllable_count == 2
     assert resolved_word.syllable_method == "session pronunciation override"
     assert resolved.summary.heuristic_word_count < unresolved.summary.heuristic_word_count
+
+
+def test_poetic_reading_ease_uses_positive_weights_and_fixed_anchors() -> None:
+    easiest = calculate_poetic_reading_ease(
+        mean_zipf=6.5,
+        mean_aoa=4.0,
+        mean_words_per_line=3.0,
+        mean_syllables_per_word=1.0,
+    )
+    hardest = calculate_poetic_reading_ease(
+        mean_zipf=2.5,
+        mean_aoa=12.0,
+        mean_words_per_line=15.0,
+        mean_syllables_per_word=2.5,
+    )
+    midpoint = calculate_poetic_reading_ease(
+        mean_zipf=4.5,
+        mean_aoa=8.0,
+        mean_words_per_line=9.0,
+        mean_syllables_per_word=1.75,
+    )
+
+    assert easiest.score == pytest.approx(100.0)
+    assert easiest.interpretation_band == "Highly Accessible"
+    assert hardest.score == pytest.approx(0.0)
+    assert hardest.interpretation_band == "Highly Demanding"
+    assert midpoint.score == pytest.approx(50.0)
+    assert midpoint.interpretation_band == "Demanding"
+    assert [component.weight for component in midpoint.components] == [
+        0.35,
+        0.30,
+        0.20,
+        0.15,
+    ]
+
+
+def test_poetic_reading_ease_does_not_reweight_missing_components() -> None:
+    result = calculate_poetic_reading_ease(
+        mean_zipf=6.0,
+        mean_aoa=None,
+        mean_words_per_line=4.0,
+        mean_syllables_per_word=1.2,
+    )
+
+    assert result.score is None
+    assert result.interpretation_band is None
+    assert result.missing_component_ids == ("aoa",)
+
+
+def test_readability_export_retains_vv_pre_score_components_and_coverage(
+    preprocessor,
+) -> None:
+    result = ReadabilityModule().analyze_detailed(
+        _input(preprocessor, "Bright birds sing. Stone shines.")
+    )
+    poetic = calculate_poetic_reading_ease(
+        mean_zipf=5.5,
+        mean_aoa=6.0,
+        mean_words_per_line=3.0,
+        mean_syllables_per_word=result.summary.mean_syllables_per_word,
+        frequency_counts=(6, 5),
+        aoa_counts=(6, 4),
+        line_count=2,
+        syllable_counts=(result.summary.word_count, result.summary.word_count),
+    )
+
+    rows = _rows(
+        export_readability_bundle(
+            replace(result, poetic_reading_ease=poetic),
+            text_title="New metrics",
+        )["readability_summary.csv"]
+    )
+    exported = {row["metric"]: row for row in rows}
+    assert float(exported["vv_pre_score"]["value"]) == pytest.approx(poetic.score)
+    assert (
+        exported["vv_pre_interpretation_band"]["value"]
+        == poetic.interpretation_band
+    )
+    assert float(exported["frequency.ease_score"]["value"]) == pytest.approx(75.0)
+    assert float(exported["frequency.coverage"]["value"]) == pytest.approx(5 / 6)

@@ -54,6 +54,95 @@ def export_readability_summary_csv(result: ReadabilityAnalysisResult) -> bytes:
                 "note": notes.get(metric, ""),
             }
         )
+    poetic = getattr(result, "poetic_reading_ease", None)
+    if poetic is not None:
+        rows.extend(
+            (
+                {
+                    "section": "versevad_poetic_reading_ease_experimental",
+                    "metric": "vv_pre_score",
+                    "value": "" if poetic.score is None else poetic.score,
+                    "unit_or_scale": "0-100; higher means more accessible",
+                    "denominator": "all four declared weighted components",
+                    "note": (
+                        "35% frequency + 30% AoA + 20% line accessibility + "
+                        "15% word complexity; unavailable components are not reweighted."
+                    ),
+                },
+                {
+                    "section": "versevad_poetic_reading_ease_experimental",
+                    "metric": "vv_pre_interpretation_band",
+                    "value": poetic.interpretation_band or "",
+                    "unit_or_scale": "declared experimental band",
+                    "denominator": "VV-PRE score",
+                    "note": (
+                        "Surface-level linguistic accessibility, not thematic, "
+                        "symbolic, interpretive, or literary complexity."
+                    ),
+                },
+                {
+                    "section": "versevad_poetic_reading_ease_experimental",
+                    "metric": "vv_pre_missing_components",
+                    "value": "|".join(poetic.missing_component_ids),
+                    "unit_or_scale": "component IDs",
+                    "denominator": "four declared components",
+                    "note": "Blank means all components were available.",
+                },
+            )
+        )
+        for component in poetic.components:
+            component_note = (
+                f"Easy anchor {component.easy_anchor:g}; difficult anchor "
+                f"{component.difficult_anchor:g}; source metric "
+                f"{component.source_metric_id}; source result "
+                f"{component.source_result_id or 'unavailable'}."
+            )
+            component_denominator = (
+                f"{component.matched_count} matched of "
+                f"{component.eligible_count} eligible"
+                if component.eligible_count is not None
+                else "source metric unavailable"
+            )
+            rows.extend(
+                (
+                    {
+                        "section": "vv_pre_component",
+                        "metric": f"{component.component_id}.raw_value",
+                        "value": (
+                            ""
+                            if component.raw_value is None
+                            else component.raw_value
+                        ),
+                        "unit_or_scale": component.raw_unit,
+                        "denominator": component_denominator,
+                        "note": component_note,
+                    },
+                    {
+                        "section": "vv_pre_component",
+                        "metric": f"{component.component_id}.ease_score",
+                        "value": (
+                            ""
+                            if component.ease_score is None
+                            else component.ease_score
+                        ),
+                        "unit_or_scale": "normalized 0-100 ease score",
+                        "denominator": component_denominator,
+                        "note": (
+                            f"Weight {component.weight:.0%}. {component_note}"
+                        ),
+                    },
+                    {
+                        "section": "vv_pre_component",
+                        "metric": f"{component.component_id}.coverage",
+                        "value": (
+                            "" if component.coverage is None else component.coverage
+                        ),
+                        "unit_or_scale": "proportion",
+                        "denominator": component_denominator,
+                        "note": component_note,
+                    },
+                )
+            )
     return _csv_bytes(
         [
             "section",

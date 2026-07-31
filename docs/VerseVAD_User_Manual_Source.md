@@ -1123,6 +1123,21 @@ approves or edits a session pronunciation override. These prose-oriented
 formulas do not measure literary quality, reader ability, actual comprehension,
 or a required grade.
 
+The subsection also reports **VerseVAD Poetic Reading Ease (Experimental)**
+(**VV-PRE**) when Frequency & Rarity, normative AoA, Structural & Lexical
+Measures, and readability syllable evidence all supply their required values.
+VV-PRE uses no sentence-length term. It positively weights four clamped 0-100
+ease components: 35% SUBTLEX Zipf frequency, 30% normative AoA, 20% words per
+nonblank line, and 15% estimated syllables per word.
+
+The raw values, component scores, anchors, weights, source-result identities,
+eligible counts, match counts, and coverage remain visible and exportable.
+Missing inputs are not reweighted; the final score stays unavailable. Bands
+are 85-100 Highly Accessible, 70-84 Accessible, 55-69 Moderately Demanding,
+40-54 Demanding, and 0-39 Highly Demanding. VV-PRE estimates surface-level
+lexical processing and presentation, not thematic, symbolic, interpretive, or
+literary complexity.
+
 The normative AoA subsection appears when the optional Kuperman module is enabled. It shows
 source-age mean, median, dispersion, range, token/type coverage, configured
 early/middle/later bands, source-response evidence, warnings, line and stanza

@@ -72,11 +72,12 @@ REPORT_PROFILES: Mapping[str, NarrativeReportProfile] = {
     ),
     "readability": NarrativeReportProfile(
         "Readability and Grade-Formula Report",
-        "This report summarizes familiar English readability formulas using the "
-        "shared sentence and lexical-token record plus auditable syllable estimates.",
-        "The scores are prose-oriented orientation evidence; they are not literary "
-        "quality judgments, reader diagnoses, or prescriptive grade requirements.",
+        "This report summarizes the experimental VerseVAD Poetic Reading Ease "
+        "composite and familiar English readability formulas using auditable inputs.",
+        "VV-PRE estimates surface-level linguistic accessibility without sentence "
+        "length; the traditional scores remain prose-oriented orientation evidence.",
         (
+            "VV-PRE does not measure thematic, symbolic, interpretive, or literary complexity.",
             "Poetic lineation, fragments, and deliberate syntactic disruption can make the formulas unstable.",
             "Out-of-dictionary syllables use an explicitly labeled orthographic heuristic unless a session override is supplied.",
         ),

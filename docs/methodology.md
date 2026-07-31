@@ -143,6 +143,28 @@ These formulas were designed for prose. They do not measure literary quality,
 actual comprehension, a reader's ability, cognitive status, or a prescriptive
 grade requirement.
 
+VerseVAD also reports **VerseVAD Poetic Reading Ease (Experimental)**, or
+**VV-PRE**, when Frequency & Rarity, Age of Acquisition, Structural & Lexical
+Measures, and readability syllable evidence are all available. Unlike the
+traditional formulas, VV-PRE does not use sentence length. It normalizes four
+components to 0-100 and combines them as a positive weighted sum:
+
+`VV-PRE = 0.35(frequency ease) + 0.30(AoA ease) + 0.20(line accessibility) + 0.15(word complexity)`
+
+Frequency ease maps mean SUBTLEX-US Zipf 2.5 to 0 and 6.5 to 100. AoA ease maps
+mean AoA 12 to 0 and 4 to 100. Line accessibility maps 15 words per nonblank
+line to 0 and 3 to 100. Word complexity maps 2.5 estimated syllables per word
+to 0 and 1.0 to 100. Values beyond the anchors are clamped. Missing components
+are never silently reweighted: the overall score remains unavailable until all
+four exist. Reports retain every raw value, normalized component, weight,
+anchor, source-result identity, eligible count, match count, and coverage.
+
+The declared bands are 85-100 Highly Accessible, 70-84 Accessible, 55-69
+Moderately Demanding, 40-54 Demanding, and 0-39 Highly Demanding. VV-PRE
+estimates surface-level linguistic accessibility and presentation. It does not
+measure thematic, symbolic, interpretive, or literary complexity, actual
+comprehension, or a reader's ability.
+
 ## Line-level lexical trajectory
 
 For one selected VAD source and one visible token scope, VerseVAD groups

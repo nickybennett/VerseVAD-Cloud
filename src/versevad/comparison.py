@@ -739,6 +739,82 @@ def _method_fixed_rows(comparison: PoemComparison) -> list[PoemComparisonRow]:
     readability_a = comparison.first.readability
     readability_b = comparison.second.readability
     if readability_a is not None and readability_b is not None:
+        poetic_a = getattr(readability_a, "poetic_reading_ease", None)
+        poetic_b = getattr(readability_b, "poetic_reading_ease", None)
+        if poetic_a is not None and poetic_b is not None:
+            rows.extend(
+                (
+                    _row(
+                        section="Lexical Character, Imagery & Embodiment",
+                        source="VerseVAD Poetic Reading Ease (Experimental)",
+                        analysis_view="complete preserved text",
+                        weighting="fixed positive weighted composite",
+                        metric_id="readability.poetic_reading_ease.score",
+                        metric="VV-PRE score",
+                        value_a=poetic_a.score,
+                        value_b=poetic_b.score,
+                        unit_or_scale="0-100; higher means more accessible",
+                        denominator_a="all four declared components",
+                        denominator_b="all four declared components",
+                        note=(
+                            "Surface-level linguistic accessibility, not thematic "
+                            "or interpretive complexity."
+                        ),
+                    ),
+                    _row(
+                        section="Lexical Character, Imagery & Embodiment",
+                        source="VerseVAD Poetic Reading Ease (Experimental)",
+                        analysis_view="complete preserved text",
+                        weighting="fixed interpretation bands",
+                        metric_id="readability.poetic_reading_ease.band",
+                        metric="VV-PRE interpretation band",
+                        value_a=poetic_a.interpretation_band,
+                        value_b=poetic_b.interpretation_band,
+                        unit_or_scale="declared experimental band",
+                        denominator_a="VV-PRE score",
+                        denominator_b="VV-PRE score",
+                        note="Band boundaries are fixed and documented.",
+                    ),
+                )
+            )
+            components_b = {
+                component.component_id: component
+                for component in poetic_b.components
+            }
+            for component_a in poetic_a.components:
+                component_b = components_b.get(component_a.component_id)
+                if component_b is None:
+                    continue
+                rows.append(
+                    _row(
+                        section="Lexical Character, Imagery & Embodiment",
+                        source="VerseVAD Poetic Reading Ease (Experimental)",
+                        analysis_view="complete preserved text",
+                        weighting=f"fixed {component_a.weight:.0%} component",
+                        metric_id=(
+                            "readability.poetic_reading_ease."
+                            f"{component_a.component_id}.ease_score"
+                        ),
+                        metric=f"{component_a.label} ease score",
+                        value_a=component_a.ease_score,
+                        value_b=component_b.ease_score,
+                        unit_or_scale="normalized 0-100 ease score",
+                        denominator_a=(
+                            f"{component_a.matched_count} of "
+                            f"{component_a.eligible_count} observations"
+                        ),
+                        denominator_b=(
+                            f"{component_b.matched_count} of "
+                            f"{component_b.eligible_count} observations"
+                        ),
+                        coverage_a=component_a.coverage,
+                        coverage_b=component_b.coverage,
+                        note=(
+                            f"Easy anchor {component_a.easy_anchor:g}; difficult "
+                            f"anchor {component_a.difficult_anchor:g}."
+                        ),
+                    )
+                )
         for field, label, unit in (
             ("flesch_reading_ease", "Flesch Reading Ease", "formula score"),
             ("flesch_kincaid_grade", "Flesch-Kincaid Grade", "US grade orientation"),

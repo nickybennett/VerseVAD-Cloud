@@ -77,6 +77,7 @@ from versevad.lexical_semantic.readability import (
     ReadabilityAnalysisResult,
     ReadabilityConfiguration,
     ReadabilityModule,
+    attach_poetic_reading_ease,
 )
 from versevad.lexical_semantic.sensorimotor import (
     SensorimotorAnalysisResult,
@@ -1529,6 +1530,13 @@ def run_workspace_analysis(
             )
         except LexicalStyleModuleError as error:
             raise WorkspaceAnalysisError(str(error)) from error
+    if readability is not None:
+        readability = attach_poetic_reading_ease(
+            readability,
+            frequency=frequency,
+            aoa=aoa,
+            lexical_style=lexical_style,
+        )
     versemap_lexical_style = None
     if request.include_versemap:
         module = lexical_style_module or LexicalStyleModule()
@@ -3408,7 +3416,69 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                 }
             )
     if workspace.readability is not None:
-        readability = workspace.readability.summary
+        readability_result = workspace.readability
+        readability = readability_result.summary
+        poetic = getattr(readability_result, "poetic_reading_ease", None)
+        if poetic is not None:
+            rows.extend(
+                (
+                    {
+                        "section": "Readability",
+                        "lexicon": "VerseVAD Poetic Reading Ease (Experimental)",
+                        "analysis_view": "Complete preserved text",
+                        "metric": "VV-PRE score",
+                        "value": poetic.score if poetic.score is not None else "",
+                        "unit_or_scale": "0-100; higher means more accessible",
+                        "denominator": "all four declared weighted components",
+                        "plain_language_note": (
+                            "Surface-level linguistic accessibility only; not "
+                            "thematic, symbolic, interpretive, or literary complexity."
+                        ),
+                    },
+                    {
+                        "section": "Readability",
+                        "lexicon": "VerseVAD Poetic Reading Ease (Experimental)",
+                        "analysis_view": "Complete preserved text",
+                        "metric": "VV-PRE interpretation band",
+                        "value": poetic.interpretation_band or "",
+                        "unit_or_scale": "declared experimental band",
+                        "denominator": "VV-PRE score",
+                        "plain_language_note": (
+                            "85-100 Highly Accessible; 70-84 Accessible; 55-69 "
+                            "Moderately Demanding; 40-54 Demanding; 0-39 Highly "
+                            "Demanding."
+                        ),
+                    },
+                )
+            )
+            for component in poetic.components:
+                rows.append(
+                    {
+                        "section": "Readability",
+                        "lexicon": "VerseVAD Poetic Reading Ease (Experimental)",
+                        "analysis_view": "Complete preserved text",
+                        "metric": f"{component.label} component score",
+                        "value": (
+                            component.ease_score
+                            if component.ease_score is not None
+                            else ""
+                        ),
+                        "unit_or_scale": "normalized 0-100 ease score",
+                        "denominator": (
+                            f"{component.matched_count} of "
+                            f"{component.eligible_count} observations"
+                            if component.eligible_count is not None
+                            else "source metric unavailable"
+                        ),
+                        "plain_language_note": (
+                            f"Weight {component.weight:.0%}; raw value "
+                            f"{component.raw_value if component.raw_value is not None else 'missing'} "
+                            f"{component.raw_unit}; easy anchor "
+                            f"{component.easy_anchor:g}; difficult anchor "
+                            f"{component.difficult_anchor:g}."
+                        ),
+                    }
+                )
         for metric, value, unit in (
             (
                 "Flesch Reading Ease",
@@ -4123,15 +4193,17 @@ def csv_reading_guide() -> bytes:
         {
             "file": "readability_summary.csv",
             "what_it_answers": (
-                "What do familiar English readability formulas report for the text?"
+                "How linguistically accessible is the poem under VV-PRE, and what "
+                "do familiar English readability formulas report?"
             ),
             "start_with": (
-                "Flesch Reading Ease, Flesch-Kincaid Grade, Gunning Fog, "
-                "Automated Readability Index, Coleman-Liau, and SMOG."
+                "VV-PRE score, interpretation band, four component rows and "
+                "coverage, then Flesch, grade, Fog, ARI, Coleman-Liau, and SMOG."
             ),
             "important_caution": (
-                "These prose-oriented formulas do not measure literary quality, "
-                "reader ability, or a prescriptive grade requirement."
+                "VV-PRE is experimental surface-level accessibility evidence; "
+                "neither it nor the prose formulas measure literary quality, "
+                "interpretive complexity, reader ability, or a grade requirement."
             ),
         },
         {

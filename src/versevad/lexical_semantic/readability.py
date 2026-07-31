@@ -7,7 +7,8 @@ import json
 import math
 import re
 import unicodedata
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from typing import TYPE_CHECKING
 
 import pronouncing
 
@@ -24,6 +25,11 @@ from versevad.core.modules import (
     WarningSeverity,
 )
 from versevad.prosody.pronunciation import PronunciationOverride
+
+if TYPE_CHECKING:
+    from versevad.lexical_semantic.aoa import AoAAnalysisResult
+    from versevad.lexical_semantic.frequency import FrequencyAnalysisResult
+    from versevad.lexical_style import LexicalStyleAnalysisResult
 
 
 _VOWELS = frozenset("aeiouy")
@@ -93,11 +99,404 @@ class ReadabilitySummary:
 
 
 @dataclass(frozen=True)
+class PoeticReadingEaseComponent:
+    """One transparent input to the experimental VV-PRE composite."""
+
+    component_id: str
+    label: str
+    source_metric_id: str
+    raw_value: float | None
+    raw_unit: str
+    ease_score: float | None
+    weight: float
+    easy_anchor: float
+    difficult_anchor: float
+    eligible_count: int | None
+    matched_count: int | None
+    coverage: float | None
+    source_result_id: str
+
+
+@dataclass(frozen=True)
+class PoeticReadingEaseSummary:
+    """Auditable experimental poetic reading-ease score and components."""
+
+    score: float | None
+    interpretation_band: str | None
+    components: tuple[PoeticReadingEaseComponent, ...]
+    missing_component_ids: tuple[str, ...]
+
+    @property
+    def is_complete(self) -> bool:
+        return self.score is not None and not self.missing_component_ids
+
+
+@dataclass(frozen=True)
 class ReadabilityAnalysisResult:
     module_result: ModuleResult
     configuration: ReadabilityConfiguration
     summary: ReadabilitySummary
     word_audit: tuple[ReadabilityWordAudit, ...]
+    poetic_reading_ease: PoeticReadingEaseSummary | None = None
+
+
+def _clamp_percentage(value: float) -> float:
+    return max(0.0, min(100.0, value))
+
+
+def _ease_component(
+    *,
+    component_id: str,
+    label: str,
+    source_metric_id: str,
+    raw_value: float | None,
+    raw_unit: str,
+    weight: float,
+    easy_anchor: float,
+    difficult_anchor: float,
+    eligible_count: int | None,
+    matched_count: int | None,
+    coverage: float | None,
+    source_result_id: str,
+) -> PoeticReadingEaseComponent:
+    score = None
+    if raw_value is not None:
+        score = _clamp_percentage(
+            (raw_value - difficult_anchor)
+            / (easy_anchor - difficult_anchor)
+            * 100.0
+        )
+    return PoeticReadingEaseComponent(
+        component_id=component_id,
+        label=label,
+        source_metric_id=source_metric_id,
+        raw_value=raw_value,
+        raw_unit=raw_unit,
+        ease_score=score,
+        weight=weight,
+        easy_anchor=easy_anchor,
+        difficult_anchor=difficult_anchor,
+        eligible_count=eligible_count,
+        matched_count=matched_count,
+        coverage=coverage,
+        source_result_id=source_result_id,
+    )
+
+
+def poetic_reading_ease_band(score: float) -> str:
+    """Return the declared experimental VV-PRE interpretation band."""
+
+    if score >= 85.0:
+        return "Highly Accessible"
+    if score >= 70.0:
+        return "Accessible"
+    if score >= 55.0:
+        return "Moderately Demanding"
+    if score >= 40.0:
+        return "Demanding"
+    return "Highly Demanding"
+
+
+def calculate_poetic_reading_ease(
+    *,
+    mean_zipf: float | None,
+    mean_aoa: float | None,
+    mean_words_per_line: float | None,
+    mean_syllables_per_word: float | None,
+    frequency_counts: tuple[int, int] | None = None,
+    aoa_counts: tuple[int, int] | None = None,
+    line_count: int | None = None,
+    syllable_counts: tuple[int, int] | None = None,
+    source_result_ids: dict[str, str] | None = None,
+) -> PoeticReadingEaseSummary:
+    """Calculate VV-PRE without reweighting unavailable components."""
+
+    source_result_ids = source_result_ids or {}
+    frequency_eligible, frequency_matched = frequency_counts or (None, None)
+    aoa_eligible, aoa_matched = aoa_counts or (None, None)
+    syllable_eligible, syllable_matched = syllable_counts or (None, None)
+    components = (
+        _ease_component(
+            component_id="frequency",
+            label="Vocabulary Frequency",
+            source_metric_id="frequency.mean_zipf",
+            raw_value=mean_zipf,
+            raw_unit="SUBTLEX-US Zipf",
+            weight=0.35,
+            easy_anchor=6.5,
+            difficult_anchor=2.5,
+            eligible_count=frequency_eligible,
+            matched_count=frequency_matched,
+            coverage=(
+                frequency_matched / frequency_eligible
+                if frequency_eligible
+                else None
+            ),
+            source_result_id=source_result_ids.get("frequency", ""),
+        ),
+        _ease_component(
+            component_id="aoa",
+            label="Age of Acquisition",
+            source_metric_id="aoa.mean_years",
+            raw_value=mean_aoa,
+            raw_unit="source mean age in years",
+            weight=0.30,
+            easy_anchor=4.0,
+            difficult_anchor=12.0,
+            eligible_count=aoa_eligible,
+            matched_count=aoa_matched,
+            coverage=aoa_matched / aoa_eligible if aoa_eligible else None,
+            source_result_id=source_result_ids.get("aoa", ""),
+        ),
+        _ease_component(
+            component_id="line_accessibility",
+            label="Line Accessibility",
+            source_metric_id=(
+                "lexical_style.nonblank_line_word_count_statistics.mean"
+            ),
+            raw_value=mean_words_per_line,
+            raw_unit="words per nonblank line",
+            weight=0.20,
+            easy_anchor=3.0,
+            difficult_anchor=15.0,
+            eligible_count=line_count,
+            matched_count=line_count,
+            coverage=1.0 if line_count else None,
+            source_result_id=source_result_ids.get("lexical_style", ""),
+        ),
+        _ease_component(
+            component_id="word_complexity",
+            label="Word Complexity",
+            source_metric_id="readability.mean_syllables_per_word",
+            raw_value=mean_syllables_per_word,
+            raw_unit="estimated syllables per word",
+            weight=0.15,
+            easy_anchor=1.0,
+            difficult_anchor=2.5,
+            eligible_count=syllable_eligible,
+            matched_count=syllable_matched,
+            coverage=(
+                syllable_matched / syllable_eligible
+                if syllable_eligible
+                else None
+            ),
+            source_result_id=source_result_ids.get("readability", ""),
+        ),
+    )
+    missing = tuple(
+        component.component_id
+        for component in components
+        if component.ease_score is None
+    )
+    score = None
+    band = None
+    if not missing:
+        score = _clamp_percentage(
+            sum(
+                component.weight * float(component.ease_score)
+                for component in components
+            )
+        )
+        band = poetic_reading_ease_band(score)
+    return PoeticReadingEaseSummary(
+        score=score,
+        interpretation_band=band,
+        components=components,
+        missing_component_ids=missing,
+    )
+
+
+def attach_poetic_reading_ease(
+    result: ReadabilityAnalysisResult,
+    *,
+    frequency: FrequencyAnalysisResult | None,
+    aoa: AoAAnalysisResult | None,
+    lexical_style: LexicalStyleAnalysisResult | None,
+) -> ReadabilityAnalysisResult:
+    """Attach VV-PRE after its existing source modules have completed."""
+
+    frequency_summary = frequency.summary if frequency is not None else None
+    aoa_summary = aoa.summary if aoa is not None else None
+    lexical_summary = lexical_style.summary if lexical_style is not None else None
+    line_statistics = (
+        lexical_summary.nonblank_line_word_count_statistics
+        if lexical_summary is not None
+        else None
+    )
+    mean_zipf = (
+        frequency_summary.statistics.mean
+        if frequency_summary is not None
+        and frequency_summary.matched_token_count > 0
+        else None
+    )
+    mean_aoa = (
+        aoa_summary.statistics.mean
+        if aoa_summary is not None and aoa_summary.matched_token_count > 0
+        else None
+    )
+    mean_words_per_line = (
+        line_statistics.mean
+        if line_statistics is not None
+        and lexical_summary is not None
+        and lexical_summary.lexical_token_count > 0
+        else None
+    )
+    poetic = calculate_poetic_reading_ease(
+        mean_zipf=mean_zipf,
+        mean_aoa=mean_aoa,
+        mean_words_per_line=mean_words_per_line,
+        mean_syllables_per_word=result.summary.mean_syllables_per_word,
+        frequency_counts=(
+            (
+                frequency_summary.eligible_token_count,
+                frequency_summary.matched_token_count,
+            )
+            if frequency_summary is not None
+            else None
+        ),
+        aoa_counts=(
+            (aoa_summary.eligible_token_count, aoa_summary.matched_token_count)
+            if aoa_summary is not None
+            else None
+        ),
+        line_count=(
+            lexical_summary.nonblank_line_count
+            if lexical_summary is not None
+            else None
+        ),
+        syllable_counts=(
+            result.summary.word_count,
+            result.summary.dictionary_or_override_word_count,
+        ),
+        source_result_ids={
+            "frequency": (
+                frequency.module_result.result_id if frequency is not None else ""
+            ),
+            "aoa": aoa.module_result.result_id if aoa is not None else "",
+            "lexical_style": (
+                lexical_style.module_result.result_id
+                if lexical_style is not None
+                else ""
+            ),
+            "readability": result.module_result.result_id,
+        },
+    )
+    existing_metrics = tuple(
+        metric
+        for metric in result.module_result.metrics
+        if not metric.metric_id.startswith("readability.poetic_reading_ease.")
+    )
+    poetic_metrics = [
+        ModuleMetric(
+            metric_id="readability.poetic_reading_ease.score",
+            value=poetic.score,
+            layer=ResultLayer.COMPUTED_SUMMARY,
+            unit="0-100 ease score; higher is more accessible",
+            weighting="35% frequency + 30% AoA + 20% line + 15% syllables",
+            denominator="all four declared VV-PRE components",
+            note="Experimental surface-level linguistic accessibility composite.",
+        ),
+        ModuleMetric(
+            metric_id="readability.poetic_reading_ease.band",
+            value=poetic.interpretation_band,
+            layer=ResultLayer.INTERPRETATION,
+            unit="declared experimental interpretation band",
+            denominator="VV-PRE score",
+        ),
+    ]
+    for component in poetic.components:
+        poetic_metrics.extend(
+            (
+                ModuleMetric(
+                    metric_id=(
+                        "readability.poetic_reading_ease."
+                        f"{component.component_id}.raw_value"
+                    ),
+                    value=component.raw_value,
+                    layer=ResultLayer.COMPUTED_SUMMARY,
+                    unit=component.raw_unit,
+                    denominator=(
+                        f"{component.matched_count} of {component.eligible_count}"
+                        if component.eligible_count is not None
+                        else "source metric unavailable"
+                    ),
+                ),
+                ModuleMetric(
+                    metric_id=(
+                        "readability.poetic_reading_ease."
+                        f"{component.component_id}.ease_score"
+                    ),
+                    value=component.ease_score,
+                    layer=ResultLayer.COMPUTED_SUMMARY,
+                    unit="normalized 0-100 ease score",
+                    weighting=f"{component.weight:.0%}",
+                    denominator=(
+                        f"easy anchor {component.easy_anchor:g}; "
+                        f"difficult anchor {component.difficult_anchor:g}"
+                    ),
+                ),
+            )
+        )
+    warnings = tuple(
+        warning
+        for warning in result.module_result.warnings
+        if not warning.code.startswith("readability.poetic_reading_ease")
+    ) + (
+        ModuleWarning(
+            code="readability.poetic_reading_ease.experimental",
+            message=(
+                "VerseVAD Poetic Reading Ease is an experimental transparent "
+                "composite of lexical familiarity, normative AoA, line length, "
+                "and estimated word complexity. It does not measure thematic, "
+                "symbolic, interpretive, or literary complexity."
+            ),
+            severity=WarningSeverity.INFORMATION,
+        ),
+    )
+    if poetic.missing_component_ids:
+        warnings += (
+            ModuleWarning(
+                code="readability.poetic_reading_ease.incomplete",
+                message=(
+                    "VV-PRE remains unavailable because these components were "
+                    "not calculated: "
+                    + ", ".join(poetic.missing_component_ids)
+                    + ". Missing components are not silently reweighted."
+                ),
+                severity=WarningSeverity.INFORMATION,
+            ),
+        )
+    identity = json.dumps(
+        {
+            "base_result_id": result.module_result.result_id,
+            "poetic_reading_ease": asdict(poetic),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    module_result = replace(
+        result.module_result,
+        result_id=(
+            "readability-result-v2:"
+            + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:20]
+        ),
+        metrics=existing_metrics + tuple(poetic_metrics),
+        warnings=warnings,
+        provenance=replace(
+            result.module_result.provenance,
+            inclusion_policy=(
+                result.module_result.provenance.inclusion_policy
+                + " VV-PRE uses a positive weighted sum of four independently "
+                "clamped 0-100 ease components and remains missing unless all "
+                "four inputs are available."
+            ),
+        ),
+    )
+    return replace(
+        result,
+        module_result=module_result,
+        poetic_reading_ease=poetic,
+    )
 
 
 def _letters(value: str) -> str:
@@ -386,7 +785,7 @@ class ReadabilityModule:
     """Calculate familiar English prose formulas without external downloads."""
 
     name = "readability"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def analyze(self, module_input: ModuleInput) -> ModuleResult:
         return self.analyze_detailed(module_input).module_result

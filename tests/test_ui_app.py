@@ -1894,6 +1894,57 @@ def test_interface_runs_rhyme_and_sound_workflow() -> None:
     )
 
 
+def test_interface_reports_complete_experimental_poetic_reading_ease() -> None:
+    resource_root = APP_PATH.parents[3] / "resources"
+    required = (
+        resource_root
+        / "subtlex-us"
+        / "SUBTLEX-US frequency list with PoS and Zipf information.xlsx",
+        resource_root / "kuperman_2013_erratum_ESM1_official.xlsx",
+    )
+    if not all(path.is_file() for path in required):
+        return
+
+    app = AppTest.from_file(str(APP_PATH), default_timeout=120).run()
+    title = next(
+        field
+        for field in app.text_input
+        if field.label == "Poem title or working label"
+    )
+    title.input("VV-PRE interface validation")
+    app.text_area[0].input("Bright birds sing.\nThe quiet stone shines.")
+    app.multiselect[0].set_value([])
+    required_checkboxes = {
+        "Frequency & rarity profile (SUBTLEX-US Zipf)",
+        "Age of Acquisition profile (Kuperman et al. ratings)",
+        "Lexical diversity, word length & structural word counts",
+    }
+    for field in app.checkbox:
+        if field.label in required_checkboxes:
+            field.set_value(True)
+    app.run(timeout=120)
+    _button(app, "Analyze Poem").click()
+    app.run(timeout=120)
+
+    assert not app.exception
+    navigation = _section_navigation(app, "Report section")
+    navigation.set_value("Lexical Character, Imagery & Embodiment")
+    app.run(timeout=120)
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics["VV-PRE"].endswith(" / 100")
+    assert metrics["Interpretation"] in {
+        "Highly Accessible",
+        "Accessible",
+        "Moderately Demanding",
+        "Demanding",
+        "Highly Demanding",
+    }
+    assert any(
+        "VerseVAD Poetic Reading Ease (Experimental)" in heading.value
+        for heading in app.markdown
+    )
+
+
 def test_windows_helpers_are_local_and_telemetry_disabled() -> None:
     root = APP_PATH.parents[3]
     launcher = (root / "start_versevad.bat").read_text(encoding="utf-8")

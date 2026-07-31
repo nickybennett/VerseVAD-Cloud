@@ -312,6 +312,25 @@ neither exists. The report therefore includes pronunciation coverage and a
 default-collapsed attention list for estimated words. Contractions such as
 `you're` and `can't` count as single readability words.
 
+### VerseVAD Poetic Reading Ease (Experimental)
+
+VV-PRE is a 0-100 transparent composite in which higher scores mean greater
+estimated surface-level linguistic accessibility. It does not use sentence
+length. Its positive weighted formula is 35% SUBTLEX Zipf frequency ease, 30%
+normative AoA ease, 20% words-per-nonblank-line accessibility, and 15%
+estimated-syllables-per-word ease.
+
+The anchors are: Zipf 2.5 to 6.5, AoA 12 to 4 years, 15 to 3 words per line,
+and 2.5 to 1.0 syllables per word, each running from 0 to 100 ease and clamped
+outside the range. Missing components are not reweighted. VerseVAD stores the
+raw inputs, normalized components, weights, anchors, match counts, coverage,
+and source-result identities with the final score.
+
+Bands are 85-100 Highly Accessible, 70-84 Accessible, 55-69 Moderately
+Demanding, 40-54 Demanding, and 0-39 Highly Demanding. These are declared
+experimental orientations, not findings about interpretation, symbolism,
+literary merit, actual comprehension, or reader ability.
+
 ## Dictionary Pronunciation, Syllables, and Lexical Stress
 
 The optional one-poem Stage 5 module uses exact observed-form pronunciations

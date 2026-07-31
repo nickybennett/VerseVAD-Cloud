@@ -337,6 +337,21 @@ orthographic word. Out-of-dictionary syllables are labeled heuristic; review
 them in the default-collapsed pronunciation-attention panel and approve/edit a
 session override in **Sound & Form > Words Needing Attention** when needed.
 
+The same subsection reports **VerseVAD Poetic Reading Ease
+(Experimental)** (**VV-PRE**) when all four required source measures are
+available. Higher scores indicate greater estimated surface-level linguistic
+accessibility. The transparent positive-weight formula is 35% mean SUBTLEX
+Zipf frequency ease, 30% normative AoA ease, 20% mean words-per-nonblank-line
+accessibility, and 15% mean estimated-syllables-per-word ease. Each component
+is clamped to 0-100 before weighting. The interface and exports retain the raw
+inputs, component scores, anchors, weights, match counts, and coverage.
+
+VV-PRE remains unavailable rather than reweighting when a required module or
+matched value is missing. Its bands are 85-100 Highly Accessible, 70-84
+Accessible, 55-69 Moderately Demanding, 40-54 Demanding, and 0-39 Highly
+Demanding. The score concerns lexical processing and presentation; it does not
+measure thematic, symbolic, interpretive, or literary complexity.
+
 In every interactive results table, the header row stays visible while
 scrolling vertically and the leftmost data column stays pinned while scrolling
 horizontally. The pinned column is the table's first identifying field (for

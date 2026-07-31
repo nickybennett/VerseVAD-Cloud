@@ -60,6 +60,8 @@ _application_was_reloaded = (
         getattr(_pronunciation_services.PronunciationModule, "version", "")
         != "1.2.0"
     )
+    or getattr(_application_services.ReadabilityModule, "version", "")
+    != "1.1.0"
 )
 if _application_was_reloaded:
     # Reload the framework-independent dependency graph in type-definition
@@ -4905,6 +4907,99 @@ if workspace_page in {"Single Poem", "Other Text"}:
         if readability is not None:
             readability_summary = readability.summary
             st.subheader("Readability and Grade-Formula Evidence")
+            poetic_reading_ease = getattr(
+                readability,
+                "poetic_reading_ease",
+                None,
+            )
+            st.markdown("#### VerseVAD Poetic Reading Ease (Experimental)")
+            if (
+                poetic_reading_ease is not None
+                and poetic_reading_ease.is_complete
+            ):
+                poetic_score, poetic_band = st.columns([1, 1])
+                poetic_score.metric(
+                    "VV-PRE",
+                    f"{poetic_reading_ease.score:.3f} / 100",
+                    help=(
+                        "A fixed positive weighted sum: 35% vocabulary "
+                        "frequency, 30% normative Age of Acquisition, 20% mean "
+                        "words per nonblank line, and 15% mean estimated "
+                        "syllables per word."
+                    ),
+                )
+                poetic_band.metric(
+                    "Interpretation",
+                    poetic_reading_ease.interpretation_band,
+                )
+                render_dataframe(
+                    pd.DataFrame(
+                        [
+                            {
+                                "Component": component.label,
+                                "Observed Value": (
+                                    f"{component.raw_value:.3f} "
+                                    f"{component.raw_unit}"
+                                ),
+                                "Ease Score": component.ease_score,
+                                "Weight": f"{component.weight:.0%}",
+                                "Weighted Contribution": (
+                                    component.weight * component.ease_score
+                                ),
+                                "Coverage": component.coverage,
+                                "Anchors": (
+                                    f"easy {component.easy_anchor:g}; "
+                                    f"difficult {component.difficult_anchor:g}"
+                                ),
+                            }
+                            for component in poetic_reading_ease.components
+                        ]
+                    ).style.format(
+                        {
+                            "Ease Score": lambda value: _decimal(value),
+                            "Weighted Contribution": lambda value: _decimal(value),
+                            "Coverage": lambda value: _percentage(value),
+                        }
+                    ),
+                    hide_index=True,
+                    width="stretch",
+                )
+            else:
+                missing_labels = {
+                    "frequency": "Frequency & Rarity",
+                    "aoa": "Age of Acquisition",
+                    "line_accessibility": "Structural & Lexical Measures",
+                    "word_complexity": "readability syllable evidence",
+                }
+                missing_ids = (
+                    poetic_reading_ease.missing_component_ids
+                    if poetic_reading_ease is not None
+                    else (
+                        "frequency",
+                        "aoa",
+                        "line_accessibility",
+                    )
+                )
+                st.info(
+                    "VV-PRE is unavailable for this result. Enable or restore "
+                    "all required components and reanalyze: "
+                    + ", ".join(
+                        missing_labels.get(item, item)
+                        for item in missing_ids
+                    )
+                    + ". Missing components are not reweighted."
+                )
+            st.write(
+                "VerseVAD Poetic Reading Ease estimates the surface-level "
+                "linguistic accessibility of poetry using vocabulary familiarity, "
+                "age of acquisition, line length, and word complexity. Unlike "
+                "traditional readability formulas, it does not rely on grammatical "
+                "sentence length, making it more suitable for poetic texts with "
+                "unconventional punctuation or extended syntax. This score reflects "
+                "ease of lexical processing and presentation rather than thematic, "
+                "symbolic, or interpretive complexity."
+            )
+            st.markdown("#### Traditional Prose-Oriented Formulas")
             st.write(
                 "These familiar English formulas combine sentence length, word "
                 "length, and estimated syllables. They were designed for prose, "
