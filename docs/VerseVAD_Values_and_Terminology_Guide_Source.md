@@ -316,15 +316,20 @@ default-collapsed attention list for estimated words. Contractions such as
 
 VV-PRE is a 0-100 transparent composite in which higher scores mean greater
 estimated surface-level linguistic accessibility. It does not use sentence
-length. Its positive weighted formula is 30% SUBTLEX Zipf frequency ease, 25%
-normative AoA ease, 30% words-per-nonblank-line accessibility, and 15%
-estimated-syllables-per-word ease.
+length. The versioned `vv-pre-content-word-profile-1.0` uses token-weighted
+content-word occurrences (`NOUN`, `VERB`, `ADJ`, and `ADV`) with repetitions
+retained for SUBTLEX Zipf frequency, normative AoA, and estimated syllables per
+word. Mean words per nonblank line uses all lexical words. Its positive weighted
+formula is 30% frequency ease, 25% AoA ease, 30% line accessibility, and 15%
+word-complexity ease. The scoring scope is fixed even when a user changes the
+visible Frequency or AoA report settings.
 
 The anchors are: Zipf 2.5 to 6.5, AoA 12 to 4 years, 15 to 3 words per line,
 and 2.5 to 1.0 syllables per word, each running from 0 to 100 ease and clamped
 outside the range. Missing components are not reweighted. VerseVAD stores the
-raw inputs, normalized components, weights, anchors, match counts, coverage,
-and source-result identities with the final score.
+profile ID, raw inputs, component scopes, normalized components, weights,
+anchors, match counts, coverage, and source-result identities with the final
+score.
 
 Bands are 85-100 Highly Accessible, 70-84 Accessible, 55-69 Moderately
 Demanding, 40-54 Demanding, and 0-39 Highly Demanding. These are declared

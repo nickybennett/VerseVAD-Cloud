@@ -1126,12 +1126,18 @@ or a required grade.
 The subsection also reports **VerseVAD Poetic Reading Ease (Experimental)**
 (**VV-PRE**) when Frequency & Rarity, normative AoA, Structural & Lexical
 Measures, and readability syllable evidence all supply their required values.
-VV-PRE uses no sentence-length term. It positively weights four clamped 0-100
-ease components: 30% SUBTLEX Zipf frequency, 25% normative AoA, 30% words per
-nonblank line, and 15% estimated syllables per word.
+VV-PRE uses no sentence-length term. Its versioned
+`vv-pre-content-word-profile-1.0` retains repeated content-word occurrences
+(`NOUN`, `VERB`, `ADJ`, and `ADV`) for SUBTLEX frequency, normative AoA, and
+estimated syllables per word. Mean words per nonblank line counts all lexical
+words. It positively weights four clamped 0-100 ease components: 30% frequency,
+25% AoA, 30% line accessibility, and 15% word complexity. This fixed scoring
+scope is independent of the optional display settings in the Frequency and AoA
+reports.
 
-The raw values, component scores, anchors, weights, source-result identities,
-eligible counts, match counts, and coverage remain visible and exportable.
+The profile ID, raw values, component scopes, component scores, anchors,
+weights, source-result identities, eligible counts, match counts, and coverage
+remain visible and exportable.
 Missing inputs are not reweighted; the final score stays unavailable. Bands
 are 85-100 Highly Accessible, 70-84 Accessible, 55-69 Moderately Demanding,
 40-54 Demanding, and 0-39 Highly Demanding. VV-PRE estimates surface-level

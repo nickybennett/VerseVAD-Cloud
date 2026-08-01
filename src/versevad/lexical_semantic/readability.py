@@ -33,6 +33,9 @@ if TYPE_CHECKING:
 
 
 _VOWELS = frozenset("aeiouy")
+_VV_PRE_CONTENT_POS = frozenset({"NOUN", "VERB", "ADJ", "ADV"})
+VV_PRE_PROFILE_ID = "vv-pre-content-word-profile-1.0"
+VV_PRE_PROFILE_LABEL = "Fixed token-weighted content-word profile 1.0"
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,7 @@ class ReadabilityWordAudit:
     syllable_method: str
     pronunciation_candidate_count: int
     is_polysyllabic: bool
+    is_vv_pre_content_word: bool = False
 
 
 @dataclass(frozen=True)
@@ -115,6 +119,7 @@ class PoeticReadingEaseComponent:
     matched_count: int | None
     coverage: float | None
     source_result_id: str
+    scope_label: str = "Historical result; component scope was not recorded"
 
 
 @dataclass(frozen=True)
@@ -128,6 +133,8 @@ class PoeticReadingEaseSummary:
     evidence_confidence: str | None
     minimum_component_coverage: float | None
     minimum_lexical_matched_count: int | None
+    profile_id: str = VV_PRE_PROFILE_ID
+    profile_label: str = VV_PRE_PROFILE_LABEL
 
     @property
     def is_complete(self) -> bool:
@@ -161,6 +168,7 @@ def _ease_component(
     matched_count: int | None,
     coverage: float | None,
     source_result_id: str,
+    scope_label: str,
 ) -> PoeticReadingEaseComponent:
     score = None
     if raw_value is not None:
@@ -183,6 +191,7 @@ def _ease_component(
         matched_count=matched_count,
         coverage=coverage,
         source_result_id=source_result_id,
+        scope_label=scope_label,
     )
 
 
@@ -253,7 +262,7 @@ def calculate_poetic_reading_ease(
         _ease_component(
             component_id="frequency",
             label="Vocabulary Frequency",
-            source_metric_id="frequency.mean_zipf",
+            source_metric_id="frequency.vv_pre_content_word_mean_zipf",
             raw_value=mean_zipf,
             raw_unit="SUBTLEX-US Zipf",
             weight=0.30,
@@ -267,11 +276,15 @@ def calculate_poetic_reading_ease(
                 else None
             ),
             source_result_id=source_result_ids.get("frequency", ""),
+            scope_label=(
+                "Token-weighted content words (NOUN, VERB, ADJ, ADV); "
+                "repetitions retained"
+            ),
         ),
         _ease_component(
             component_id="aoa",
             label="Age of Acquisition",
-            source_metric_id="aoa.mean_years",
+            source_metric_id="aoa.vv_pre_content_word_mean_years",
             raw_value=mean_aoa,
             raw_unit="source mean age in years",
             weight=0.25,
@@ -281,6 +294,10 @@ def calculate_poetic_reading_ease(
             matched_count=aoa_matched,
             coverage=aoa_matched / aoa_eligible if aoa_eligible else None,
             source_result_id=source_result_ids.get("aoa", ""),
+            scope_label=(
+                "Token-weighted content words (NOUN, VERB, ADJ, ADV); "
+                "repetitions retained"
+            ),
         ),
         _ease_component(
             component_id="line_accessibility",
@@ -297,11 +314,14 @@ def calculate_poetic_reading_ease(
             matched_count=line_count,
             coverage=1.0 if line_count else None,
             source_result_id=source_result_ids.get("lexical_style", ""),
+            scope_label="All lexical words per nonblank line",
         ),
         _ease_component(
             component_id="word_complexity",
             label="Word Complexity",
-            source_metric_id="readability.mean_syllables_per_word",
+            source_metric_id=(
+                "readability.vv_pre_content_word_mean_syllables_per_word"
+            ),
             raw_value=mean_syllables_per_word,
             raw_unit="estimated syllables per word",
             weight=0.15,
@@ -315,6 +335,10 @@ def calculate_poetic_reading_ease(
                 else None
             ),
             source_result_id=source_result_ids.get("readability", ""),
+            scope_label=(
+                "Token-weighted content words (NOUN, VERB, ADJ, ADV); "
+                "repetitions retained"
+            ),
         ),
     )
     missing = tuple(
@@ -355,8 +379,38 @@ def attach_poetic_reading_ease(
 ) -> ReadabilityAnalysisResult:
     """Attach VV-PRE after its existing source modules have completed."""
 
-    frequency_summary = frequency.summary if frequency is not None else None
-    aoa_summary = aoa.summary if aoa is not None else None
+    frequency_rows = tuple(
+        row
+        for row in (frequency.token_audit if frequency is not None else ())
+        if row.is_lexical
+        and not row.is_proper_noun
+        and row.part_of_speech in _VV_PRE_CONTENT_POS
+    )
+    frequency_values = tuple(
+        float(row.zipf_value)
+        for row in frequency_rows
+        if row.zipf_value is not None
+    )
+    aoa_rows = tuple(
+        row
+        for row in (aoa.token_audit if aoa is not None else ())
+        if row.is_lexical
+        and not row.is_proper_noun
+        and row.part_of_speech in _VV_PRE_CONTENT_POS
+    )
+    aoa_values = tuple(
+        float(row.mean_age)
+        for row in aoa_rows
+        if row.mean_age is not None
+    )
+    syllable_rows = tuple(
+        row for row in result.word_audit if row.is_vv_pre_content_word
+    )
+    confirmed_syllable_rows = tuple(
+        row
+        for row in syllable_rows
+        if not row.syllable_method.startswith("orthographic heuristic")
+    )
     lexical_summary = lexical_style.summary if lexical_style is not None else None
     line_statistics = (
         lexical_summary.nonblank_line_word_count_statistics
@@ -364,14 +418,13 @@ def attach_poetic_reading_ease(
         else None
     )
     mean_zipf = (
-        frequency_summary.statistics.mean
-        if frequency_summary is not None
-        and frequency_summary.matched_token_count > 0
+        sum(frequency_values) / len(frequency_values)
+        if frequency_values
         else None
     )
     mean_aoa = (
-        aoa_summary.statistics.mean
-        if aoa_summary is not None and aoa_summary.matched_token_count > 0
+        sum(aoa_values) / len(aoa_values)
+        if aoa_values
         else None
     )
     mean_words_per_line = (
@@ -385,18 +438,19 @@ def attach_poetic_reading_ease(
         mean_zipf=mean_zipf,
         mean_aoa=mean_aoa,
         mean_words_per_line=mean_words_per_line,
-        mean_syllables_per_word=result.summary.mean_syllables_per_word,
+        mean_syllables_per_word=(
+            sum(row.syllable_count for row in syllable_rows) / len(syllable_rows)
+            if syllable_rows
+            else None
+        ),
         frequency_counts=(
-            (
-                frequency_summary.eligible_token_count,
-                frequency_summary.matched_token_count,
-            )
-            if frequency_summary is not None
+            (len(frequency_rows), len(frequency_values))
+            if frequency is not None
             else None
         ),
         aoa_counts=(
-            (aoa_summary.eligible_token_count, aoa_summary.matched_token_count)
-            if aoa_summary is not None
+            (len(aoa_rows), len(aoa_values))
+            if aoa is not None
             else None
         ),
         line_count=(
@@ -405,8 +459,8 @@ def attach_poetic_reading_ease(
             else None
         ),
         syllable_counts=(
-            result.summary.word_count,
-            result.summary.dictionary_or_override_word_count,
+            len(syllable_rows),
+            len(confirmed_syllable_rows),
         ),
         source_result_ids={
             "frequency": (
@@ -428,13 +482,26 @@ def attach_poetic_reading_ease(
     )
     poetic_metrics = [
         ModuleMetric(
+            metric_id="readability.poetic_reading_ease.profile_id",
+            value=poetic.profile_id,
+            layer=ResultLayer.DIRECT_OBSERVATION,
+            unit="versioned scoring-profile identifier",
+            denominator="VV-PRE calculation",
+            note=poetic.profile_label,
+        ),
+        ModuleMetric(
             metric_id="readability.poetic_reading_ease.score",
             value=poetic.score,
             layer=ResultLayer.COMPUTED_SUMMARY,
             unit="0-100 ease score; higher is more accessible",
             weighting="30% frequency + 25% AoA + 30% line + 15% syllables",
             denominator="all four declared VV-PRE components",
-            note="Experimental surface-level linguistic accessibility composite.",
+            note=(
+                "Experimental surface-level linguistic accessibility composite. "
+                "Frequency, AoA, and word-complexity components use token-weighted "
+                "content words with repetitions retained; line length uses all "
+                "lexical words."
+            ),
         ),
         ModuleMetric(
             metric_id="readability.poetic_reading_ease.band",
@@ -493,6 +560,7 @@ def attach_poetic_reading_ease(
                         if component.eligible_count is not None
                         else "source metric unavailable"
                     ),
+                    note=component.scope_label,
                 ),
                 ModuleMetric(
                     metric_id=(
@@ -563,7 +631,7 @@ def attach_poetic_reading_ease(
     module_result = replace(
         result.module_result,
         result_id=(
-            "readability-result-v3:"
+            "readability-result-v4:"
             + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:20]
         ),
         metrics=existing_metrics + tuple(poetic_metrics),
@@ -576,7 +644,11 @@ def attach_poetic_reading_ease(
                 "clamped 0-100 ease components: 30% Frequency, 25% AoA, 30% "
                 "Line Accessibility, and 15% Word Complexity. It remains "
                 "missing unless all four inputs are available. Evidence "
-                "confidence is reported separately and never alters the score."
+                "confidence is reported separately and never alters the score. "
+                f"{VV_PRE_PROFILE_LABEL} uses token-weighted content words "
+                "(NOUN, VERB, ADJ, ADV), retaining repetition, for Frequency, "
+                "AoA, and Word Complexity; Line Accessibility uses all lexical "
+                "words per nonblank line."
             ),
         ),
     )
@@ -680,6 +752,11 @@ def _word_audit(
             line_number = span.line_number
             surface_form = span.raw_text
             lookup = _lookup(span.raw_text)
+            is_vv_pre_content_word = any(
+                item.part_of_speech in _VV_PRE_CONTENT_POS
+                and not item.is_proper_noun
+                for item in lexical_members
+            )
         else:
             if not token.is_lexical:
                 continue
@@ -688,6 +765,10 @@ def _word_audit(
             line_number = token.line_number
             surface_form = token.surface_form
             lookup = _lookup(token.normalized_form or token.surface_form)
+            is_vv_pre_content_word = (
+                token.part_of_speech in _VV_PRE_CONTENT_POS
+                and not token.is_proper_noun
+            )
         override = overrides.get(lookup)
         candidates = tuple(pronouncing.phones_for_word(lookup))
         if override is not None:
@@ -719,6 +800,7 @@ def _word_audit(
                 syllable_method=method,
                 pronunciation_candidate_count=candidate_count,
                 is_polysyllabic=syllables >= 3,
+                is_vv_pre_content_word=is_vv_pre_content_word,
             )
         )
     return tuple(rows)
@@ -873,7 +955,7 @@ class ReadabilityModule:
     """Calculate familiar English prose formulas without external downloads."""
 
     name = "readability"
-    version = "1.2.0"
+    version = "1.3.0"
 
     def analyze(self, module_input: ModuleInput) -> ModuleResult:
         return self.analyze_detailed(module_input).module_result

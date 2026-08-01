@@ -1,15 +1,21 @@
 import csv
 import io
 from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from versevad.application import AnalysisRequest, run_workspace_analysis
 from versevad.core.modules import ModuleInput
 from versevad.exports.readability import export_readability_bundle
 from versevad.exports.sentiment import export_vader_sentiment_bundle
+from versevad.lexical_semantic.aoa import AoAConfiguration
+from versevad.lexical_semantic.frequency import FrequencyConfiguration
 from versevad.lexical_semantic.readability import (
     ReadabilityConfiguration,
     ReadabilityModule,
+    attach_poetic_reading_ease,
     calculate_poetic_reading_ease,
 )
 from versevad.lexical_semantic.sentiment import VaderSentimentModule
@@ -74,6 +80,12 @@ def test_readability_uses_transparent_formulas_and_keeps_contractions_whole(
     assert summary.sentence_count == 2
     assert any(item.surface_form.casefold() == "you're" for item in result.word_audit)
     assert not any(item.surface_form.casefold() == "'re" for item in result.word_audit)
+    assert not next(
+        item for item in result.word_audit if item.surface_form.casefold() == "you're"
+    ).is_vv_pre_content_word
+    assert next(
+        item for item in result.word_audit if item.surface_form.casefold() == "bright"
+    ).is_vv_pre_content_word
     assert summary.flesch_reading_ease is not None
     assert summary.flesch_kincaid_grade is not None
     assert summary.gunning_fog_index is not None
@@ -157,6 +169,154 @@ def test_poetic_reading_ease_uses_positive_weights_and_fixed_anchors() -> None:
         0.30,
         0.15,
     ]
+    assert midpoint.profile_id == "vv-pre-content-word-profile-1.0"
+
+
+def test_poetic_reading_ease_fixed_profile_filters_function_words_and_proper_nouns(
+    preprocessor,
+) -> None:
+    result = ReadabilityModule().analyze_detailed(
+        _input(preprocessor, "Stone and brightly.")
+    )
+    frequency = SimpleNamespace(
+        token_audit=(
+            SimpleNamespace(
+                is_lexical=True,
+                is_proper_noun=False,
+                part_of_speech="NOUN",
+                zipf_value=4.0,
+            ),
+            SimpleNamespace(
+                is_lexical=True,
+                is_proper_noun=False,
+                part_of_speech="CCONJ",
+                zipf_value=7.0,
+            ),
+            SimpleNamespace(
+                is_lexical=True,
+                is_proper_noun=False,
+                part_of_speech="ADV",
+                zipf_value=2.0,
+            ),
+            SimpleNamespace(
+                is_lexical=True,
+                is_proper_noun=True,
+                part_of_speech="PROPN",
+                zipf_value=5.0,
+            ),
+        ),
+        module_result=SimpleNamespace(result_id="frequency-source"),
+    )
+    aoa = SimpleNamespace(
+        token_audit=(
+            SimpleNamespace(
+                is_lexical=True,
+                is_proper_noun=False,
+                part_of_speech="NOUN",
+                mean_age=6.0,
+            ),
+            SimpleNamespace(
+                is_lexical=True,
+                is_proper_noun=False,
+                part_of_speech="CCONJ",
+                mean_age=3.0,
+            ),
+            SimpleNamespace(
+                is_lexical=True,
+                is_proper_noun=False,
+                part_of_speech="ADV",
+                mean_age=10.0,
+            ),
+            SimpleNamespace(
+                is_lexical=True,
+                is_proper_noun=True,
+                part_of_speech="PROPN",
+                mean_age=4.0,
+            ),
+        ),
+        module_result=SimpleNamespace(result_id="aoa-source"),
+    )
+    lexical_style = SimpleNamespace(
+        summary=SimpleNamespace(
+            nonblank_line_word_count_statistics=SimpleNamespace(mean=3.0),
+            lexical_token_count=3,
+            nonblank_line_count=1,
+        ),
+        module_result=SimpleNamespace(result_id="lexical-style-source"),
+    )
+
+    attached = attach_poetic_reading_ease(
+        result,
+        frequency=frequency,
+        aoa=aoa,
+        lexical_style=lexical_style,
+    )
+    poetic = attached.poetic_reading_ease
+    assert poetic is not None
+    components = {component.component_id: component for component in poetic.components}
+    assert components["frequency"].raw_value == pytest.approx(3.0)
+    assert components["frequency"].eligible_count == 2
+    assert components["aoa"].raw_value == pytest.approx(8.0)
+    assert components["aoa"].eligible_count == 2
+    assert components["word_complexity"].eligible_count == 2
+    assert all(
+        "content words" in components[item].scope_label.casefold()
+        for item in ("frequency", "aoa", "word_complexity")
+    )
+    assert components["line_accessibility"].scope_label == (
+        "All lexical words per nonblank line"
+    )
+
+
+def test_poetic_reading_ease_fixed_profile_is_independent_of_visible_fallback(
+    preprocessor,
+) -> None:
+    resource_root = Path(__file__).parents[1] / "resources"
+    required = (
+        resource_root
+        / "subtlex-us"
+        / "SUBTLEX-US frequency list with PoS and Zipf information.xlsx",
+        resource_root / "kuperman_2013_erratum_ESM1_official.xlsx",
+    )
+    if not all(path.is_file() for path in required):
+        pytest.skip("The optional VV-PRE lexical resources are not installed.")
+    text = "so much depends\nupon\n\na red wheel\nbarrow\n\nglazed with rain\nwater"
+    common = {
+        "project_name": "VV-PRE fixed profile",
+        "title": "Fixed profile",
+        "original_text": text,
+        "lexicon_ids": (),
+        "include_frequency": True,
+        "include_aoa": True,
+        "include_lexical_style": True,
+    }
+    ordinary = run_workspace_analysis(
+        AnalysisRequest(**common),
+        preprocessor=preprocessor,
+        resource_root=resource_root,
+    )
+    restricted_visible_reports = run_workspace_analysis(
+        AnalysisRequest(
+            **common,
+            frequency_configuration=FrequencyConfiguration(
+                enable_lemma_fallback=False
+            ),
+            aoa_configuration=AoAConfiguration(enable_lemma_fallback=False),
+        ),
+        preprocessor=preprocessor,
+        resource_root=resource_root,
+    )
+
+    ordinary_poetic = ordinary.readability.poetic_reading_ease
+    restricted_poetic = restricted_visible_reports.readability.poetic_reading_ease
+    assert ordinary_poetic is not None
+    assert restricted_poetic is not None
+    assert restricted_poetic.score == pytest.approx(ordinary_poetic.score)
+    assert [
+        component.raw_value for component in restricted_poetic.components
+    ] == pytest.approx(
+        [component.raw_value for component in ordinary_poetic.components]
+    )
 
 
 def test_poetic_reading_ease_does_not_reweight_missing_components() -> None:
@@ -247,3 +407,6 @@ def test_readability_export_retains_vv_pre_score_components_and_coverage(
         exported["vv_pre_minimum_component_coverage"]["value"]
     ) == pytest.approx(4 / 6)
     assert exported["vv_pre_minimum_lexical_matched_count"]["value"] == "4"
+    assert exported["vv_pre_profile_id"]["value"] == (
+        "vv-pre-content-word-profile-1.0"
+    )

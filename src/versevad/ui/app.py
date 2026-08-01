@@ -61,7 +61,7 @@ _application_was_reloaded = (
         != "1.2.0"
     )
     or getattr(_application_services.ReadabilityModule, "version", "")
-    != "1.2.0"
+    != "1.3.0"
 )
 if _application_was_reloaded:
     # Reload the framework-independent dependency graph in type-definition
@@ -4925,7 +4925,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         "A fixed positive weighted sum: 30% vocabulary "
                         "frequency, 25% normative Age of Acquisition, 30% mean "
                         "words per nonblank line, and 15% mean estimated "
-                        "syllables per word."
+                        "syllables per word. Frequency, AoA, and word complexity "
+                        "use token-weighted content words (nouns, verbs, "
+                        "adjectives, and adverbs), with repetitions retained."
                     ),
                 )
                 poetic_band.metric(
@@ -4961,6 +4963,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     None,
                 )
                 st.caption(
+                    f"Scoring profile: {poetic_reading_ease.profile_label} "
+                    f"({poetic_reading_ease.profile_id}). Frequency, AoA, and "
+                    "Word Complexity use token-weighted content words with "
+                    "repetitions retained; Line Accessibility uses all lexical "
+                    "words per nonblank line."
+                )
+                st.caption(
                     "Evidence basis: minimum component coverage "
                     f"{_percentage(minimum_component_coverage)}; smaller "
                     "Frequency/AoA matched-token count "
@@ -4973,6 +4982,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         [
                             {
                                 "Component": component.label,
+                                "Scope": component.scope_label,
                                 "Observed Value": (
                                     f"{component.raw_value:.3f} "
                                     f"{component.raw_unit}"

@@ -340,11 +340,17 @@ session override in **Sound & Form > Words Needing Attention** when needed.
 The same subsection reports **VerseVAD Poetic Reading Ease
 (Experimental)** (**VV-PRE**) when all four required source measures are
 available. Higher scores indicate greater estimated surface-level linguistic
-accessibility. The transparent positive-weight formula is 30% mean SUBTLEX
-Zipf frequency ease, 25% normative AoA ease, 30% mean words-per-nonblank-line
-accessibility, and 15% mean estimated-syllables-per-word ease. Each component
-is clamped to 0-100 before weighting. The interface and exports retain the raw
-inputs, component scores, anchors, weights, match counts, and coverage.
+accessibility. The versioned `vv-pre-content-word-profile-1.0` uses
+token-weighted content-word occurrences (`NOUN`, `VERB`, `ADJ`, and `ADV`) for
+SUBTLEX frequency, normative AoA, and estimated syllables per word. Repeated
+content words remain repeated. Mean words per nonblank line continues to count
+all lexical words so that the score preserves the poem's visible line burden.
+The transparent positive-weight formula is 30% frequency ease, 25% AoA ease,
+30% line accessibility, and 15% word complexity. Each component is clamped to
+0-100 before weighting. The interface and exports retain the profile ID, raw
+inputs, component scopes, component scores, anchors, weights, match counts, and
+coverage. This fixed scope does not change when the user changes the visible
+Frequency or AoA report settings.
 
 VV-PRE remains unavailable rather than reweighting when a required module or
 matched value is missing. Its bands are 85-100 Highly Accessible, 70-84

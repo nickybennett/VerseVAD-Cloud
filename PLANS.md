@@ -1,5 +1,19 @@
 # VerseVAD Implementation Plan
 
+## Completed VV-PRE content-word scoring profile
+
+- [x] Version the fixed calculation as `vv-pre-content-word-profile-1.0`.
+- [x] Use token-weighted `NOUN`/`VERB`/`ADJ`/`ADV` occurrences with
+  repetitions retained for Frequency, AoA, and Word Complexity.
+- [x] Continue to use all lexical words per nonblank line for Line
+  Accessibility.
+- [x] Keep the score independent of visible Frequency/AoA report settings and
+  preserve the profile ID, component scopes, coverage, and source identities.
+- [x] Retain historical saved-analysis compatibility through defaults for
+  newly recorded audit/provenance fields.
+- [x] Validate the calculation, interface, exports, documentation, and hosted
+  resource behavior.
+
 ## Completed research-workspace architecture Stage 3
 
 - [x] Replace every remaining planned route with a working **Reference

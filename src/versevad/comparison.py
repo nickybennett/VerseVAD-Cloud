@@ -747,7 +747,7 @@ def _method_fixed_rows(comparison: PoemComparison) -> list[PoemComparisonRow]:
                     _row(
                         section="Lexical Character, Imagery & Embodiment",
                         source="VerseVAD Poetic Reading Ease (Experimental)",
-                        analysis_view="complete preserved text",
+                        analysis_view=poetic_a.profile_id,
                         weighting="fixed positive weighted composite",
                         metric_id="readability.poetic_reading_ease.score",
                         metric="VV-PRE score",
@@ -757,14 +757,16 @@ def _method_fixed_rows(comparison: PoemComparison) -> list[PoemComparisonRow]:
                         denominator_a="all four declared components",
                         denominator_b="all four declared components",
                         note=(
-                            "Surface-level linguistic accessibility, not thematic "
-                            "or interpretive complexity."
+                            "Fixed token-weighted content-word profile for "
+                            "Frequency, AoA, and Word Complexity; all lexical "
+                            "words for line length. Surface-level linguistic "
+                            "accessibility, not thematic or interpretive complexity."
                         ),
                     ),
                     _row(
                         section="Lexical Character, Imagery & Embodiment",
                         source="VerseVAD Poetic Reading Ease (Experimental)",
-                        analysis_view="complete preserved text",
+                        analysis_view=poetic_a.profile_id,
                         weighting="fixed interpretation bands",
                         metric_id="readability.poetic_reading_ease.band",
                         metric="VV-PRE interpretation band",
@@ -778,7 +780,7 @@ def _method_fixed_rows(comparison: PoemComparison) -> list[PoemComparisonRow]:
                     _row(
                         section="Lexical Character, Imagery & Embodiment",
                         source="VerseVAD Poetic Reading Ease (Experimental)",
-                        analysis_view="complete preserved text",
+                        analysis_view=poetic_a.profile_id,
                         weighting="fixed evidence-sufficiency rules",
                         metric_id=(
                             "readability.poetic_reading_ease.evidence_confidence"
@@ -801,7 +803,7 @@ def _method_fixed_rows(comparison: PoemComparison) -> list[PoemComparisonRow]:
                     _row(
                         section="Lexical Character, Imagery & Embodiment",
                         source="VerseVAD Poetic Reading Ease (Experimental)",
-                        analysis_view="complete preserved text",
+                        analysis_view=poetic_a.profile_id,
                         weighting="method fixed",
                         metric_id=(
                             "readability.poetic_reading_ease."
@@ -837,7 +839,7 @@ def _method_fixed_rows(comparison: PoemComparison) -> list[PoemComparisonRow]:
                     _row(
                         section="Lexical Character, Imagery & Embodiment",
                         source="VerseVAD Poetic Reading Ease (Experimental)",
-                        analysis_view="complete preserved text",
+                        analysis_view=poetic_a.profile_id,
                         weighting=f"fixed {component_a.weight:.0%} component",
                         metric_id=(
                             "readability.poetic_reading_ease."
@@ -859,7 +861,8 @@ def _method_fixed_rows(comparison: PoemComparison) -> list[PoemComparisonRow]:
                         coverage_b=component_b.coverage,
                         note=(
                             f"Easy anchor {component_a.easy_anchor:g}; difficult "
-                            f"anchor {component_a.difficult_anchor:g}."
+                            f"anchor {component_a.difficult_anchor:g}; scope: "
+                            f"{component_a.scope_label}."
                         ),
                     )
                 )

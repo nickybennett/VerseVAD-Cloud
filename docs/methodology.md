@@ -151,12 +151,20 @@ components to 0-100 and combines them as a positive weighted sum:
 
 `VV-PRE = 0.30(frequency ease) + 0.25(AoA ease) + 0.30(line accessibility) + 0.15(word complexity)`
 
-Frequency ease maps mean SUBTLEX-US Zipf 2.5 to 0 and 6.5 to 100. AoA ease maps
-mean AoA 12 to 0 and 4 to 100. Line accessibility maps 15 words per nonblank
-line to 0 and 3 to 100. Word complexity maps 2.5 estimated syllables per word
-to 0 and 1.0 to 100. Values beyond the anchors are clamped. Missing components
-are never silently reweighted: the overall score remains unavailable until all
-four exist. Reports retain every raw value, normalized component, weight,
+The versioned scoring profile is `vv-pre-content-word-profile-1.0`. Frequency,
+AoA, and Word Complexity use token-weighted content-word occurrences
+(`NOUN`, `VERB`, `ADJ`, and `ADV`), retaining repeated occurrences. Line
+Accessibility uses all lexical words per nonblank line. The fixed calculation
+therefore does not change when a user changes the visible scope of the
+Frequency or AoA report.
+
+Frequency ease maps mean content-word SUBTLEX-US Zipf 2.5 to 0 and 6.5 to 100.
+AoA ease maps mean content-word AoA 12 to 0 and 4 to 100. Line accessibility
+maps 15 all-lexical words per nonblank line to 0 and 3 to 100. Word complexity
+maps 2.5 estimated syllables per content word to 0 and 1.0 to 100. Values beyond
+the anchors are clamped. Missing components are never silently reweighted: the
+overall score remains unavailable until all four exist. Reports retain the
+profile ID, every raw value, component scope, normalized component, weight,
 anchor, source-result identity, eligible count, match count, and coverage.
 
 The declared bands are 85-100 Highly Accessible, 70-84 Accessible, 55-69

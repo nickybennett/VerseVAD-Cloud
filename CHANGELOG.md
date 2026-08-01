@@ -6,6 +6,11 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Versioned VV-PRE as `vv-pre-content-word-profile-1.0`: Frequency, AoA, and
+  Word Complexity now use token-weighted `NOUN`/`VERB`/`ADJ`/`ADV`
+  occurrences with repetition retained, while Line Accessibility continues to
+  use all lexical words per nonblank line. Profile identity and component scope
+  are retained in the interface, provenance, and exports.
 - Completed the final top-level workspace architecture. Reference Corpora,
   standalone VerseMap, Form Library, Corpus Browser, Documentation, and
   Methodology now render working interfaces rather than planned-state copy.

@@ -1530,11 +1530,77 @@ def run_workspace_analysis(
             )
         except LexicalStyleModuleError as error:
             raise WorkspaceAnalysisError(str(error)) from error
+    vv_pre_frequency = frequency
+    if frequency is not None and not frequency.configuration.enable_lemma_fallback:
+        module = frequency_module or FrequencyModule(resource_root)
+        fixed_frequency_configuration = FrequencyConfiguration(
+            content_words_only=True,
+            enable_lemma_fallback=True,
+            minimum_matched_tokens=1,
+            scenario_id="vv-pre-content-word-frequency-1.0",
+        )
+        try:
+            vv_pre_frequency = cached_operation(
+                "vv_pre_content_word_frequency",
+                {
+                    "text_sha256": document.text_sha256,
+                    "text_version_id": document.text_version_id,
+                    "preprocessing": poem_document.preprocessing,
+                    "configuration": fixed_frequency_configuration,
+                    "module_version": module.version,
+                    "resource_root": resource_root.resolve(),
+                },
+                lambda: module.analyze_detailed(
+                    module_input,
+                    fixed_frequency_configuration,
+                ),
+                validator=lambda value: (
+                    isinstance(value, FrequencyAnalysisResult)
+                    and value.module_result.text_version_id
+                    == document.text_version_id
+                ),
+                enabled=frequency_module is None,
+            )
+        except FrequencyModuleError as error:
+            raise WorkspaceAnalysisError(str(error)) from error
+    vv_pre_aoa = aoa
+    if aoa is not None and not aoa.configuration.enable_lemma_fallback:
+        module = aoa_module or AoAModule(resource_root)
+        fixed_aoa_configuration = AoAConfiguration(
+            content_words_only=True,
+            enable_lemma_fallback=True,
+            minimum_matched_tokens=1,
+            scenario_id="vv-pre-content-word-aoa-1.0",
+        )
+        try:
+            vv_pre_aoa = cached_operation(
+                "vv_pre_content_word_age_of_acquisition",
+                {
+                    "text_sha256": document.text_sha256,
+                    "text_version_id": document.text_version_id,
+                    "preprocessing": poem_document.preprocessing,
+                    "configuration": fixed_aoa_configuration,
+                    "module_version": module.version,
+                    "resource_root": resource_root.resolve(),
+                },
+                lambda: module.analyze_detailed(
+                    module_input,
+                    fixed_aoa_configuration,
+                ),
+                validator=lambda value: (
+                    isinstance(value, AoAAnalysisResult)
+                    and value.module_result.text_version_id
+                    == document.text_version_id
+                ),
+                enabled=aoa_module is None,
+            )
+        except AoAModuleError as error:
+            raise WorkspaceAnalysisError(str(error)) from error
     if readability is not None:
         readability = attach_poetic_reading_ease(
             readability,
-            frequency=frequency,
-            aoa=aoa,
+            frequency=vv_pre_frequency,
+            aoa=vv_pre_aoa,
             lexical_style=lexical_style,
         )
     versemap_lexical_style = None
@@ -3425,20 +3491,23 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                     {
                         "section": "Readability",
                         "lexicon": "VerseVAD Poetic Reading Ease (Experimental)",
-                        "analysis_view": "Complete preserved text",
+                        "analysis_view": poetic.profile_id,
                         "metric": "VV-PRE score",
                         "value": poetic.score if poetic.score is not None else "",
                         "unit_or_scale": "0-100; higher means more accessible",
                         "denominator": "all four declared weighted components",
                         "plain_language_note": (
-                            "Surface-level linguistic accessibility only; not "
-                            "thematic, symbolic, interpretive, or literary complexity."
+                            "Fixed token-weighted content-word profile for "
+                            "Frequency, AoA, and Word Complexity; all lexical "
+                            "words for line length. Surface-level linguistic "
+                            "accessibility only; not thematic, symbolic, "
+                            "interpretive, or literary complexity."
                         ),
                     },
                     {
                         "section": "Readability",
                         "lexicon": "VerseVAD Poetic Reading Ease (Experimental)",
-                        "analysis_view": "Complete preserved text",
+                        "analysis_view": poetic.profile_id,
                         "metric": "VV-PRE interpretation band",
                         "value": poetic.interpretation_band or "",
                         "unit_or_scale": "declared experimental band",
@@ -3452,7 +3521,7 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                     {
                         "section": "Readability",
                         "lexicon": "VerseVAD Poetic Reading Ease (Experimental)",
-                        "analysis_view": "Complete preserved text",
+                        "analysis_view": poetic.profile_id,
                         "metric": "VV-PRE evidence confidence",
                         "value": (
                             getattr(poetic, "evidence_confidence", None) or ""
@@ -3475,7 +3544,7 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                     {
                         "section": "Readability",
                         "lexicon": "VerseVAD Poetic Reading Ease (Experimental)",
-                        "analysis_view": "Complete preserved text",
+                        "analysis_view": poetic.profile_id,
                         "metric": f"{component.label} component score",
                         "value": (
                             component.ease_score
@@ -3494,7 +3563,8 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                             f"{component.raw_value if component.raw_value is not None else 'missing'} "
                             f"{component.raw_unit}; easy anchor "
                             f"{component.easy_anchor:g}; difficult anchor "
-                            f"{component.difficult_anchor:g}."
+                            f"{component.difficult_anchor:g}; scope: "
+                            f"{component.scope_label}."
                         ),
                     }
                 )

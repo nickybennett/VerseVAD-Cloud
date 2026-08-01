@@ -60,13 +60,24 @@ def export_readability_summary_csv(result: ReadabilityAnalysisResult) -> bytes:
             (
                 {
                     "section": "versevad_poetic_reading_ease_experimental",
+                    "metric": "vv_pre_profile_id",
+                    "value": poetic.profile_id,
+                    "unit_or_scale": "versioned scoring-profile identifier",
+                    "denominator": "VV-PRE calculation",
+                    "note": poetic.profile_label,
+                },
+                {
+                    "section": "versevad_poetic_reading_ease_experimental",
                     "metric": "vv_pre_score",
                     "value": "" if poetic.score is None else poetic.score,
                     "unit_or_scale": "0-100; higher means more accessible",
                     "denominator": "all four declared weighted components",
                     "note": (
                         "30% frequency + 25% AoA + 30% line accessibility + "
-                        "15% word complexity; unavailable components are not reweighted."
+                        "15% word complexity; unavailable components are not "
+                        "reweighted. Frequency, AoA, and word complexity use "
+                        "token-weighted content words with repetitions retained; "
+                        "line length uses all lexical words."
                     ),
                 },
                 {
@@ -144,7 +155,8 @@ def export_readability_summary_csv(result: ReadabilityAnalysisResult) -> bytes:
                 f"Easy anchor {component.easy_anchor:g}; difficult anchor "
                 f"{component.difficult_anchor:g}; source metric "
                 f"{component.source_metric_id}; source result "
-                f"{component.source_result_id or 'unavailable'}."
+                f"{component.source_result_id or 'unavailable'}; scope: "
+                f"{component.scope_label}."
             )
             component_denominator = (
                 f"{component.matched_count} matched of "
@@ -220,6 +232,7 @@ def export_readability_word_audit_csv(
             "syllable_method",
             "pronunciation_candidate_count",
             "is_polysyllabic",
+            "is_vv_pre_content_word",
         ],
         [asdict(item) for item in result.word_audit],
     )
