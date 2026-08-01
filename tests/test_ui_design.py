@@ -13,6 +13,7 @@ from versevad.ui.design import (
     OCEAN_TOKENS,
     THEME_TOKENS,
     WORKSPACES,
+    _appearance_cookie_html,
     collapse_control_html,
     preset_widget_state,
     render_dataframe,
@@ -26,6 +27,7 @@ from versevad.ui.dataframes import (
 from versevad.ui.preferences import (
     AppearanceMode,
     UiPreferences,
+    appearance_from_browser_cookie,
     load_preferences,
     save_preferences,
 )
@@ -61,6 +63,19 @@ def test_malformed_ui_preferences_fail_safely(tmp_path: Path) -> None:
     assert load_preferences(path) == UiPreferences()
     path.write_text('{"appearance": []}', encoding="utf-8")
     assert load_preferences(path) == UiPreferences()
+
+
+def test_hosted_appearance_cookie_is_strict_and_refresh_persistent() -> None:
+    assert appearance_from_browser_cookie("Lavender") is AppearanceMode.LAVENDER
+    assert appearance_from_browser_cookie("System") is None
+    assert appearance_from_browser_cookie("<script>") is None
+    assert appearance_from_browser_cookie(None) is None
+
+    markup = _appearance_cookie_html(AppearanceMode.FOREST)
+    assert "versevad_appearance=Forest" in markup
+    assert "Path=/" in markup
+    assert "Max-Age=31536000" in markup
+    assert "SameSite=Lax" in markup
 
 
 def test_dataframe_renderer_pins_leftmost_data_column(monkeypatch) -> None:

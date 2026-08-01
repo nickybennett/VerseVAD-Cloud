@@ -1047,6 +1047,63 @@ if workspace_page in {"Single Poem", "Other Text"}:
         status="Session only",
     )
 
+    # Initialize analytical widget defaults through session state. Historical
+    # saves and custom profiles use these same keys, so passing a second
+    # ``value``/``index`` to each widget would make Streamlit warn even though
+    # the restored value is valid.
+    configuration_widget_defaults = {
+        "phrase_policy_label": "Prefer the longest phrase (recommended)",
+        "minimum_matches": 3,
+        "concreteness_abstract_max": 2.0,
+        "concreteness_concrete_min": 4.0,
+        "concreteness_exclude_proper": False,
+        "concreteness_phrases": True,
+        "concreteness_coverage_warning": 0.6,
+        "sensorimotor_exclude_proper": False,
+        "sensorimotor_phrases": True,
+        "sensorimotor_top_terms": 12,
+        "frequency_rare_below": 3.0,
+        "frequency_uncommon_below": 4.0,
+        "frequency_moderate_below": 5.0,
+        "frequency_very_common_min": 6.0,
+        "frequency_exclude_proper": False,
+        "frequency_content_words_only": False,
+        "frequency_lemma_fallback": True,
+        "frequency_coverage_warning": 0.6,
+        "aoa_early_max": 5.0,
+        "aoa_later_min": 12.0,
+        "aoa_exclude_proper": False,
+        "aoa_content_words_only": False,
+        "aoa_lemma_fallback": True,
+        "aoa_coverage_warning": 0.6,
+        "lexical_style_mattr_window": 50,
+        "lexical_style_hdd_sample": 42,
+        "lexical_style_mtld_threshold": 0.72,
+        "lexical_style_short_warning": 50,
+        "pronunciation_coverage_warning": 0.8,
+        "pronunciation_minimum_complete_lines": 2,
+        "pronunciation_minimum_resolved_tokens": 3,
+        "meter_analysis_mode": (
+            "Compare candidate and performance-aware readings"
+        ),
+        "meter_interpretation_depth": "Standard",
+        "meter_line_match_threshold": 0.75,
+        "meter_irregular_threshold": 0.65,
+        "meter_ambiguity_margin": 0.03,
+        "meter_maximum_variants": 256,
+        "meter_performance_candidate_limit": 8,
+        "meter_realized_alternatives": 2,
+        "meter_allow_visible_elision": False,
+        "phonological_slant_threshold": 0.68,
+        "phonological_sound_repetitions": 2,
+        "phonological_coverage_warning": 0.70,
+        "phonological_maximum_pairs": 10000,
+        "show_all_matched_results": True,
+        "show_stopword_excluded_results": True,
+    }
+    for widget_key, default_value in configuration_widget_defaults.items():
+        st.session_state.setdefault(widget_key, default_value)
+
     with st.container(border=True):
         st.subheader("1. Add the Text" if is_other_text else "1. Add a Poem")
         uploaded = st.file_uploader(
@@ -1800,7 +1857,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
             policy_label = st.selectbox(
                 "Phrase policy",
                 options=list(policy_labels),
-                index=0,
                 help="Warriner and NRC VAD v2.1 activate exact multiword expressions.",
                 key="phrase_policy_label",
             )
@@ -1808,7 +1864,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Minimum included matches before a VAD result is considered non-sparse",
                 min_value=1,
                 max_value=100,
-                value=3,
                 step=1,
                 key="minimum_matches",
             )
@@ -1821,7 +1876,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Highly abstract band: rating at or below",
                 min_value=1.0,
                 max_value=4.9,
-                value=2.0,
                 step=0.1,
                 key="concreteness_abstract_max",
                 disabled=not include_concreteness,
@@ -1830,7 +1884,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Highly concrete band: rating at or above",
                 min_value=1.1,
                 max_value=5.0,
-                value=4.0,
                 step=0.1,
                 key="concreteness_concrete_min",
                 disabled=not include_concreteness,
@@ -1840,7 +1893,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 0
             ].checkbox(
                 "Exclude model-tagged proper nouns",
-                value=False,
                 key="concreteness_exclude_proper",
                 disabled=not include_concreteness,
             )
@@ -1848,7 +1900,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 1
             ].checkbox(
                 "Activate exact two-word source expressions",
-                value=True,
                 key="concreteness_phrases",
                 disabled=not include_concreteness,
             )
@@ -1856,7 +1907,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Concreteness rated-token coverage caution threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.6,
                 step=0.05,
                 key="concreteness_coverage_warning",
                 disabled=not include_concreteness,
@@ -1872,7 +1922,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 0
             ].checkbox(
                 "Exclude sensorimotor proper nouns",
-                value=False,
                 key="sensorimotor_exclude_proper",
                 disabled=not include_sensorimotor,
             )
@@ -1880,7 +1929,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 1
             ].checkbox(
                 "Activate published multiword concepts",
-                value=True,
                 key="sensorimotor_phrases",
                 disabled=not include_sensorimotor,
                 help=(
@@ -1892,7 +1940,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Sensorimotor terms retained for compact rankings",
                 min_value=3,
                 max_value=100,
-                value=12,
                 step=1,
                 key="sensorimotor_top_terms",
                 disabled=not include_sensorimotor,
@@ -1908,7 +1955,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Rare: Zipf below",
                 min_value=1.0,
                 max_value=7.0,
-                value=3.0,
                 step=0.1,
                 key="frequency_rare_below",
                 disabled=not include_frequency,
@@ -1917,7 +1963,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Uncommon: below",
                 min_value=1.1,
                 max_value=7.2,
-                value=4.0,
                 step=0.1,
                 key="frequency_uncommon_below",
                 disabled=not include_frequency,
@@ -1928,7 +1973,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Moderately common: below",
                 min_value=1.2,
                 max_value=7.4,
-                value=5.0,
                 step=0.1,
                 key="frequency_moderate_below",
                 disabled=not include_frequency,
@@ -1937,7 +1981,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Very common: at or above",
                 min_value=1.3,
                 max_value=8.0,
-                value=6.0,
                 step=0.1,
                 key="frequency_very_common_min",
                 disabled=not include_frequency,
@@ -1947,7 +1990,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 0
             ].checkbox(
                 "Exclude frequency proper nouns",
-                value=False,
                 key="frequency_exclude_proper",
                 disabled=not include_frequency,
             )
@@ -1955,7 +1997,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 1
             ].checkbox(
                 "Content words only",
-                value=False,
                 key="frequency_content_words_only",
                 disabled=not include_frequency,
                 help=(
@@ -1969,7 +2010,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 2
             ].checkbox(
                 "Allow explicit lemma fallback",
-                value=True,
                 key="frequency_lemma_fallback",
                 disabled=not include_frequency,
             )
@@ -1977,7 +2017,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Frequency matched-token coverage caution threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.6,
                 step=0.05,
                 key="frequency_coverage_warning",
                 disabled=not include_frequency,
@@ -1993,7 +2032,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Early-acquired band: source mean age at or below",
                 min_value=0.0,
                 max_value=24.9,
-                value=5.0,
                 step=0.5,
                 key="aoa_early_max",
                 disabled=not include_aoa,
@@ -2002,7 +2040,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Later-acquired band: source mean age at or above",
                 min_value=0.1,
                 max_value=25.0,
-                value=12.0,
                 step=0.5,
                 key="aoa_later_min",
                 disabled=not include_aoa,
@@ -2010,13 +2047,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
             aoa_policy_columns = st.columns(3)
             exclude_aoa_proper_nouns = aoa_policy_columns[0].checkbox(
                 "Exclude AoA proper nouns",
-                value=False,
                 key="aoa_exclude_proper",
                 disabled=not include_aoa,
             )
             aoa_content_words_only = aoa_policy_columns[1].checkbox(
                 "AoA content words only",
-                value=False,
                 key="aoa_content_words_only",
                 disabled=not include_aoa,
                 help=(
@@ -2028,7 +2063,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
             enable_aoa_lemma_fallback = aoa_policy_columns[2].checkbox(
                 "Allow AoA lemma fallback",
-                value=True,
                 key="aoa_lemma_fallback",
                 disabled=not include_aoa,
             )
@@ -2036,7 +2070,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "AoA matched-token coverage caution threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.6,
                 step=0.05,
                 key="aoa_coverage_warning",
                 disabled=not include_aoa,
@@ -2053,7 +2086,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "MATTR window size",
                 min_value=2,
                 max_value=1000,
-                value=50,
                 step=1,
                 key="lexical_style_mattr_window",
                 disabled=not include_lexical_style,
@@ -2062,7 +2094,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "HD-D sample size",
                 min_value=2,
                 max_value=1000,
-                value=42,
                 step=1,
                 key="lexical_style_hdd_sample",
                 disabled=not include_lexical_style,
@@ -2071,7 +2102,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "MTLD TTR threshold",
                 min_value=0.01,
                 max_value=0.99,
-                value=0.72,
                 step=0.01,
                 key="lexical_style_mtld_threshold",
                 disabled=not include_lexical_style,
@@ -2080,7 +2110,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Short-text caution below",
                 min_value=2,
                 max_value=1000,
-                value=50,
                 step=1,
                 key="lexical_style_short_warning",
                 disabled=not include_lexical_style,
@@ -2201,7 +2230,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Pronunciation coverage caution threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.8,
                 step=0.05,
                 key="pronunciation_coverage_warning",
                 disabled=not (
@@ -2214,7 +2242,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Minimum complete lines",
                 min_value=1,
                 max_value=100,
-                value=2,
                 step=1,
                 key="pronunciation_minimum_complete_lines",
                 disabled=not (
@@ -2227,7 +2254,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Minimum resolved tokens",
                 min_value=1,
                 max_value=1000,
-                value=3,
                 step=1,
                 key="pronunciation_minimum_resolved_tokens",
                 disabled=not (
@@ -2252,13 +2278,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
             ].selectbox(
                 "Meter analysis level",
                 options=list(meter_mode_labels),
-                index=(
-                    0
-                    if "meter_analysis_mode" in st.session_state
-                    else list(meter_mode_labels).index(
-                        "Compare candidate and performance-aware readings"
-                    )
-                ),
                 key="meter_analysis_mode",
                 disabled=not include_meter,
                 help=(
@@ -2288,7 +2307,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
             ].selectbox(
                 "Interpretation detail",
                 options=list(meter_depth_labels),
-                index=1,
                 key="meter_interpretation_depth",
                 disabled=(
                     not include_meter
@@ -2300,7 +2318,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Meter line-fit threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.75,
                 step=0.05,
                 key="meter_line_match_threshold",
                 disabled=not include_meter,
@@ -2309,7 +2326,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Poem candidate-fit threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.65,
                 step=0.05,
                 key="meter_irregular_threshold",
                 disabled=not include_meter,
@@ -2318,7 +2334,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Candidate margin threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.03,
                 step=0.01,
                 key="meter_ambiguity_margin",
                 disabled=not include_meter,
@@ -2327,7 +2342,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Maximum stress paths per line",
                 min_value=1,
                 max_value=4096,
-                value=256,
                 step=1,
                 key="meter_maximum_variants",
                 disabled=not include_meter,
@@ -2339,7 +2353,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Realization candidates per line",
                 min_value=2,
                 max_value=40,
-                value=8,
                 step=1,
                 key="meter_performance_candidate_limit",
                 disabled=(
@@ -2354,7 +2367,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Retained realized alternatives",
                 min_value=1,
                 max_value=8,
-                value=2,
                 step=1,
                 key="meter_realized_alternatives",
                 disabled=(
@@ -2366,7 +2378,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 2
             ].checkbox(
                 "Recognize visibly marked contractions",
-                value=False,
                 key="meter_allow_visible_elision",
                 disabled=(
                     not include_meter
@@ -2407,7 +2418,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Slant-rhyme threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.68,
                 step=0.01,
                 key="phonological_slant_threshold",
                 disabled=not include_phonology,
@@ -2416,7 +2426,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Minimum repeated sounds",
                 min_value=2,
                 max_value=20,
-                value=2,
                 step=1,
                 key="phonological_sound_repetitions",
                 disabled=not include_phonology,
@@ -2425,7 +2434,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Ending-coverage caution threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.70,
                 step=0.05,
                 key="phonological_coverage_warning",
                 disabled=not include_phonology,
@@ -2434,7 +2442,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Maximum ending-pair comparisons",
                 min_value=1,
                 max_value=100000,
-                value=10000,
                 step=100,
                 key="phonological_maximum_pairs",
                 disabled=not include_phonology,
@@ -2448,12 +2455,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
             reporting_columns = st.columns(2)
             show_all_matched = reporting_columns[0].checkbox(
                 "Show all-token results",
-                value=True,
                 key="show_all_matched_results",
             )
             show_stopword_excluded = reporting_columns[1].checkbox(
                 "Show stopword-excluded results",
-                value=True,
                 key="show_stopword_excluded_results",
             )
             st.caption(

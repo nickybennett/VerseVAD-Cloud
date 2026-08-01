@@ -1052,39 +1052,85 @@ def render_historical_analysis_notice(workspace: str) -> None:
     if not isinstance(historical, dict) or historical.get("workspace") != workspace:
         return
     saved_version = str(historical.get("saved_version", "unknown"))
-    st.info(
-        "Viewing an immutable saved result from VerseVAD "
-        f"{saved_version}. It has not been recalculated under VerseVAD "
-        f"{__version__}."
-    )
-    columns = st.columns(2)
-    if columns[0].button(
-        "Continue viewing historical result",
-        key=f"continue_historical__{workspace}",
-        width="stretch",
-    ):
-        st.session_state.pop("_historical_analysis", None)
-        st.rerun()
-    if columns[1].button(
-        "Prepare reanalysis with current version",
-        key=f"prepare_reanalysis__{workspace}",
-        width="stretch",
-    ):
-        if workspace in {"Single Poem", "Other Text"}:
-            st.session_state.pop("workspace", None)
-        elif workspace == "Compare Poems":
-            st.session_state.pop("poem_comparison_set", None)
-        elif workspace == "Lexicon Explorer":
-            st.session_state.pop("lexicon_explorer_result", None)
-        elif workspace == "VerseMap":
-            st.session_state.pop("standalone_versemap_analysis", None)
-            st.session_state.pop("standalone_versemap_signature", None)
-        st.session_state.pop("_historical_analysis", None)
-        st.info(
-            "Historical inputs and settings are restored. Use the workspace's "
-            "Analyze or Search action when ready."
+    notice = st.empty()
+    with notice.container():
+        if saved_version == __version__:
+            st.info(
+                "Viewing an immutable saved result from the current VerseVAD "
+                f"version ({saved_version}). It has not been recalculated "
+                "since it was saved."
+            )
+        else:
+            st.info(
+                "Viewing an immutable saved result from VerseVAD "
+                f"{saved_version}. It has not been recalculated under VerseVAD "
+                f"{__version__}."
+            )
+        columns = st.columns(2)
+        continue_historical = columns[0].button(
+            "Continue viewing historical result",
+            key=f"continue_historical__{workspace}",
+            width="stretch",
         )
-        st.rerun()
+        prepare_reanalysis = columns[1].button(
+            "Prepare reanalysis with current version",
+            key=f"prepare_reanalysis__{workspace}",
+            width="stretch",
+        )
+
+    # A button interaction has already started a Streamlit rerun. Continue the
+    # current render after changing only the required state; an additional
+    # st.rerun() could discard the just-restored result before it is displayed.
+    if continue_historical:
+        _continue_historical_result(workspace)
+        notice.empty()
+    elif prepare_reanalysis:
+        _prepare_historical_reanalysis(workspace)
+        notice.empty()
+        st.success(
+            "Historical inputs and settings are restored. Use the workspace's "
+            "Analyze or Search action when ready. The saved historical revision "
+            "remains unchanged in the Analysis Library."
+        )
+
+
+def _continue_historical_result(
+    workspace: str,
+    *,
+    state: Any | None = None,
+) -> bool:
+    """Dismiss the notice without changing the restored immutable result."""
+
+    target = st.session_state if state is None else state
+    historical = target.get("_historical_analysis")
+    if not isinstance(historical, dict) or historical.get("workspace") != workspace:
+        return False
+    target.pop("_historical_analysis", None)
+    return True
+
+
+def _prepare_historical_reanalysis(
+    workspace: str,
+    *,
+    state: Any | None = None,
+) -> bool:
+    """Clear only computed output while retaining restored inputs/settings."""
+
+    target = st.session_state if state is None else state
+    historical = target.get("_historical_analysis")
+    if not isinstance(historical, dict) or historical.get("workspace") != workspace:
+        return False
+    if workspace in {"Single Poem", "Other Text"}:
+        target.pop("workspace", None)
+    elif workspace == "Compare Poems":
+        target.pop("poem_comparison_set", None)
+    elif workspace == "Lexicon Explorer":
+        target.pop("lexicon_explorer_result", None)
+    elif workspace == "VerseMap":
+        target.pop("standalone_versemap_analysis", None)
+        target.pop("standalone_versemap_signature", None)
+    target.pop("_historical_analysis", None)
+    return True
 
 
 def _item_label(item: LibraryItem) -> str:

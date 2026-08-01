@@ -38,6 +38,17 @@ _LEGACY_APPEARANCE_MIGRATIONS = {
 }
 
 
+def appearance_from_browser_cookie(value: object) -> AppearanceMode | None:
+    """Return a supported browser-persisted theme without guessing invalid data."""
+
+    if not isinstance(value, str):
+        return None
+    try:
+        return AppearanceMode(value)
+    except ValueError:
+        return None
+
+
 def normalize_appearance(value: AppearanceMode | str | object) -> AppearanceMode:
     """Resolve current and legacy appearance values to a supported theme."""
 

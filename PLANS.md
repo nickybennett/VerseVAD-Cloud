@@ -1,5 +1,17 @@
 # VerseVAD Implementation Plan
 
+## Completed saved-result and hosted-theme reliability pass
+
+- [x] Keep restored immutable results visible when the historical notice is
+  dismissed, without a second rerun or state loss.
+- [x] Prepare current-version reanalysis by clearing only computed output while
+  retaining restored text, metadata, settings, and the saved revision.
+- [x] Restore analytical widget settings without duplicate-default warnings.
+- [x] Persist hosted appearance per browser across refreshes without a shared
+  server-side theme preference.
+- [x] Cover both historical actions, warning-free restoration, cookie safety,
+  documentation, and hosted/public parity with automated tests.
+
 ## Completed public training workspace
 
 - [x] Add **Learn → Training** to the shared local/hosted navigation and sidebar.

@@ -24,11 +24,14 @@ from versevad.ui.navigation import WORKSPACES, render_top_navigation
 from versevad.ui.preferences import (
     AppearanceMode,
     UiPreferences,
+    appearance_from_browser_cookie,
     load_preferences,
     normalize_appearance,
     save_appearance,
 )
 from versevad.ui.sidebar import render_context_sidebar
+
+_APPEARANCE_COOKIE_NAME = "versevad_appearance"
 
 CLASSIC_TOKENS = {
     "background": "#f6f3ed",
@@ -1495,6 +1498,30 @@ def _persist_appearance() -> None:
     save_appearance(st.session_state["appearance_mode"])
 
 
+def _cloud_browser_appearance() -> AppearanceMode | None:
+    if not cloud_deployment_enabled():
+        return None
+    try:
+        return appearance_from_browser_cookie(
+            st.context.cookies.get(_APPEARANCE_COOKIE_NAME)
+        )
+    except (AttributeError, KeyError, RuntimeError):
+        return None
+
+
+def _appearance_cookie_html(appearance: AppearanceMode | str) -> str:
+    """Persist a harmless appearance-only cookie for hosted browser refreshes."""
+
+    value = normalize_appearance(appearance).value
+    return f"""
+    <span aria-hidden="true" style="display:none"></span>
+    <script>
+      document.cookie = "{_APPEARANCE_COOKIE_NAME}={value}; " +
+        "Path=/; Max-Age=31536000; SameSite=Lax";
+    </script>
+    """
+
+
 def render_app_shell() -> tuple[str, AppearanceMode]:
     """Render the shared application header and return active workspace/theme."""
 
@@ -1503,7 +1530,8 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
         if cloud_deployment_enabled()
         else load_preferences()
     )
-    st.session_state.setdefault("appearance_mode", preferences.appearance.value)
+    initial_appearance = _cloud_browser_appearance() or preferences.appearance
+    st.session_state.setdefault("appearance_mode", initial_appearance.value)
     st.session_state["appearance_mode"] = normalize_appearance(
         st.session_state["appearance_mode"]
     ).value
@@ -1512,6 +1540,12 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
     st.session_state.setdefault("workspace_page", WORKSPACES[0])
     appearance = normalize_appearance(st.session_state["appearance_mode"])
     apply_design_system(appearance)
+    if cloud_deployment_enabled():
+        st.html(
+            _appearance_cookie_html(appearance),
+            width="content",
+            unsafe_allow_javascript=True,
+        )
     route = render_top_navigation(include_local_routes=False)
     workspace = route.workspace_id
     st.session_state["workspace_page"] = workspace

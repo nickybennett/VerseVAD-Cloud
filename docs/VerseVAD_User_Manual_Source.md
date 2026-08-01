@@ -243,8 +243,10 @@ navigation remain available.
 The selected theme persists across closing and reopening VerseVAD. Legacy
 Light and System choices migrate safely to Classic. The selection is stored
 as an application-level local preference, not in a project or analysis
-configuration. Appearance does not change calculations, result IDs, project
-data, or exports. Publication-oriented charts remain light.
+configuration. In the hosted edition, an appearance-only browser cookie keeps
+the selection across refreshes; clearing site cookies returns it to Classic.
+Appearance does not change calculations, result IDs, project data, or exports.
+Publication-oriented charts remain light.
 
 ### Compare Poems
 
@@ -332,7 +334,9 @@ can retain the full historical result
 and source text or a non-restorable results-only CSV/Word bundle. **Save
 analysis** appends an immutable revision; **Save as new** creates a separate
 item. Opening a full save identifies its VerseVAD version and never silently
-recalculates it.
+recalculates it. Continuing historical viewing leaves the active immutable
+result intact. Preparing reanalysis clears only computed output while retaining
+the restored text, metadata, and settings; the saved revision remains intact.
 
 Research Notes attach to a saved analysis, comparison, collection, lookup,
 section, metric, chart, passage, word, rhyme, or form candidate. Notes are

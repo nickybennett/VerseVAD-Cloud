@@ -817,6 +817,14 @@ All notable VerseVAD changes will be recorded here.
 
 ### Fixed
 
+- Historical-result actions now preserve data deliberately: continuing keeps
+  the restored immutable result visible, while preparing reanalysis clears
+  only computed output and retains text, metadata, settings, and the saved
+  library revision.
+- Hosted theme choices now persist per browser across refreshes without using
+  one shared server-side preference for every visitor.
+- Restored analytical settings no longer duplicate widget defaults or emit
+  Streamlit warnings such as the `minimum_matches` warning.
 - Replaced historical-save widget-key heuristics with an allowlist of durable
   analytical state. Legacy action, upload, download, audio, and future
   unregistered widget values are ignored instead of being assigned through

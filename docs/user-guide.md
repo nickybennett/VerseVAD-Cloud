@@ -122,7 +122,10 @@ an immutable revision; **Save as new** creates a separate item.
 
 Opening a full save never silently recalculates it. VerseVAD identifies the
 saved version and offers continued historical viewing or preparation for an
-explicit current-version reanalysis.
+explicit current-version reanalysis. Continuing dismisses only the notice and
+leaves the restored result visible. Preparing clears only the active computed
+output while retaining the restored text, metadata, settings, and immutable
+saved revision.
 
 Research Notes attach to the saved analysis, comparison, collection, or
 Lexicon Explorer lookup and may be anchored to a section, metric, chart,
@@ -212,6 +215,8 @@ settings gear, and a help icon. Open the appearance control to choose:
 
 VerseVAD saves this application-level choice locally under ignored private
 runtime data, so the selected theme returns after the app closes and reopens.
+On the hosted edition, an appearance-only browser cookie restores the selected
+theme after a refresh; clearing site cookies returns the browser to Classic.
 It is not stored in a project, recorded as an analysis setting, or used to
 calculate or export a result. Legacy Light and System preferences migrate to
 Classic. Exported charts remain publication-light.

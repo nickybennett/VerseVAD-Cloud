@@ -256,6 +256,7 @@ def test_saved_ui_state_rejects_action_and_upload_widget_keys() -> None:
 def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
     tmp_path,
     monkeypatch,
+    caplog,
 ) -> None:
     library_path = tmp_path / "analysis-library.sqlite3"
     monkeypatch.setenv("VERSEVAD_RESEARCH_LIBRARY_PATH", str(library_path))
@@ -282,6 +283,8 @@ def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
                 "poem_title": "Historical restore validation",
                 "poem_text": "Bright leaves turn in the evening air.",
                 "module_preset": "Custom",
+                "minimum_matches": 7,
+                "concreteness_abstract_max": 2.5,
                 "one_poem_restore_stopwords": False,
                 "one_poem_import_stopwords": None,
                 "uploaded_poem": None,
@@ -296,6 +299,7 @@ def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
 
     app = AppTest.from_file(str(APP_PATH), default_timeout=60).run()
     _open_workspace(app, "Analysis Library")
+    caplog.clear()
     _button(app, "Open historical result").click()
     app.run(timeout=60)
 
@@ -308,6 +312,42 @@ def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
     assert "uploaded_poem" not in app.session_state
     assert "future_action_without_known_name" not in app.session_state
     assert "download_summary" not in app.session_state
+    assert app.session_state["minimum_matches"] == 7
+    assert app.session_state["concreteness_abstract_max"] == 2.5
+    assert "created with a default value" not in caplog.text
+
+    caplog.clear()
+    _open_workspace(app, "Single Poem")
+    assert "created with a default value" not in caplog.text
+    _button(app, "Continue viewing historical result").click()
+    app.run(timeout=60)
+
+    assert not app.exception
+    assert app.session_state["workspace"].request.title == (
+        "Historical restore validation"
+    )
+    assert app.session_state["poem_text"] == (
+        "Bright leaves turn in the evening air."
+    )
+    assert "_historical_analysis" not in app.session_state
+    assert len(repository.list_items()) == 1
+
+    app.session_state["_historical_analysis"] = {
+        "workspace": "Single Poem",
+        "saved_version": "1.0.0",
+    }
+    app.run(timeout=60)
+    _button(app, "Prepare reanalysis with current version").click()
+    app.run(timeout=60)
+
+    assert not app.exception
+    assert app.session_state["workspace"] is None
+    assert app.session_state["poem_title"] == "Historical restore validation"
+    assert app.session_state["poem_text"] == (
+        "Bright leaves turn in the evening air."
+    )
+    assert "_historical_analysis" not in app.session_state
+    assert len(repository.list_items()) == 1
 
 
 def test_interface_starts_with_beginner_input_workflow() -> None:
