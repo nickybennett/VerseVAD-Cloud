@@ -144,11 +144,15 @@ FEATURE_BY_ID = {item.feature_id: item for item in FEATURE_DEFINITIONS}
 
 
 def standard_concreteness_configuration() -> ConcretenessConfiguration:
-    return ConcretenessConfiguration(scenario_id="versemap-concreteness-1.0")
+    return ConcretenessConfiguration(
+        exclude_proper_nouns=True,
+        scenario_id="versemap-concreteness-1.0",
+    )
 
 
 def standard_frequency_configuration() -> FrequencyConfiguration:
     return FrequencyConfiguration(
+        exclude_proper_nouns=True,
         content_words_only=True,
         minimum_matched_tokens=1,
         scenario_id="versemap-frequency-1.0",
@@ -157,6 +161,7 @@ def standard_frequency_configuration() -> FrequencyConfiguration:
 
 def standard_aoa_configuration() -> AoAConfiguration:
     return AoAConfiguration(
+        exclude_proper_nouns=True,
         content_words_only=True,
         minimum_matched_tokens=1,
         scenario_id="versemap-aoa-1.0",

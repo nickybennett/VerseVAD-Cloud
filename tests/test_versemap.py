@@ -25,6 +25,9 @@ from versevad.versemap import (
     build_reference_model_bytes,
     extract_standard_profile,
     load_reference_index,
+    standard_aoa_configuration,
+    standard_concreteness_configuration,
+    standard_frequency_configuration,
 )
 from versevad.versemap.model import (
     MODEL_FILENAME,
@@ -54,6 +57,12 @@ def _profile_rows() -> list[dict[str, object]]:
             row[f"{definition.feature_id}__matched"] = 45
         rows.append(row)
     return rows
+
+
+def test_standard_profile_keeps_pinned_proper_noun_exclusion() -> None:
+    assert standard_concreteness_configuration().exclude_proper_nouns is True
+    assert standard_frequency_configuration().exclude_proper_nouns is True
+    assert standard_aoa_configuration().exclude_proper_nouns is True
 
 
 def test_reference_model_projects_and_exports_without_json(tmp_path) -> None:

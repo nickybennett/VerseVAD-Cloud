@@ -102,7 +102,7 @@ class FrequencyConfiguration:
     uncommon_below: float = 4.0
     moderately_common_below: float = 5.0
     very_common_min: float = 6.0
-    exclude_proper_nouns: bool = True
+    exclude_proper_nouns: bool = False
     content_words_only: bool = False
     enable_lemma_fallback: bool = True
     minimum_matched_tokens: int = 3
@@ -1068,17 +1068,17 @@ class FrequencyModule:
             inclusion_policy = (
                 "Only model-tagged NOUN, VERB, ADJ, and ADV lexical tokens; "
                 "function words, auxiliaries, punctuation, and numeric tokens "
-                "excluded; model-tagged proper nouns excluded by default."
+                "excluded; model-tagged PROPN tokens are outside this explicit "
+                "content-word scope."
             )
         else:
             inclusion_policy = (
                 "All lexical tokens except punctuation and numeric tokens; "
                 + (
-                    "model-tagged proper nouns excluded by default."
+                    "model-tagged proper nouns excluded by explicit configuration."
                     if config.exclude_proper_nouns
                     else (
-                        "model-tagged proper nouns included by explicit "
-                        "configuration."
+                        "model-tagged proper nouns included by default."
                     )
                 )
             )

@@ -47,6 +47,12 @@ and **Teaching/Introductory**. Applying a profile establishes its defaults;
 you may continue customizing afterward. In the hosted edition, custom profiles
 store configuration only and last for the current browser session.
 
+Across every built-in profile, model-tagged proper nouns remain eligible for
+Concreteness, Sensorimotor, Frequency, and Age of Acquisition unless the user
+explicitly enables that module's exclusion control. Built-in profiles also
+start meter analysis in **Compare candidate and performance-aware readings**
+mode. A saved custom profile restores the settings it actually recorded.
+
 Compare Poems starts with two poem inputs. Use **Add Another Poem** or
 **Remove** to maintain a set of two through ten. Every poem receives the same
 lexicons, modules, preprocessing, stopword treatment, and weighting choices.
@@ -55,6 +61,13 @@ thresholds and evidence policies available in Single Poem. Results place poem
 values side by side and show the observed range (maximum minus minimum) where
 meaningful. Within-poem standard deviations remain separate metric rows. The
 long-form export retains complete audit statistics beyond the concise report.
+
+Single Poem, Compare Poems, and Project/Corpus expose the same meter and
+rhythmic-regularity controls. Compare Poems applies them to every poem in the
+set; its scholar-revision field is consequently shared rather than
+poem-specific. VerseMap always ignores these interactive choices and uses its
+pinned Standard Profile 1.0 so reference and submitted poems remain
+comparable.
 
 ## Reference corpora and the Explore workspaces
 
@@ -508,7 +521,8 @@ The default bands at or below 2.0 and at or above 4.0 are VerseVAD orientation
 aids, not categories validated by the paper. A matched two-word expression
 assigns its rating to both covered token positions for token-weighted
 statistics; the rows share one audit group. Repetition therefore matters.
-Model-tagged proper nouns are excluded by default.
+Model-tagged proper nouns remain eligible by default. Enable the recorded
+exclusion option when a research design calls for removing them.
 
 Describe the result as normative lexical concreteness evidence among matched
 tokens. It does not measure imagery quality, readability, cognition, or
@@ -544,6 +558,9 @@ intact. Cumulative load is deliberately length- and repetition-sensitive,
 while load per 100 observations is its length-normalized counterpart.
 Unmatched concepts remain missing rather than receiving zero.
 
+Model-tagged proper nouns remain eligible by default. The recorded exclusion
+option can remove them when required by the analysis design.
+
 These are context-free normative lexical associations. A high visual mean,
 for example, identifies vocabulary that norming participants associated
 strongly with seeing; it does not prove that the poem produces successful
@@ -572,12 +589,12 @@ frequency difference in the source corpus. The default bands (rare below 3,
 uncommon 3 to below 4, moderately common 4 to below 5, common 5 to below 6,
 and very common at least 6) are VerseVAD orientation aids.
 
-The default frequency scope uses all lexical tokens except model-tagged proper
-nouns. The optional **Content words only** setting is off by default. When
+The default frequency scope uses all lexical tokens, including model-tagged
+proper nouns. The optional **Content words only** setting is off by default. When
 enabled, it includes only exact model tags `NOUN`, `VERB`, `ADJ`, and `ADV`.
 It excludes determiners, prepositions/adpositions, conjunctions, pronouns,
-auxiliaries, punctuation, and all other tags. Proper nouns remain excluded by
-the default name policy. This differs from the broad Language Profile, which
+auxiliaries, punctuation, proper nouns, and all other tags. This differs from
+the broad Language Profile, which
 groups `VERB` and `AUX` together under **Verb**; the restricted frequency scope
 specifically excludes `AUX`.
 
@@ -891,10 +908,11 @@ The full audit ZIP contains the friendly CSV files,
   rhyme/sound, lexical style, and PoetryID when enabled.
 
 In **Structure > Lexical & Structural Measures**, the **Structural Count
-Summary** reports average words per nonblank physical line, average words per
-stanza, and average nonblank physical lines per stanza. Each average is paired
-with the population standard deviation across all corresponding units in that
-poem. Blank lines that separate stanzas remain visible as zero-count rows in
+Summary** reports the total number of nonblank physical lines, average words
+per nonblank physical line, average words per stanza, and average nonblank
+physical lines per stanza. Each average is paired with the population standard
+deviation across all corresponding units in that poem. Blank lines that
+separate stanzas remain visible as zero-count rows in
 the detailed line table but are not included in words-per-line or
 lines-per-stanza denominators.
 
@@ -1011,10 +1029,11 @@ alternative as the poet's performed pronunciation.
 
 ### Optional performance-aware reading
 
-**Candidate meter only** remains the default. To explore possible realized
-readings, choose **Performance-aware realization** or **Compare candidate and
-performance-aware readings**, then declare a broad interpretation profile and
-Summary, Standard, or Detailed output.
+Built-in profiles default to **Compare candidate and performance-aware
+readings**, preserving the complete fixed-candidate result beside the separate
+realization layer. You can instead choose **Candidate meter only** or
+**Performance-aware realization**, then declare a broad interpretation profile
+and Summary, Standard, or Detailed output.
 
 Read the added section in this order:
 
@@ -1036,9 +1055,10 @@ contraction recognition off unless the preserved spelling and your method
 justify it. No unmarked syllable is silently removed. A recurring alternating
 sequence may be reported generically, but no named stanza form is assigned.
 
-The same settings are available per Project/Corpus batch. Corpus summaries
-show compatible work-level prevalence and do not declare one corpus-wide
-meter.
+The same settings are available in Single Poem, Compare Poems, and each
+Project/Corpus batch. Corpus summaries show compatible work-level prevalence
+and do not declare one corpus-wide meter. VerseMap remains pinned to Standard
+Profile 1.0 rather than inheriting these interactive controls.
 
 ## Rhyme & Sound
 

@@ -276,7 +276,7 @@ def test_optional_content_word_scope_uses_only_requested_pos_tags(
     )
 
 
-def test_proper_names_are_explicitly_excluded_by_default(
+def test_proper_names_are_included_by_default_and_can_be_excluded(
     tmp_path: Path,
     preprocessor,
 ) -> None:
@@ -299,10 +299,19 @@ def test_proper_names_are_explicitly_excluded_by_default(
     )
     alice = next(row for row in result.token_audit if row.surface_form == "Alice")
 
-    assert alice.match_method is FrequencyMatchMethod.NOT_ELIGIBLE
-    assert alice.zipf_value is None
-    assert "proper" in alice.reason.casefold()
-    assert result.summary.eligible_token_count == 1
+    assert alice.match_method is FrequencyMatchMethod.EXACT
+    assert alice.zipf_value == pytest.approx(5.0)
+    assert result.summary.eligible_token_count == 2
+
+    excluded = module.analyze_detailed(
+        ModuleInput(document=poem.source, tokens=tokens, preprocessing=poem.preprocessing),
+        FrequencyConfiguration(exclude_proper_nouns=True),
+    )
+    excluded_alice = next(row for row in excluded.token_audit if row.surface_form == "Alice")
+    assert excluded_alice.match_method is FrequencyMatchMethod.NOT_ELIGIBLE
+    assert excluded_alice.zipf_value is None
+    assert "proper" in excluded_alice.reason.casefold()
+    assert excluded.summary.eligible_token_count == 1
 
 
 def test_repetition_weights_tokens_and_median_is_primary(

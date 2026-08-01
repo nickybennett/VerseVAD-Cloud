@@ -36,7 +36,9 @@ from versevad.corpus import (
 )
 from versevad.db import SCHEMA_VERSION, ProjectRepository, default_database_path
 from versevad.lexical_semantic.aoa import AoAConfiguration
+from versevad.lexical_semantic.concreteness import ConcretenessConfiguration
 from versevad.lexical_semantic.frequency import FrequencyConfiguration
+from versevad.lexical_semantic.sensorimotor import SensorimotorConfiguration
 from versevad.models import PhrasePolicy, ReviewAction, ReviewScope, TextDocument
 from versevad.normalization import normalize_lookup
 from versevad.preprocessing import TextPreprocessor
@@ -45,6 +47,7 @@ from versevad.prosody import (
     MeterConfiguration,
     MeterInterpretationDepth,
     MeterStyleProfile,
+    parse_meter_scholar_revisions,
 )
 from versevad.poetry_id import (
     ARCHETYPE_BY_ID,
@@ -60,7 +63,11 @@ from versevad.ui.dataframes import (
     rounded_display_data,
 )
 from versevad.ui.design import (
+    METER_DEPTH_LABELS,
+    METER_MODE_LABELS,
+    METER_STYLE_LABELS,
     MODULE_PRESETS,
+    bottom_collapsible_expander,
     preset_widget_state,
     render_dataframe,
     render_empty_state,
@@ -68,9 +75,15 @@ from versevad.ui.design import (
     render_stateful_section_navigation,
     render_workspace_header,
 )
-from versevad.ui.profiles import load_custom_profiles
+from versevad.ui.profiles import load_custom_profiles, normalize_profile_settings
 from versevad.ui.stopwords import render_stopword_settings
-from versevad.versemap import VerseMapConfiguration, load_reference_index
+from versevad.versemap import (
+    MODEL_FILENAME,
+    POET_PROFILE_FILENAME,
+    PROFILE_FILENAME,
+    VerseMapConfiguration,
+    load_reference_index,
+)
 
 
 def _safe_filename(value: str) -> str:
@@ -92,6 +105,36 @@ def _project_repository_for_path(path: str) -> ProjectRepository:
     repository = ProjectRepository(path)
     repository.initialize()
     return repository
+
+
+@st.cache_resource(show_spinner=False)
+def _reference_index_for_signature(
+    root_text: str,
+    file_signature: tuple[tuple[str, int, int], ...],
+):
+    """Reuse one immutable VerseMap index until one source file changes."""
+
+    del file_signature
+    return load_reference_index(root_text)
+
+
+def _cached_reference_index(source_root):
+    """Load a current reference index without reparsing three CSVs per rerun."""
+
+    signature_rows = []
+    for filename in (
+        MODEL_FILENAME,
+        PROFILE_FILENAME,
+        POET_PROFILE_FILENAME,
+    ):
+        source_stat = (source_root / filename).stat()
+        signature_rows.append(
+            (filename, source_stat.st_size, source_stat.st_mtime_ns)
+        )
+    return _reference_index_for_signature(
+        str(source_root),
+        tuple(signature_rows),
+    )
 
 
 def _render_versemap_tab(
@@ -116,7 +159,7 @@ def _render_versemap_tab(
         )
         return
     try:
-        index = load_reference_index(
+        index = _cached_reference_index(
             RESOURCE_ROOT / "VerseMap_Reference_Corpus"
         )
     except (OSError, ValueError) as error:
@@ -235,7 +278,11 @@ def _render_versemap_tab(
         ),
     )
 
-    with st.expander("Corpus VerseMap Space", expanded=False):
+    with bottom_collapsible_expander(
+        "Corpus VerseMap Space",
+        control_id=f"corpus-versemap-space-{project_id}",
+        expanded=False,
+    ):
         map_rows = [
             {
                 "Kind": "Reference poet centroid",
@@ -336,7 +383,11 @@ def _render_versemap_tab(
             "not only this two-dimensional display."
         )
 
-    with st.expander("Nearest Reference Poets", expanded=False):
+    with bottom_collapsible_expander(
+        "Nearest Reference Poets",
+        control_id=f"corpus-versemap-neighbors-{project_id}",
+        expanded=False,
+    ):
         st.markdown("#### Project-level pattern")
         render_dataframe(
             pd.DataFrame(project_neighbor_rows),
@@ -364,7 +415,11 @@ def _render_versemap_tab(
             },
         )
 
-    with st.expander("Methodology and Coverage", expanded=False):
+    with bottom_collapsible_expander(
+        "Methodology and Coverage",
+        control_id=f"corpus-versemap-methodology-{project_id}",
+        expanded=False,
+    ):
         st.markdown(
             f"**{index.profile_id}** | {index.profile_build_id} | "
             f"{index.reference_release_id} | {index.model_id}"
@@ -1207,7 +1262,11 @@ def _render_corpus_affective_report(
         and row.weighting == weighting
     )
     if loads:
-        with st.expander("Cumulative Lexical Load", expanded=False):
+        with bottom_collapsible_expander(
+            "Cumulative Lexical Load",
+            control_id=f"{state_prefix}-cumulative-load",
+            expanded=False,
+        ):
             dimensions = sorted({row.dimension.title() for row in loads})
             measures = sorted({row.metric for row in loads})
             load_controls = st.columns(2)
@@ -1316,7 +1375,11 @@ def _render_poem_module_summary(
         width="stretch",
         height=min(440, 76 + len(visible) * 35),
     )
-    with st.expander("Interpretive and Methodological Notes", expanded=False):
+    with bottom_collapsible_expander(
+        "Interpretive and Methodological Notes",
+        control_id=f"{state_prefix}-{module_name}-interpretive-notes",
+        expanded=False,
+    ):
         render_dataframe(
             visible[["Metric", "Interpretive Note"]],
             hide_index=True,
@@ -1444,7 +1507,11 @@ def _render_corpus_modules(
             width="stretch",
             height=min(420, 76 + len(visible_profiles) * 35),
         )
-        with st.expander("Methodological Notes", expanded=False):
+        with bottom_collapsible_expander(
+            "Methodological Notes",
+            control_id=f"{state_prefix}-{selected_module}-methodological-notes",
+            expanded=False,
+        ):
             render_dataframe(
                 visible_profiles[
                     ["Metric", "Source / View", "Methodological Note"]
@@ -2228,6 +2295,8 @@ def _render_analysis_tab(
         if not preset_state:
             st.info("Custom keeps the current manual selections unchanged.")
             preset_state = None
+        elif preset_state is not None:
+            preset_state = normalize_profile_settings(preset_state)
         module_key_lookup = {
             "include_concreteness": "concreteness",
             "include_frequency": "frequency",
@@ -2253,6 +2322,27 @@ def _render_analysis_tab(
                     and module_name in module_labels
                 )
             ]
+            corpus_setting_keys = {
+                "concreteness_exclude_proper": f"corpus_concreteness_exclude_proper_{project_id}",
+                "sensorimotor_exclude_proper": f"corpus_sensorimotor_exclude_proper_{project_id}",
+                "frequency_exclude_proper": f"corpus_frequency_exclude_proper_{project_id}",
+                "frequency_content_words_only": f"corpus_frequency_content_only_{project_id}",
+                "aoa_exclude_proper": f"corpus_aoa_exclude_proper_{project_id}",
+                "aoa_content_words_only": f"corpus_aoa_content_only_{project_id}",
+                "meter_analysis_mode": f"corpus_meter_mode_{project_id}",
+                "meter_style_profile": f"corpus_meter_style_{project_id}",
+                "meter_interpretation_depth": f"corpus_meter_depth_{project_id}",
+                "meter_line_match_threshold": f"corpus_meter_line_threshold_{project_id}",
+                "meter_irregular_threshold": f"corpus_meter_poem_threshold_{project_id}",
+                "meter_ambiguity_margin": f"corpus_meter_margin_{project_id}",
+                "meter_maximum_variants": f"corpus_meter_variants_{project_id}",
+                "meter_performance_candidate_limit": f"corpus_meter_candidate_limit_{project_id}",
+                "meter_realized_alternatives": f"corpus_meter_alternatives_{project_id}",
+                "meter_allow_visible_elision": f"corpus_meter_elision_{project_id}",
+            }
+            for source_key, target_key in corpus_setting_keys.items():
+                if source_key in preset_state:
+                    st.session_state[target_key] = preset_state[source_key]
             st.rerun()
     lexicon_state_key = f"analysis_lexicons_{project_id}"
     module_state_key = f"analysis_modules_{project_id}"
@@ -2315,7 +2405,11 @@ def _render_analysis_tab(
             "new immutable analyses; it never changes the baseline batch."
         ),
     )
+    concreteness_exclude_proper_nouns = False
+    sensorimotor_exclude_proper_nouns = False
+    frequency_exclude_proper_nouns = False
     frequency_content_words_only = False
+    aoa_exclude_proper_nouns = False
     aoa_content_words_only = False
     poetry_id_sources: tuple[str, ...] = ()
     poetry_id_weightings: tuple[str, ...] = ("token", "type")
@@ -2326,12 +2420,18 @@ def _render_analysis_tab(
     poetry_id_lexical_dimensions: tuple[str, ...] = ()
     poetry_id_threshold_profile = PoetryIDConfiguration().threshold_profile
     poetry_id_configuration_error = ""
-    meter_analysis_mode = MeterAnalysisMode.CANDIDATE
+    meter_defaults = MeterConfiguration(analysis_mode=MeterAnalysisMode.COMPARE_BOTH)
+    meter_analysis_mode = MeterAnalysisMode.COMPARE_BOTH
     meter_style_profile = MeterStyleProfile.GENERAL
     meter_interpretation_depth = MeterInterpretationDepth.STANDARD
-    meter_performance_candidate_limit = 8
-    meter_realized_alternatives = 2
+    meter_line_match_threshold = meter_defaults.line_match_threshold
+    meter_irregular_threshold = meter_defaults.irregular_fit_threshold
+    meter_ambiguity_margin = meter_defaults.ambiguity_margin_threshold
+    meter_maximum_variants = meter_defaults.maximum_line_variants
+    meter_performance_candidate_limit = meter_defaults.performance_candidate_limit
+    meter_realized_alternatives = meter_defaults.retained_realized_alternatives
     meter_allow_visible_elision = False
+    meter_scholar_revisions_text = ""
     with st.expander("Advanced batch methodology"):
         policies = {
             "Prefer the longest phrase (recommended)": PhrasePolicy.PHRASE_PREFERRED,
@@ -2349,6 +2449,28 @@ def _render_analysis_tab(
             max_value=100,
             value=3,
             key=f"corpus_minimum_{project_id}",
+        )
+        st.markdown("**Proper-noun eligibility**")
+        proper_noun_columns = st.columns(4)
+        concreteness_exclude_proper_nouns = proper_noun_columns[0].checkbox(
+            "Concreteness: exclude proper nouns", value=False,
+            key=f"corpus_concreteness_exclude_proper_{project_id}",
+            disabled="concreteness" not in selected_modules,
+        )
+        sensorimotor_exclude_proper_nouns = proper_noun_columns[1].checkbox(
+            "Sensorimotor: exclude proper nouns", value=False,
+            key=f"corpus_sensorimotor_exclude_proper_{project_id}",
+            disabled="sensorimotor" not in selected_modules,
+        )
+        frequency_exclude_proper_nouns = proper_noun_columns[2].checkbox(
+            "Frequency: exclude proper nouns", value=False,
+            key=f"corpus_frequency_exclude_proper_{project_id}",
+            disabled="frequency" not in selected_modules,
+        )
+        aoa_exclude_proper_nouns = proper_noun_columns[3].checkbox(
+            "AoA: exclude proper nouns", value=False,
+            key=f"corpus_aoa_exclude_proper_{project_id}",
+            disabled="aoa" not in selected_modules,
         )
         if "frequency" in selected_modules:
             frequency_content_words_only = st.checkbox(
@@ -2375,72 +2497,71 @@ def _render_analysis_tab(
             or "inherited_form" in selected_modules
         ):
             st.markdown("**Meter batch settings**")
-            meter_mode_labels = {
-                "Candidate meter only (validated default)": (
-                    MeterAnalysisMode.CANDIDATE
-                ),
-                "Performance-aware realization": (
-                    MeterAnalysisMode.PERFORMANCE_AWARE
-                ),
-                "Compare both layers": MeterAnalysisMode.COMPARE_BOTH,
-            }
-            meter_style_labels = {
-                "General English Verse": MeterStyleProfile.GENERAL,
-                "Traditional Accentual-Syllabic Verse": (
-                    MeterStyleProfile.TRADITIONAL
-                ),
-                "Romantic / Victorian Verse": (
-                    MeterStyleProfile.ROMANTIC_VICTORIAN
-                ),
-                "Modernist Verse": MeterStyleProfile.MODERNIST,
-                "Contemporary Formal Verse": (
-                    MeterStyleProfile.CONTEMPORARY_FORMAL
-                ),
-                "Free Verse / Cadential": (
-                    MeterStyleProfile.FREE_VERSE_CADENTIAL
-                ),
-                "Custom visible weights": MeterStyleProfile.CUSTOM,
-            }
-            meter_depth_labels = {
-                "Summary": MeterInterpretationDepth.SUMMARY,
-                "Standard": MeterInterpretationDepth.STANDARD,
-                "Detailed": MeterInterpretationDepth.DETAILED,
-            }
             meter_columns = st.columns(3)
             meter_mode_label = meter_columns[0].selectbox(
-                "Meter analysis layer",
-                options=list(meter_mode_labels),
+                "Meter analysis level",
+                options=list(METER_MODE_LABELS),
+                index=(
+                    0
+                    if f"corpus_meter_mode_{project_id}" in st.session_state
+                    else list(METER_MODE_LABELS).index(
+                        "Compare candidate and performance-aware readings"
+                    )
+                ),
                 key=f"corpus_meter_mode_{project_id}",
             )
-            meter_analysis_mode = meter_mode_labels[meter_mode_label]
+            meter_analysis_mode = METER_MODE_LABELS[meter_mode_label]
             meter_style_label = meter_columns[1].selectbox(
                 "Declared interpretation profile",
-                options=list(meter_style_labels),
+                options=list(METER_STYLE_LABELS),
                 disabled=(
                     meter_analysis_mode is MeterAnalysisMode.CANDIDATE
                 ),
                 key=f"corpus_meter_style_{project_id}",
             )
-            meter_style_profile = meter_style_labels[meter_style_label]
+            meter_style_profile = METER_STYLE_LABELS[meter_style_label]
             meter_depth_label = meter_columns[2].selectbox(
                 "Interpretation detail",
-                options=list(meter_depth_labels),
+                options=list(METER_DEPTH_LABELS),
                 index=1,
                 disabled=(
                     meter_analysis_mode is MeterAnalysisMode.CANDIDATE
                 ),
                 key=f"corpus_meter_depth_{project_id}",
             )
-            meter_interpretation_depth = meter_depth_labels[
+            meter_interpretation_depth = METER_DEPTH_LABELS[
                 meter_depth_label
             ]
+            meter_threshold_columns = st.columns(4)
+            meter_line_match_threshold = meter_threshold_columns[0].number_input(
+                "Meter line-fit threshold", 0.0, 1.0,
+                meter_defaults.line_match_threshold, 0.05,
+                key=f"corpus_meter_line_threshold_{project_id}",
+            )
+            meter_irregular_threshold = meter_threshold_columns[1].number_input(
+                "Poem candidate-fit threshold", 0.0, 1.0,
+                meter_defaults.irregular_fit_threshold, 0.05,
+                key=f"corpus_meter_poem_threshold_{project_id}",
+            )
+            meter_ambiguity_margin = meter_threshold_columns[2].number_input(
+                "Candidate margin threshold", 0.0, 1.0,
+                meter_defaults.ambiguity_margin_threshold, 0.01,
+                key=f"corpus_meter_margin_{project_id}",
+            )
+            meter_maximum_variants = int(
+                meter_threshold_columns[3].number_input(
+                    "Maximum stress paths per line", 1, 4096,
+                    meter_defaults.maximum_line_variants, 1,
+                    key=f"corpus_meter_variants_{project_id}",
+                )
+            )
             meter_limit_columns = st.columns(3)
             meter_performance_candidate_limit = int(
                 meter_limit_columns[0].number_input(
                     "Realization candidates per line",
                     min_value=2,
                     max_value=40,
-                    value=8,
+                    value=meter_defaults.performance_candidate_limit,
                     step=1,
                     disabled=(
                         meter_analysis_mode is MeterAnalysisMode.CANDIDATE
@@ -2453,7 +2574,7 @@ def _render_analysis_tab(
                     "Retained realized alternatives",
                     min_value=1,
                     max_value=8,
-                    value=2,
+                    value=meter_defaults.retained_realized_alternatives,
                     step=1,
                     disabled=(
                         meter_analysis_mode is MeterAnalysisMode.CANDIDATE
@@ -2468,6 +2589,22 @@ def _render_analysis_tab(
                     meter_analysis_mode is MeterAnalysisMode.CANDIDATE
                 ),
                 key=f"corpus_meter_elision_{project_id}",
+            )
+            meter_scholar_revisions_text = st.text_area(
+                "Scholar scansion revisions",
+                value="",
+                key=f"corpus_meter_scholar_revisions_{project_id}",
+                height=100,
+                disabled=(meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+                placeholder=(
+                    "line 2 = iambic pentameter | "
+                    "x / x / x / x / x / | reason for the revised reading"
+                ),
+                help=(
+                    "Optional. The same line-number revisions are applied "
+                    "separately to every selected work; use only when they are "
+                    "meaningful across the batch."
+                ),
             )
             st.caption(
                 "Every work uses the same declared profile and exact configuration. "
@@ -2649,18 +2786,30 @@ def _render_analysis_tab(
         try:
             module_configuration = CorpusAnalysisConfiguration(
                 include_concreteness="concreteness" in selected_modules,
+                concreteness_configuration=ConcretenessConfiguration(
+                    exclude_proper_nouns=concreteness_exclude_proper_nouns
+                ),
                 include_frequency="frequency" in selected_modules,
                 frequency_configuration=FrequencyConfiguration(
+                    exclude_proper_nouns=frequency_exclude_proper_nouns,
                     content_words_only=frequency_content_words_only
                 ),
                 include_aoa="aoa" in selected_modules,
                 aoa_configuration=AoAConfiguration(
+                    exclude_proper_nouns=aoa_exclude_proper_nouns,
                     content_words_only=aoa_content_words_only
                 ),
                 include_sensorimotor="sensorimotor" in selected_modules,
+                sensorimotor_configuration=SensorimotorConfiguration(
+                    exclude_proper_nouns=sensorimotor_exclude_proper_nouns
+                ),
                 include_pronunciation="pronunciation" in selected_modules,
                 include_meter="meter" in selected_modules,
                 meter_configuration=MeterConfiguration(
+                    line_match_threshold=float(meter_line_match_threshold),
+                    irregular_fit_threshold=float(meter_irregular_threshold),
+                    ambiguity_margin_threshold=float(meter_ambiguity_margin),
+                    maximum_line_variants=int(meter_maximum_variants),
                     analysis_mode=meter_analysis_mode,
                     style_profile=meter_style_profile,
                     interpretation_depth=meter_interpretation_depth,
@@ -2672,6 +2821,13 @@ def _render_analysis_tab(
                     ),
                     allow_visible_poetic_elision=(
                         meter_allow_visible_elision
+                    ),
+                    scholar_revisions=(
+                        ()
+                        if meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+                        else parse_meter_scholar_revisions(
+                            meter_scholar_revisions_text
+                        )
                     ),
                 ),
                 include_phonology="phonology" in selected_modules,

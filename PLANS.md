@@ -1502,6 +1502,18 @@ review required.
   this display-only repair.
 - [x] Create the source-control checkpoint.
 
+## Release polish - profile defaults, parity, and responsiveness
+
+- [x] Include proper nouns by default in the four requested lexical modules
+  for every built-in profile while preserving custom-profile state.
+- [x] Align full meter/rhythm controls across Single Poem, Compare Poems, and
+  Project/Corpus and default built-ins to the side-by-side candidate and
+  performance-aware view; preserve VerseMap Standard Profile 1.0.
+- [x] Complete major-section bottom collapse controls and Training CTA theme
+  contrast.
+- [x] Cache the immutable VerseMap reference index by source-file signature
+  without changing analysis accuracy or invalidation behavior.
+
 ## Cross-cutting later work - Scholarly diagnostics
 
 - [ ] Add anomaly candidates and structured close-reading prompts.

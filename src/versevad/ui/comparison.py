@@ -50,14 +50,20 @@ from versevad.reference_corpora import (
     load_corpus_index,
 )
 from versevad.prosody import (
+    MeterAnalysisMode,
     MeterConfiguration,
     PronunciationConfiguration,
+    parse_meter_scholar_revisions,
     parse_pronunciation_overrides,
 )
 from versevad.ui.dataframes import heterogeneous_display_value
 from versevad.ui.design import (
+    METER_DEPTH_LABELS,
+    METER_MODE_LABELS,
+    METER_STYLE_LABELS,
     MODULE_PRESETS,
     PUBLICATION_CHART_COLORS,
+    bottom_collapsible_expander,
     publication_chart,
     preset_widget_state,
     render_dataframe,
@@ -65,7 +71,7 @@ from versevad.ui.design import (
     render_stateful_section_navigation,
     render_workspace_header,
 )
-from versevad.ui.profiles import load_custom_profiles
+from versevad.ui.profiles import load_custom_profiles, normalize_profile_settings
 from versevad.ui.stopwords import render_stopword_settings
 from versevad.ui.vad_overview import (
     overview_metric_matches_vad_preference,
@@ -228,6 +234,12 @@ _PROFILE_TO_COMPARE_CONFIGURATION_KEYS = {
         "meter_irregular_threshold",
         "meter_ambiguity_margin",
         "meter_maximum_variants",
+        "meter_analysis_mode",
+        "meter_style_profile",
+        "meter_interpretation_depth",
+        "meter_performance_candidate_limit",
+        "meter_realized_alternatives",
+        "meter_allow_visible_elision",
         "phonological_slant_threshold",
         "phonological_sound_repetitions",
         "phonological_coverage_warning",
@@ -753,7 +765,11 @@ def _render_comparison_panel(
     title_a: str,
     title_b: str,
 ) -> None:
-    with st.expander(label, expanded=False):
+    with bottom_collapsible_expander(
+        label,
+        control_id=f"comparison-legacy-{state_key}",
+        expanded=False,
+    ):
         st.caption(_PANEL_NOTES.get(label, "Shared comparison evidence."))
         _render_scale_aware_chart(
             panel_frame,
@@ -915,7 +931,15 @@ def _render_comparison_results(comparison: PoemComparison) -> None:
                     else section_frame
                 )
                 if panel_frame.empty:
-                    with st.expander(panel, expanded=False):
+                    with bottom_collapsible_expander(
+                        panel,
+                        control_id=(
+                            "comparison-legacy-empty-"
+                            + section.lower().replace(" ", "-").replace("&", "and")
+                            + f"-{panel_index}"
+                        ),
+                        expanded=False,
+                    ):
                         st.info(
                             "No shared result is available for this subsection. "
                             "Enable its required sources/modules and analyze both "
@@ -1721,7 +1745,11 @@ def _render_comparison_set_panel(
         (frame["Report Section"] == report_section)
         & (frame["Report Panel"] == panel)
     ]
-    with st.expander(panel, expanded=False):
+    with bottom_collapsible_expander(
+        panel,
+        control_id=f"comparison-set-{state_key}",
+        expanded=False,
+    ):
         st.caption(_PANEL_NOTES.get(panel, "Shared comparison evidence."))
         if panel == "Pronunciation, Syllables & Stress":
             _render_comparison_pronunciation_review(comparison_set)
@@ -1883,7 +1911,11 @@ def _render_comparison_set_results(
             frame[frame["Metric Family"] == "Within-Poem Dispersion"]
         )
         if not dispersion.empty:
-            with st.expander("Within-Poem Dispersion", expanded=False):
+            with bottom_collapsible_expander(
+                "Within-Poem Dispersion",
+                control_id="comparison-set-overview-dispersion",
+                expanded=False,
+            ):
                 st.caption(
                     "Compare how widely matched observations vary inside each "
                     "poem. These are poem-specific standard deviations, not a "
@@ -2067,6 +2099,7 @@ def _comparison_profile_state(
             settings = dict(session_profiles[custom_name])
         else:
             settings = dict(load_custom_profiles()[custom_name].settings)
+    settings = normalize_profile_settings(settings)
     selected_lexicons = [
         item
         for item in settings.get("selected_lexicons", [])
@@ -2338,26 +2371,104 @@ def _render_shared_comparison_configuration(
             placeholder="learned = L ER1 N IH0 D | optional note",
             help="These session-only overrides are applied to every compared poem.",
         )
+        meter_enabled = bool(selected & {"meter", "inherited_form"})
+        meter_interpretation = st.columns(3)
+        meter_mode_label = meter_interpretation[0].selectbox(
+            "Meter analysis level",
+            options=list(METER_MODE_LABELS),
+            index=(
+                0
+                if key("meter_analysis_mode") in st.session_state
+                else list(METER_MODE_LABELS).index(
+                    "Compare candidate and performance-aware readings"
+                )
+            ),
+            key=key("meter_analysis_mode"),
+            disabled=not meter_enabled,
+            help=(
+                "Candidate meter preserves the fixed-template layer. The "
+                "performance-aware layer adds a transparent contextual reading "
+                "without changing lexical stress."
+            ),
+        )
+        meter_analysis_mode = METER_MODE_LABELS[meter_mode_label]
+        meter_style_label = meter_interpretation[1].selectbox(
+            "Declared interpretation profile",
+            options=list(METER_STYLE_LABELS),
+            key=key("meter_style_profile"),
+            disabled=(
+                not meter_enabled
+                or meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+            ),
+        )
+        meter_depth_label = meter_interpretation[2].selectbox(
+            "Interpretation detail",
+            options=list(METER_DEPTH_LABELS),
+            index=1,
+            key=key("meter_interpretation_depth"),
+            disabled=(
+                not meter_enabled
+                or meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+            ),
+        )
         columns = st.columns(4)
         meter_line = columns[0].number_input(
             "Meter line-fit threshold", 0.0, 1.0,
             defaults["meter"].line_match_threshold, 0.05,
-            key=key("meter_line_match_threshold"), disabled="meter" not in selected and "inherited_form" not in selected,
+            key=key("meter_line_match_threshold"), disabled=not meter_enabled,
         )
         meter_poem = columns[1].number_input(
             "Poem candidate-fit threshold", 0.0, 1.0,
             defaults["meter"].irregular_fit_threshold, 0.05,
-            key=key("meter_irregular_threshold"), disabled="meter" not in selected and "inherited_form" not in selected,
+            key=key("meter_irregular_threshold"), disabled=not meter_enabled,
         )
         meter_margin = columns[2].number_input(
             "Candidate margin", 0.0, 1.0,
             defaults["meter"].ambiguity_margin_threshold, 0.01,
-            key=key("meter_ambiguity_margin"), disabled="meter" not in selected and "inherited_form" not in selected,
+            key=key("meter_ambiguity_margin"), disabled=not meter_enabled,
         )
         meter_variants = columns[3].number_input(
             "Maximum stress paths", 1, 4096,
             defaults["meter"].maximum_line_variants, 1,
-            key=key("meter_maximum_variants"), disabled="meter" not in selected and "inherited_form" not in selected,
+            key=key("meter_maximum_variants"), disabled=not meter_enabled,
+        )
+        meter_realization = st.columns(3)
+        meter_performance_candidate_limit = meter_realization[0].number_input(
+            "Realization candidates per line", 2, 40,
+            defaults["meter"].performance_candidate_limit, 1,
+            key=key("meter_performance_candidate_limit"),
+            disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+        )
+        meter_realized_alternatives = meter_realization[1].number_input(
+            "Retained realized alternatives", 1, 8,
+            defaults["meter"].retained_realized_alternatives, 1,
+            key=key("meter_realized_alternatives"),
+            disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+        )
+        meter_allow_visible_elision = meter_realization[2].checkbox(
+            "Recognize visibly marked contractions",
+            value=defaults["meter"].allow_visible_poetic_elision,
+            key=key("meter_allow_visible_elision"),
+            disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+            help=(
+                "Only preserved spellings such as o'er may be recognized; "
+                "unmarked syllables are never silently removed."
+            ),
+        )
+        meter_scholar_revisions = st.text_area(
+            "Shared scholar scansion revisions",
+            value="",
+            key=key("meter_scholar_revisions"),
+            height=100,
+            disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+            placeholder=(
+                "line 2 = iambic pentameter | "
+                "x / x / x / x / x / | reason for the revised reading"
+            ),
+            help=(
+                "Optional. Line numbers are interpreted separately within each "
+                "compared poem; use only revisions that apply across the set."
+            ),
         )
         columns = st.columns(4)
         slant_threshold = columns[0].number_input(
@@ -2455,6 +2566,17 @@ def _render_shared_comparison_configuration(
                 irregular_fit_threshold=float(meter_poem),
                 ambiguity_margin_threshold=float(meter_margin),
                 maximum_line_variants=int(meter_variants),
+                analysis_mode=meter_analysis_mode,
+                style_profile=METER_STYLE_LABELS[meter_style_label],
+                interpretation_depth=METER_DEPTH_LABELS[meter_depth_label],
+                performance_candidate_limit=int(meter_performance_candidate_limit),
+                retained_realized_alternatives=int(meter_realized_alternatives),
+                allow_visible_poetic_elision=bool(meter_allow_visible_elision),
+                scholar_revisions=(
+                    ()
+                    if meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+                    else parse_meter_scholar_revisions(meter_scholar_revisions)
+                ),
             ),
             phonology=PhonologicalConfiguration(
                 slant_rhyme_threshold=float(slant_threshold),

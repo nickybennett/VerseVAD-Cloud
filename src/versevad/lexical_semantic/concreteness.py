@@ -94,7 +94,7 @@ class ConcretenessConfiguration:
 
     highly_abstract_max: float = 2.0
     highly_concrete_min: float = 4.0
-    exclude_proper_nouns: bool = True
+    exclude_proper_nouns: bool = False
     activate_multiword_expressions: bool = True
     minimum_rated_tokens: int = 3
     low_coverage_warning_threshold: float = 0.6
@@ -1039,9 +1039,9 @@ class ConcretenessModule:
         inclusion_policy = (
             "All lexical tokens except punctuation and numeric tokens; "
             + (
-                "model-tagged proper nouns excluded by default."
+                "model-tagged proper nouns excluded by explicit configuration."
                 if config.exclude_proper_nouns
-                else "model-tagged proper nouns included by explicit configuration."
+                else "model-tagged proper nouns included by default."
             )
         )
         lookup_policy = (

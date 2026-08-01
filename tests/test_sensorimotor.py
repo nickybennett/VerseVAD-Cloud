@@ -130,6 +130,10 @@ def _analyze(
     )
 
 
+def test_proper_nouns_are_included_by_default() -> None:
+    assert SensorimotorConfiguration().exclude_proper_nouns is False
+
+
 def test_adapter_is_read_only_and_validates_source_contract(tmp_path: Path) -> None:
     source = tmp_path / "sensorimotor.csv"
     _write_source(

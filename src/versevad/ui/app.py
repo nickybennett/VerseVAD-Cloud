@@ -231,6 +231,9 @@ from versevad.ui.profiles import (
     snapshot_profile_settings,
 )
 from versevad.ui.design import (
+    METER_DEPTH_LABELS,
+    METER_MODE_LABELS,
+    METER_STYLE_LABELS,
     MODULE_PRESETS,
     PUBLICATION_CHART_COLORS,
     collapse_control_html,
@@ -1837,7 +1840,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 0
             ].checkbox(
                 "Exclude model-tagged proper nouns",
-                value=True,
+                value=False,
                 key="concreteness_exclude_proper",
                 disabled=not include_concreteness,
             )
@@ -1869,7 +1872,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 0
             ].checkbox(
                 "Exclude sensorimotor proper nouns",
-                value=True,
+                value=False,
                 key="sensorimotor_exclude_proper",
                 disabled=not include_sensorimotor,
             )
@@ -1944,7 +1947,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 0
             ].checkbox(
                 "Exclude frequency proper nouns",
-                value=True,
+                value=False,
                 key="frequency_exclude_proper",
                 disabled=not include_frequency,
             )
@@ -2007,7 +2010,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             aoa_policy_columns = st.columns(3)
             exclude_aoa_proper_nouns = aoa_policy_columns[0].checkbox(
                 "Exclude AoA proper nouns",
-                value=True,
+                value=False,
                 key="aoa_exclude_proper",
                 disabled=not include_aoa,
             )
@@ -2240,45 +2243,22 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "syllable count and lexical stress agree."
             )
             st.markdown("**Meter and rhythmic-regularity settings**")
-            meter_mode_labels = {
-                "Candidate meter only (validated default)": (
-                    MeterAnalysisMode.CANDIDATE
-                ),
-                "Performance-aware realization": (
-                    MeterAnalysisMode.PERFORMANCE_AWARE
-                ),
-                "Compare candidate and performance-aware readings": (
-                    MeterAnalysisMode.COMPARE_BOTH
-                ),
-            }
-            meter_style_labels = {
-                "General English Verse": MeterStyleProfile.GENERAL,
-                "Traditional Accentual-Syllabic Verse": (
-                    MeterStyleProfile.TRADITIONAL
-                ),
-                "Romantic / Victorian Verse": (
-                    MeterStyleProfile.ROMANTIC_VICTORIAN
-                ),
-                "Modernist Verse": MeterStyleProfile.MODERNIST,
-                "Contemporary Formal Verse": (
-                    MeterStyleProfile.CONTEMPORARY_FORMAL
-                ),
-                "Free Verse / Cadential": (
-                    MeterStyleProfile.FREE_VERSE_CADENTIAL
-                ),
-                "Custom visible weights": MeterStyleProfile.CUSTOM,
-            }
-            meter_depth_labels = {
-                "Summary": MeterInterpretationDepth.SUMMARY,
-                "Standard": MeterInterpretationDepth.STANDARD,
-                "Detailed": MeterInterpretationDepth.DETAILED,
-            }
+            meter_mode_labels = METER_MODE_LABELS
+            meter_style_labels = METER_STYLE_LABELS
+            meter_depth_labels = METER_DEPTH_LABELS
             meter_interpretation_columns = st.columns(3)
             meter_analysis_mode_label = meter_interpretation_columns[
                 0
             ].selectbox(
-                "Meter analysis layer",
+                "Meter analysis level",
                 options=list(meter_mode_labels),
+                index=(
+                    0
+                    if "meter_analysis_mode" in st.session_state
+                    else list(meter_mode_labels).index(
+                        "Compare candidate and performance-aware readings"
+                    )
+                ),
                 key="meter_analysis_mode",
                 disabled=not include_meter,
                 help=(
@@ -4159,16 +4139,20 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "and stanzas using the same lexical-token counts shown in the "
                 "detailed tables below."
             )
-            structural_mean_columns = st.columns(3)
+            structural_mean_columns = st.columns(4)
             structural_mean_columns[0].metric(
+                "Nonblank physical lines",
+                f"{summary.nonblank_line_count:,}",
+            )
+            structural_mean_columns[1].metric(
                 "Average words per nonblank line",
                 _decimal(summary.nonblank_line_word_count_statistics.mean),
             )
-            structural_mean_columns[1].metric(
+            structural_mean_columns[2].metric(
                 "Average words per stanza",
                 _decimal(summary.stanza_word_count_statistics.mean),
             )
-            structural_mean_columns[2].metric(
+            structural_mean_columns[3].metric(
                 "Average nonblank lines per stanza",
                 _decimal(summary.stanza_line_count_statistics.mean),
             )

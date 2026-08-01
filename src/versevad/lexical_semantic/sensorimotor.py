@@ -174,7 +174,7 @@ class SensorimotorMatchMethod(StrEnum):
 @dataclass(frozen=True)
 class SensorimotorConfiguration:
     include_phrases: bool = True
-    exclude_proper_nouns: bool = True
+    exclude_proper_nouns: bool = False
     minimum_match_requirement: int = 3
     top_term_count: int = 12
     stopword_mode: StopwordMode = StopwordMode.STANDARD

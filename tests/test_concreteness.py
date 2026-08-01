@@ -246,7 +246,7 @@ def test_exact_two_word_expression_is_assigned_to_each_covered_token(
     assert result.summary.statistics.mean == pytest.approx(4.5)
 
 
-def test_proper_names_are_explicitly_excluded_by_default(
+def test_proper_names_are_included_by_default_and_can_be_excluded(
     tmp_path: Path,
     preprocessor,
 ) -> None:
@@ -280,10 +280,19 @@ def test_proper_names_are_explicitly_excluded_by_default(
     )
     alice = next(row for row in result.token_audit if row.surface_form == "Alice")
 
-    assert alice.match_method is ConcretenessMatchMethod.NOT_ELIGIBLE
-    assert alice.rating is None
-    assert "proper" in alice.reason.casefold()
-    assert result.summary.eligible_token_count == 1
+    assert alice.match_method is ConcretenessMatchMethod.EXACT
+    assert alice.rating == pytest.approx(4.0)
+    assert result.summary.eligible_token_count == 2
+
+    excluded = module.analyze_detailed(
+        ModuleInput(document=poem.source, tokens=tokens, preprocessing=poem.preprocessing),
+        ConcretenessConfiguration(exclude_proper_nouns=True),
+    )
+    excluded_alice = next(row for row in excluded.token_audit if row.surface_form == "Alice")
+    assert excluded_alice.match_method is ConcretenessMatchMethod.NOT_ELIGIBLE
+    assert excluded_alice.rating is None
+    assert "proper" in excluded_alice.reason.casefold()
+    assert excluded.summary.eligible_token_count == 1
 
 
 def test_empty_and_wholly_unmatched_inputs_keep_aggregates_missing(

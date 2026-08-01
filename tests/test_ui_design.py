@@ -166,6 +166,8 @@ def test_stylesheet_uses_semantic_tokens_and_accessibility_modes() -> None:
         assert '[data-baseweb="tooltip"]' in sheet
         assert '[data-testid="stTooltipContent"]' in sheet
         assert '[data-testid="stDataFrame"] [class*="tooltip"]' in sheet
+        assert ".st-key-training_website_link" in sheet
+        assert '[data-testid="stLinkButton"] a' in sheet
         assert '[role="listbox"]' in sheet
         assert "prefers-color-scheme: dark" not in sheet
         assert (
@@ -214,6 +216,23 @@ def test_collapse_control_is_accessible_and_client_side() -> None:
     assert 'button.closest("details")' in markup
     assert 'closest(\'[data-testid="stExpander"]\')' in markup
     assert "details.open = false" in markup
+
+
+def test_major_comparison_and_corpus_panels_use_bottom_collapse_controls() -> None:
+    ui_root = Path(__file__).parents[1] / "src" / "versevad" / "ui"
+    comparison_source = (ui_root / "comparison.py").read_text(encoding="utf-8")
+    corpus_source = (ui_root / "corpus.py").read_text(encoding="utf-8")
+
+    assert comparison_source.count("bottom_collapsible_expander(") >= 4
+    for label in (
+        "Corpus VerseMap Space",
+        "Nearest Reference Poets",
+        "Methodology and Coverage",
+        "Cumulative Lexical Load",
+        "Interpretive and Methodological Notes",
+    ):
+        assert label in corpus_source
+    assert corpus_source.count("bottom_collapsible_expander(") >= 6
 
 
 def _relative_luminance(value: str) -> float:
@@ -320,7 +339,7 @@ def test_all_button_states_meet_text_contrast_expectations() -> None:
         )
 
 
-def test_presets_change_only_module_selection_not_advanced_settings() -> None:
+def test_presets_restore_canonical_module_and_methodology_defaults() -> None:
     state = preset_widget_state(
         "Literary",
         available_lexicon_ids=(
@@ -333,6 +352,13 @@ def test_presets_change_only_module_selection_not_advanced_settings() -> None:
     assert state["include_poetry_id"] is True
     assert state["include_sensorimotor"] is True
     assert state["include_meter"] is False
+    assert state["concreteness_exclude_proper"] is False
+    assert state["sensorimotor_exclude_proper"] is False
+    assert state["frequency_exclude_proper"] is False
+    assert state["aoa_exclude_proper"] is False
+    assert state["meter_analysis_mode"] == (
+        "Compare candidate and performance-aware readings"
+    )
     assert "frequency_rare_threshold" not in state
     assert "poetry_id_low_threshold" not in state
     assert preset_widget_state(

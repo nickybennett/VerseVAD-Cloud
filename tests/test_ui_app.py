@@ -570,6 +570,23 @@ def test_interface_opens_compare_poems_workspace() -> None:
     assert "Add Another Poem" in [button.label for button in app.button]
     assert "Phrase policy" in [field.label for field in app.selectbox]
     assert "MATTR window" in [field.label for field in app.number_input]
+    assert "Meter analysis level" in [field.label for field in app.selectbox]
+    number_labels = [field.label for field in app.number_input]
+    for label in (
+        "Meter line-fit threshold",
+        "Poem candidate-fit threshold",
+        "Candidate margin",
+        "Maximum stress paths",
+        "Realization candidates per line",
+        "Retained realized alternatives",
+    ):
+        assert any(item.startswith(label) for item in number_labels)
+    assert "Recognize visibly marked contractions" in [
+        field.label for field in app.checkbox
+    ]
+    assert "Shared scholar scansion revisions" in [
+        field.label for field in app.text_area
+    ]
     module_selector = next(
         field
         for field in app.multiselect
@@ -1313,6 +1330,7 @@ def test_interface_runs_optional_lexical_style_without_a_resource() -> None:
     assert any("Words by Stanza" in heading.value for heading in app.subheader)
     metrics = [(metric.label, metric.value) for metric in app.metric]
     assert ("Lexical tokens", "7") in metrics
+    assert ("Nonblank physical lines", "3") in metrics
     assert ("Average words per nonblank line", "2.333") in metrics
     assert ("Average words per stanza", "3.500") in metrics
     assert ("Average nonblank lines per stanza", "1.500") in metrics
@@ -1832,7 +1850,7 @@ def test_interface_runs_optional_performance_aware_meter_workflow() -> None:
     mode = next(
         field
         for field in app.selectbox
-        if field.label == "Meter analysis layer"
+        if field.label == "Meter analysis level"
     )
     mode.set_value("Performance-aware realization")
     app.run(timeout=90)

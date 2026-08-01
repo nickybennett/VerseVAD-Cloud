@@ -6,6 +6,23 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Exposed the already-calculated total nonblank physical-line count in the
+  Structure report's Structural Count Summary.
+- Included model-tagged proper nouns by default in built-in Concreteness,
+  Sensorimotor, Frequency, and Age of Acquisition settings while retaining
+  explicit exclusion controls and each saved custom profile's own choices.
+- Made built-in meter analysis compare candidate and performance-aware readings
+  by default and aligned the full meter/rhythm configuration across Single
+  Poem, Compare Poems, and Project/Corpus; VerseMap remains pinned to Standard
+  Profile 1.0.
+- Cached the unchanged VerseMap reference index by model-file signatures to
+  reduce repeated workspace and report rerun cost without caching analysis
+  results or changing calculations.
+- Corrected the Learn → Training website button foreground, background, and
+  hover contrast across all themes.
+- Added bottom-center collapse controls to remaining major Compare Poems and
+  corpus report sections.
+
 - Added **Learn → Training** with descriptions of the four free VerseVAD
   courses, public Word downloads for learner manuals and applied analysis
   exercises, and a prominent link to `versevad.org/training`; evaluator keys

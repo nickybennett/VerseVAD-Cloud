@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from html import escape
@@ -13,6 +14,11 @@ from streamlit.delta_generator import DeltaGenerator
 
 from versevad import __version__
 from versevad.deployment import cloud_deployment_enabled
+from versevad.prosody import (
+    MeterAnalysisMode,
+    MeterInterpretationDepth,
+    MeterStyleProfile,
+)
 from versevad.ui.dataframes import rounded_display_data
 from versevad.ui.navigation import WORKSPACES, render_top_navigation
 from versevad.ui.preferences import (
@@ -286,6 +292,37 @@ class ModulePreset:
     modules: tuple[str, ...]
 
 
+METER_MODE_LABELS = {
+    "Candidate meter only (fixed-template layer)": MeterAnalysisMode.CANDIDATE,
+    "Performance-aware realization": MeterAnalysisMode.PERFORMANCE_AWARE,
+    "Compare candidate and performance-aware readings": (
+        MeterAnalysisMode.COMPARE_BOTH
+    ),
+}
+METER_STYLE_LABELS = {
+    "General English Verse": MeterStyleProfile.GENERAL,
+    "Traditional Accentual-Syllabic Verse": MeterStyleProfile.TRADITIONAL,
+    "Romantic / Victorian Verse": MeterStyleProfile.ROMANTIC_VICTORIAN,
+    "Modernist Verse": MeterStyleProfile.MODERNIST,
+    "Contemporary Formal Verse": MeterStyleProfile.CONTEMPORARY_FORMAL,
+    "Free Verse / Cadential": MeterStyleProfile.FREE_VERSE_CADENTIAL,
+    "Custom visible weights": MeterStyleProfile.CUSTOM,
+}
+METER_DEPTH_LABELS = {
+    "Summary": MeterInterpretationDepth.SUMMARY,
+    "Standard": MeterInterpretationDepth.STANDARD,
+    "Detailed": MeterInterpretationDepth.DETAILED,
+}
+
+BUILTIN_ANALYSIS_SETTING_DEFAULTS: Mapping[str, object] = {
+    "concreteness_exclude_proper": False,
+    "sensorimotor_exclude_proper": False,
+    "frequency_exclude_proper": False,
+    "aoa_exclude_proper": False,
+    "meter_analysis_mode": "Compare candidate and performance-aware readings",
+}
+
+
 MODULE_PRESETS = {
     "Affect and Emotion": ModulePreset(
         label="Affect and Emotion",
@@ -424,7 +461,7 @@ def preset_widget_state(
     *,
     available_lexicon_ids: Sequence[str],
 ) -> dict[str, object]:
-    """Return only module-selection state; advanced settings are never touched."""
+    """Return module selection plus canonical built-in methodology defaults."""
 
     legacy_names = {
         "Essential": "Affect and Emotion",
@@ -438,7 +475,10 @@ def preset_widget_state(
         return {}
     available = set(available_lexicon_ids)
     selected = [item for item in preset.lexicon_ids if item in available]
-    state: dict[str, object] = {"selected_lexicons": selected}
+    state: dict[str, object] = {
+        **BUILTIN_ANALYSIS_SETTING_DEFAULTS,
+        "selected_lexicons": selected,
+    }
     enabled = set(preset.modules)
     state.update({key: key in enabled for key in _OPTIONAL_MODULE_KEYS})
     return state
@@ -722,6 +762,27 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
     [data-testid="stFormSubmitButton"] button *,
     [data-testid="stDownloadButton"] button *,
     [data-testid^="stBaseButton-"] * {{
+      color: inherit !important;
+      -webkit-text-fill-color: inherit !important;
+    }}
+    /* Streamlit renders the Training call-to-action as an anchor. */
+    .st-key-training_website_link [data-testid="stLinkButton"] a,
+    .st-key-training_website_link a[data-testid^="stBaseButton-primary"] {{
+      background: var(--color-button-primary-background) !important;
+      border-color: var(--color-button-primary-background) !important;
+      color: var(--color-button-primary-text) !important;
+      -webkit-text-fill-color: var(--color-button-primary-text) !important;
+      opacity: 1 !important;
+    }}
+    .st-key-training_website_link [data-testid="stLinkButton"] a:hover,
+    .st-key-training_website_link a[data-testid^="stBaseButton-primary"]:hover {{
+      background: var(--color-button-primary-hover) !important;
+      border-color: var(--color-button-primary-hover) !important;
+      color: var(--color-button-primary-text) !important;
+      -webkit-text-fill-color: var(--color-button-primary-text) !important;
+    }}
+    .st-key-training_website_link [data-testid="stLinkButton"] a *,
+    .st-key-training_website_link a[data-testid^="stBaseButton-primary"] * {{
       color: inherit !important;
       -webkit-text-fill-color: inherit !important;
     }}
@@ -1403,6 +1464,29 @@ def collapse_control_html(label: str, control_id: str) -> str:
       }})();
     </script>
     """
+
+
+def bottom_collapsible_expander(
+    label: str,
+    *,
+    control_id: str,
+    expanded: bool = False,
+):
+    """Return an expander that always renders a bottom-center collapse arrow."""
+
+    expander = st.expander(label, expanded=expanded)
+
+    @contextmanager
+    def _contents():
+        with expander:
+            yield
+            st.html(
+                collapse_control_html(label, control_id),
+                width="stretch",
+                unsafe_allow_javascript=True,
+            )
+
+    return _contents()
 
 
 def _persist_appearance() -> None:

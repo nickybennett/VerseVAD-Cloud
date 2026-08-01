@@ -155,13 +155,14 @@ def render_training_workspace() -> None:
         status="Four-course pathway",
     )
 
-    st.link_button(
-        "Visit the VerseVAD Training Website",
-        TRAINING_URL,
-        icon=":material/open_in_new:",
-        type="primary",
-        width="stretch",
-    )
+    with st.container(key="training_website_link"):
+        st.link_button(
+            "Visit the VerseVAD Training Website",
+            TRAINING_URL,
+            icon=":material/open_in_new:",
+            type="primary",
+            width="stretch",
+        )
     st.caption(
         "Course updates, additional guidance, and training-program information: "
         "www.versevad.org/training"
@@ -208,4 +209,3 @@ def render_training_workspace() -> None:
 
 
 __all__ = ["COURSES", "TRAINING_ROOT", "TRAINING_URL", "render_training_workspace"]
-

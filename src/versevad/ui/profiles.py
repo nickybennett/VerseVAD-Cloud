@@ -11,6 +11,12 @@ from typing import Any, Mapping, MutableMapping
 
 
 CUSTOM_PROFILE_VERSION = 1
+_PROFILE_VALUE_MIGRATIONS = {
+    (
+        "meter_analysis_mode",
+        "Candidate meter only (validated default)",
+    ): "Candidate meter only (fixed-template layer)",
+}
 
 PROFILE_WIDGET_KEYS = frozenset(
     {
@@ -138,6 +144,22 @@ def _plain_json_value(value: Any) -> Any:
     raise TypeError(f"Unsupported profile setting value: {type(value)!r}")
 
 
+def normalize_profile_settings(settings: Mapping[str, Any]) -> dict[str, Any]:
+    """Migrate retained widget labels without changing analytical choices."""
+
+    normalized: dict[str, Any] = {}
+    for key, value in settings.items():
+        if key not in PROFILE_WIDGET_KEYS:
+            continue
+        plain_value = _plain_json_value(value)
+        normalized[key] = (
+            _PROFILE_VALUE_MIGRATIONS.get((key, plain_value), plain_value)
+            if isinstance(plain_value, str)
+            else plain_value
+        )
+    return normalized
+
+
 def snapshot_profile_settings(state: Mapping[str, Any]) -> dict[str, Any]:
     """Return the analytical, non-text subset of current widget state."""
 
@@ -146,7 +168,9 @@ def snapshot_profile_settings(state: Mapping[str, Any]) -> dict[str, Any]:
         if key not in state:
             continue
         try:
-            snapshot[key] = _plain_json_value(state[key])
+            snapshot[key] = normalize_profile_settings(
+                {key: state[key]}
+            )[key]
         except TypeError:
             continue
     return snapshot
@@ -158,9 +182,8 @@ def apply_profile_settings(
 ) -> None:
     """Apply a validated profile snapshot without touching supplied text."""
 
-    for key, value in settings.items():
-        if key in PROFILE_WIDGET_KEYS:
-            target[key] = _plain_json_value(value)
+    for key, value in normalize_profile_settings(settings).items():
+        target[key] = value
 
 
 def _profile_from_payload(
@@ -176,11 +199,7 @@ def _profile_from_payload(
         name=name,
         description=str(payload.get("description") or ""),
         base_profile=str(payload.get("base_profile") or "Custom"),
-        settings={
-            key: _plain_json_value(value)
-            for key, value in settings.items()
-            if key in PROFILE_WIDGET_KEYS
-        },
+        settings=normalize_profile_settings(settings),
         created_at=created_at,
         updated_at=updated_at,
     )
@@ -284,6 +303,7 @@ __all__ = [
     "default_custom_profiles_path",
     "delete_custom_profile",
     "load_custom_profiles",
+    "normalize_profile_settings",
     "save_custom_profile",
     "snapshot_profile_settings",
 ]

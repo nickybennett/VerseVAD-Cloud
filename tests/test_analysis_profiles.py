@@ -4,9 +4,18 @@ from versevad.ui.profiles import (
     apply_profile_settings,
     delete_custom_profile,
     load_custom_profiles,
+    normalize_profile_settings,
     save_custom_profile,
     snapshot_profile_settings,
 )
+
+
+def test_legacy_candidate_meter_label_is_migrated_without_changing_layer() -> None:
+    assert normalize_profile_settings(
+        {"meter_analysis_mode": "Candidate meter only (validated default)"}
+    ) == {
+        "meter_analysis_mode": "Candidate meter only (fixed-template layer)"
+    }
 
 
 def test_profile_snapshot_excludes_text_metadata_and_results() -> None:

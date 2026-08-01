@@ -422,8 +422,9 @@ Avoid: “VerseVAD proved the poem is in iambic pentameter,” “fit 0.91 means
 
 ## Performance-Aware Meter Realization
 
-The non-default Stage 14 layer keeps the complete fixed candidate result and
-adds an inspectable contextual reading. It can label syllable-level metrical
+The separate Stage 14 layer keeps the complete fixed candidate result and adds
+an inspectable contextual reading. Built-in profiles display both layers side
+by side by default, while either can still be selected alone. It can label syllable-level metrical
 positions, promotion and demotion, substitutions, stress clashes and lapses,
 punctuation-supported caesurae, selected pronunciation paths, alternate
 realizations, stanza recurrence, poem trajectory, and rhythmic organization.
@@ -1359,7 +1360,7 @@ Include these elements for every numeric claim:
 | Meter fit | Configured 0-1 stress-alignment similarity; not a probability |
 | Meter line coverage | Analyzable eligible physical lines divided by all eligible physical lines |
 | Declared meter style profile | Scholar-selected versioned realization weights; never an inferred period, movement, author, or tradition |
-| Performance-aware realization | Optional contextual reranking and annotated reading above the unchanged fixed candidate layer; not performed scansion |
+| Performance-aware realization | Separate contextual reranking and annotated reading above the unchanged fixed candidate layer; built-in profiles compare both by default; not performed scansion |
 | Rhythmic organization | Rule-based accentual-syllabic, accentual, syllabic, locally metrical, mixed, no-stable-pattern, or insufficient-evidence description |
 | Median | Middle sorted value |
 | MTLD | Mean forward/reverse sequential factor-length estimate at a configured TTR threshold |

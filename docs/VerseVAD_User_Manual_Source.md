@@ -505,15 +505,16 @@ Named-entity recognition is disabled by default. The installed small English mod
 
 An exact surface match is never silently replaced by a lemma match. Lemma matching is explicitly labeled because model-proposed lemmas can be wrong for poetic, historical, or unusual language.
 
-The optional concreteness module has its own recorded sequence over the same tokens: longest exact source-supplied two-word expression within one physical line, exact normalized surface, lemma, then a documented conservative apostrophe or possessive fallback. Model-tagged proper nouns are excluded by default. Unmatched and ineligible tokens retain missing ratings.
+The optional concreteness module has its own recorded sequence over the same tokens: longest exact source-supplied two-word expression within one physical line, exact normalized surface, lemma, then a documented conservative apostrophe or possessive fallback. Model-tagged proper nouns remain eligible by default and can be excluded explicitly. Unmatched and ineligible tokens retain missing ratings.
 
-The optional frequency module likewise uses exact normalized observed word form before an enabled lemma fallback, followed only by documented conservative apostrophe or possessive fallbacks. This order preserves SUBTLEX-US word-form evidence. Model-tagged proper nouns are excluded by default, and unmatched or ineligible tokens retain missing Zipf values.
+The optional frequency module likewise uses exact normalized observed word form before an enabled lemma fallback, followed only by documented conservative apostrophe or possessive fallbacks. This order preserves SUBTLEX-US word-form evidence. Model-tagged proper nouns remain eligible by default and can be excluded explicitly; unmatched or ineligible tokens retain missing Zipf values.
 
 The optional Age of Acquisition module uses exact normalized observed word form
 before an enabled lemma fallback, followed by documented conservative
 apostrophe or possessive fallbacks. A source row whose mean is `NA` remains
 visible as `source_entry_without_numeric_rating` but does not enter numeric
-summaries. Model-tagged proper nouns are excluded by default. Unmatched,
+summaries. Model-tagged proper nouns remain eligible by default and can be
+excluded explicitly. Unmatched,
 ineligible, and source-unrated tokens retain missing ages rather than zero.
 
 The optional pronunciation module uses the exact normalized observed form
@@ -710,7 +711,7 @@ Read the mean with coverage, dispersion, terms, and structural evidence. The res
 
 When enabled, **Frequency & Rarity** reports the token-weighted median SUBTLEX-US Zipf value as its primary summary. It also reports the mean, population SD, inclusive quartiles, IQR, range, token and unique observed-form-type coverage, configurable bands, physical-line/stanza/POS summaries, lowest/highest terms, a rare-word tail, and a complete token audit.
 
-The default scope considers all lexical tokens except model-tagged proper nouns. **Content words only** is an optional, non-default scope. It includes only exact model tags `NOUN`, `VERB`, `ADJ`, and `ADV`. It excludes determiners (`DET`), prepositions/adpositions (`ADP`), conjunctions (`CCONJ`, `SCONJ`), pronouns (`PRON`), auxiliaries (`AUX`), punctuation, and all other tags. This differs from the broad Language Profile, which groups `VERB` and `AUX` together under **Verb**.
+The default scope considers all lexical tokens, including model-tagged proper nouns. **Content words only** is an optional, non-default scope. It includes only exact model tags `NOUN`, `VERB`, `ADJ`, and `ADV`. It excludes determiners (`DET`), prepositions/adpositions (`ADP`), conjunctions (`CCONJ`, `SCONJ`), pronouns (`PRON`), auxiliaries (`AUX`), punctuation, proper nouns, and all other tags. This differs from the broad Language Profile, which groups `VERB` and `AUX` together under **Verb**.
 
 The default rare-to-very-common bands are VerseVAD orientation aids, not diagnostic literary categories. Read the median with the distribution, coverage, scope, unmatched forms, structure, and audit. The result describes corpus-relative lexical frequency evidence from an American subtitle corpus. It does not measure difficulty, sophistication, accessibility, intelligence, literary quality, or reader response.
 
@@ -810,9 +811,9 @@ pentameter, hexameter, heptameter, and octameter: 40 fixed line templates.
 Spondees `11` and pyrrhics `00` are reported as local substitutions rather
 than ordinary whole-line base candidates.
 
-**Candidate meter only** is the validated default and preserves the Stage 6
-result exactly. Two non-default choices add an independent performance-aware
-realization or display candidate and performance-aware readings together.
+Built-in profiles default to **Compare candidate and performance-aware
+readings**, preserving the Stage 6 result exactly beside the independent
+performance-aware realization. Either layer can still be selected alone.
 The second layer does not rewrite the dictionary lexical stress or replace the
 fixed candidate audit.
 
@@ -968,6 +969,7 @@ poem. The module reports:
   without-replacement sample;
 - forward/reverse and mean MTLD at a configured TTR threshold;
 - Unicode alphabetic-character word-length statistics and distribution;
+- the total number of nonblank physical lines;
 - average words per nonblank physical line, average words per stanza, and
   average nonblank physical lines per stanza, each with its population
   standard deviation;
@@ -1311,6 +1313,7 @@ word counts for each physical line and stanza.
 
 The **Structural Count Summary** shows:
 
+- total nonblank physical lines;
 - average words per nonblank physical line and its population standard
   deviation;
 - average words per stanza and its population standard deviation; and
