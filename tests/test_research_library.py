@@ -88,6 +88,34 @@ def test_serializer_rejects_non_versevad_dataclasses() -> None:
         serialize_value(Untrusted("no"))
 
 
+def test_stale_library_reference_is_nonthrowing_and_detachable(tmp_path) -> None:
+    from versevad.ui.research import _discard_stale_library_reference
+
+    repository = ResearchLibraryRepository(tmp_path / "analysis_library.sqlite3")
+    stale_id = "analysis-from-prior-cloud-process"
+    assert repository.find_item(stale_id) is None
+    with pytest.raises(ResearchLibraryError, match="Unknown saved analysis"):
+        repository.get_item(stale_id)
+
+    state = {
+        "_research_library_item__Single Poem": stale_id,
+        "_research_context_id__Single Poem": stale_id,
+        "_research_saved_revision__Single Poem": "missing-revision",
+        "_historical_analysis": {
+            "workspace": "Single Poem",
+            "item_id": stale_id,
+        },
+        "poem_text": "The active text remains available.",
+    }
+    _discard_stale_library_reference("Single Poem", stale_id, state=state)
+
+    assert "_research_library_item__Single Poem" not in state
+    assert "_research_context_id__Single Poem" not in state
+    assert "_research_saved_revision__Single Poem" not in state
+    assert "_historical_analysis" not in state
+    assert state["poem_text"] == "The active text remains available."
+
+
 def test_library_keeps_immutable_revisions_and_recovers_drafts(
     tmp_path,
     preprocessor,

@@ -1504,6 +1504,8 @@ review required.
 
 ## Release polish - profile defaults, parity, and responsiveness
 
+- [x] Make stale session-only saved-analysis identifiers self-healing after a
+  hosted redeploy without discarding the active analysis.
 - [x] Include proper nouns by default in the four requested lexical modules
   for every built-in profile while preserving custom-profile state.
 - [x] Align full meter/rhythm controls across Single Poem, Compare Poems, and

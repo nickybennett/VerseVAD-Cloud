@@ -160,6 +160,31 @@ def _set_library_item_id(workspace: str, item_id: str) -> None:
     st.session_state[f"_research_context_id__{workspace}"] = item_id
 
 
+def _discard_stale_library_reference(
+    workspace: str,
+    item_id: str,
+    *,
+    state: Any | None = None,
+) -> None:
+    """Detach a browser reference whose ephemeral or deleted row is gone."""
+
+    target = st.session_state if state is None else state
+    item_key = f"_research_library_item__{workspace}"
+    context_key = f"_research_context_id__{workspace}"
+    if target.get(item_key) == item_id:
+        target.pop(item_key, None)
+    if target.get(context_key) == item_id:
+        target.pop(context_key, None)
+    target.pop(f"_research_saved_revision__{workspace}", None)
+    historical = target.get("_historical_analysis")
+    if (
+        isinstance(historical, dict)
+        and historical.get("workspace") == workspace
+        and historical.get("item_id") == item_id
+    ):
+        target.pop("_historical_analysis", None)
+
+
 def _safe_session_value(value: object) -> bool:
     try:
         return len(serialize_value(value)) <= 200_000
@@ -931,10 +956,11 @@ def render_analysis_management_sidebar(workspace: str) -> None:
         current_id = _library_item_id(workspace)
         current_status = ""
         if current_id:
-            try:
-                current_status = research_repository().get_item(current_id).status
-            except ResearchLibraryError:
-                current_status = ""
+            current_item = research_repository().find_item(current_id)
+            if current_item is None:
+                _discard_stale_library_reference(workspace, current_id)
+            else:
+                current_status = current_item.status
         if current_status == "saved":
             st.success("This analysis is in the library.")
         if context.analyzed:

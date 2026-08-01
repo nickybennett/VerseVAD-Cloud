@@ -6,6 +6,9 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Recovered safely from stale saved-analysis identifiers after a hosted
+  redeploy or deletion by detaching only the missing library reference while
+  preserving the active text and analysis state.
 - Exposed the already-calculated total nonblank physical-line count in the
   Structure report's Structural Count Summary.
 - Included model-tagged proper nouns by default in built-in Concreteness,

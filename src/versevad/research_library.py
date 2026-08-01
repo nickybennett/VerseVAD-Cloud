@@ -700,13 +700,19 @@ class ResearchLibraryRepository:
         return tuple(self._item(row) for row in rows)
 
     def get_item(self, item_id: str) -> LibraryItem:
+        item = self.find_item(item_id)
+        if item is None:
+            raise ResearchLibraryError("Unknown saved analysis.")
+        return item
+
+    def find_item(self, item_id: str) -> LibraryItem | None:
+        """Return one library item, or ``None`` when its reference is stale."""
+
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT * FROM library_items WHERE item_id = ?", (item_id,)
             ).fetchone()
-        if row is None:
-            raise ResearchLibraryError("Unknown saved analysis.")
-        return self._item(row)
+        return None if row is None else self._item(row)
 
     def list_revisions(self, item_id: str) -> tuple[LibraryRevision, ...]:
         with self._connect() as connection:
