@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import altair as alt
@@ -34,7 +34,19 @@ from versevad.exports.comparison import (
     export_poem_comparison_set_docx,
 )
 from versevad.models import PhrasePolicy
+from versevad.lexical_semantic.aoa import AoAConfiguration
+from versevad.lexical_semantic.concreteness import ConcretenessConfiguration
+from versevad.lexical_semantic.frequency import FrequencyConfiguration
+from versevad.lexical_semantic.sensorimotor import SensorimotorConfiguration
+from versevad.lexical_style import LexicalStyleConfiguration
+from versevad.phonology import PhonologicalConfiguration
+from versevad.poetry_id import PoetryIDConfiguration
 from versevad.preprocessing import TextPreprocessor
+from versevad.prosody import (
+    MeterConfiguration,
+    PronunciationConfiguration,
+    parse_pronunciation_overrides,
+)
 from versevad.ui.dataframes import heterogeneous_display_value
 from versevad.ui.design import (
     MODULE_PRESETS,
@@ -149,6 +161,73 @@ _PANEL_NOTES = {
 }
 
 
+@dataclass(frozen=True)
+class _SharedComparisonConfiguration:
+    """Validated analytical choices applied identically to every poem."""
+
+    phrase_policy: PhrasePolicy
+    minimum_matches: int
+    concreteness: ConcretenessConfiguration
+    sensorimotor: SensorimotorConfiguration
+    frequency: FrequencyConfiguration
+    aoa: AoAConfiguration
+    lexical_style: LexicalStyleConfiguration
+    poetry_id: PoetryIDConfiguration
+    pronunciation: PronunciationConfiguration
+    meter: MeterConfiguration
+    phonology: PhonologicalConfiguration
+
+
+_PROFILE_TO_COMPARE_CONFIGURATION_KEYS = {
+    key: f"compare_config_{key}"
+    for key in (
+        "phrase_policy_label",
+        "minimum_matches",
+        "concreteness_abstract_max",
+        "concreteness_concrete_min",
+        "concreteness_exclude_proper",
+        "concreteness_phrases",
+        "concreteness_coverage_warning",
+        "sensorimotor_exclude_proper",
+        "sensorimotor_phrases",
+        "sensorimotor_top_terms",
+        "frequency_rare_below",
+        "frequency_uncommon_below",
+        "frequency_moderate_below",
+        "frequency_very_common_min",
+        "frequency_exclude_proper",
+        "frequency_content_words_only",
+        "frequency_lemma_fallback",
+        "frequency_coverage_warning",
+        "aoa_early_max",
+        "aoa_later_min",
+        "aoa_exclude_proper",
+        "aoa_content_words_only",
+        "aoa_lemma_fallback",
+        "aoa_coverage_warning",
+        "lexical_style_mattr_window",
+        "lexical_style_hdd_sample",
+        "lexical_style_mtld_threshold",
+        "lexical_style_short_warning",
+        "poetry_id_min_tokens",
+        "poetry_id_min_types",
+        "poetry_id_min_token_coverage",
+        "poetry_id_min_type_coverage",
+        "pronunciation_coverage_warning",
+        "pronunciation_minimum_complete_lines",
+        "pronunciation_minimum_resolved_tokens",
+        "meter_line_match_threshold",
+        "meter_irregular_threshold",
+        "meter_ambiguity_margin",
+        "meter_maximum_variants",
+        "phonological_slant_threshold",
+        "phonological_sound_repetitions",
+        "phonological_coverage_warning",
+        "phonological_maximum_pairs",
+    )
+}
+
+
 def _safe_filename(value: str) -> str:
     filename = "".join(
         character if character.isalnum() or character in {"-", "_"} else "_"
@@ -219,6 +298,60 @@ def _report_location(
     if prefix == "versemap":
         return "VerseMap", "VerseMap Comparative Profile"
     return "Evidence & Diagnostics", "Other Shared Evidence"
+
+
+def _comparison_metric_family(
+    metric_id: str,
+    metric: str,
+    panel: str,
+) -> str:
+    """Group comparison rows into reader-facing analytical families."""
+
+    identifier = metric_id.casefold()
+    label = metric.casefold()
+    if "population_sd" in identifier or "population_standard_deviation" in identifier:
+        return "Within-Poem Dispersion"
+    if any(
+        marker in identifier
+        for marker in (
+            "rating_total",
+            "midpoint",
+            "cumulative_load",
+            "load_per_100",
+        )
+    ):
+        return "Cumulative Lexical Load"
+    if panel == "VAD Profile":
+        return "VAD Means"
+    if panel == "Emotion Association, Intensity & Sentiment":
+        if identifier.startswith("vader."):
+            return "VADER Sentiment"
+        if identifier.startswith("emotion_intensity."):
+            return "Emotion Intensity"
+        return "Emotion Association"
+    if panel == "PoetryID":
+        return "PoetryID Archetypes"
+    if panel == "Sensorimotor Imagery & Embodiment":
+        return "Sensorimotor Dimension Means"
+    if panel == "Frequency & Rarity":
+        return "Rarity Profile" if identifier.startswith("rarity.") else "Frequency Profile"
+    if panel == "Acquisition & Readability":
+        if "poetic_reading_ease" in identifier:
+            return "VerseVAD Poetic Reading Ease"
+        if identifier.startswith("readability."):
+            return "Traditional Readability"
+        return "Age of Acquisition"
+    if panel == "Language Profile":
+        return "Part-of-Speech Profile"
+    if panel == "Lexical & Structural Measures":
+        if any(marker in identifier for marker in ("line", "stanza")):
+            return "Line and Stanza Structure"
+        if "alphabetic_characters" in identifier or "word_length" in identifier:
+            return "Word Length"
+        return "Lexical Diversity"
+    if "coverage" in identifier or "matched" in label:
+        return "Coverage and Evidence"
+    return "Summary Metrics"
 
 
 def _comparison_frame(
@@ -1060,9 +1193,15 @@ def _comparison_set_frame(
                 "Nearest Centroid Archetype"
             ),
         }.get(row.metric_id, row.metric)
+        metric_family = _comparison_metric_family(
+            row.metric_id,
+            metric_label,
+            report_panel,
+        )
         record = {
             "Report Section": report_section,
             "Report Panel": report_panel,
+            "Metric Family": metric_family,
             "Source": row.source,
             "Metric": metric_label,
             "Metric ID": row.metric_id,
@@ -1071,6 +1210,7 @@ def _comparison_set_frame(
             "Unit or Scale": row.unit_or_scale,
             "Equal-Poem Mean": row.numeric_mean,
             "Poem-Level SD": row.numeric_population_standard_deviation,
+            "Range (Max − Min)": row.numeric_range,
             "Poems Contributing": row.contributing_poem_count,
             "Category Summary": row.categorical_summary or None,
             "Note": row.note,
@@ -1080,7 +1220,9 @@ def _comparison_set_frame(
             record[f"{label} · Coverage"] = value.coverage
             record[f"{label} · Denominator"] = value.denominator
         records.append(record)
-    return pd.DataFrame(records)
+    if not records:
+        return pd.DataFrame()
+    return pd.DataFrame(records).drop_duplicates(ignore_index=True)
 
 
 def _render_comparison_set_chart(
@@ -1095,35 +1237,34 @@ def _render_comparison_set_chart(
     numeric = numeric.dropna(subset=poem_labels, how="all")
     if numeric.empty:
         return
-    numeric["Chart Group"] = (
-        numeric["Source"].fillna("").astype(str)
-        + " · "
-        + numeric["Unit or Scale"].fillna("").astype(str)
+    numeric = numeric.reset_index(drop=True)
+    numeric["Chart Label"] = (
+        numeric["Metric"].fillna("").astype(str)
+        + " — "
+        + numeric["Source"].fillna("").astype(str)
     )
-    groups = list(dict.fromkeys(numeric["Chart Group"].tolist()))
-    selected_group = st.selectbox(
-        "Chart source and scale",
-        options=groups,
-        key=f"{state_key}_chart_group",
+    duplicate_labels = numeric["Chart Label"].duplicated(keep=False)
+    numeric.loc[duplicate_labels, "Chart Label"] = (
+        numeric.loc[duplicate_labels, "Chart Label"]
+        + " · "
+        + numeric.loc[duplicate_labels, "Unit or Scale"].fillna("").astype(str)
+    )
+    selected_index = st.selectbox(
+        "Metric to chart",
+        options=tuple(numeric.index),
+        format_func=lambda value: numeric.loc[value, "Chart Label"],
+        key=f"{state_key}_chart_metric",
         help=(
-            "Only metrics sharing one source and unit are drawn together. "
-            "Axes fit the observed poem values instead of forcing a zero baseline."
+            "Choose the actual measure to compare. The axis fits the observed "
+            "poem values instead of combining unrelated scales."
         ),
     )
-    selected = numeric[numeric["Chart Group"] == selected_group].head(16)
+    selected = numeric.loc[selected_index]
     long_rows = []
-    for _, row in selected.iterrows():
-        for label in poem_labels:
-            value = row[label]
-            if pd.notna(value):
-                long_rows.append(
-                    {
-                        "Metric": row["Metric"],
-                        "Poem": label,
-                        "Value": float(value),
-                        "Mean": row["Equal-Poem Mean"],
-                    }
-                )
+    for label in poem_labels:
+        value = selected[label]
+        if pd.notna(value):
+            long_rows.append({"Poem": label, "Value": float(value)})
     if not long_rows:
         return
     long_frame = pd.DataFrame(long_rows)
@@ -1135,50 +1276,33 @@ def _render_comparison_set_chart(
             x=alt.X(
                 "Value:Q",
                 scale=alt.Scale(domain=[lower, upper], zero=False),
-                title=selected.iloc[0]["Unit or Scale"],
+                title=selected["Unit or Scale"],
             ),
-            y=alt.Y("Metric:N", sort=None, title=None),
+            y=alt.Y("Poem:N", sort=poem_labels, title=None),
             color=alt.Color(
                 "Poem:N",
                 scale=alt.Scale(range=list(PUBLICATION_CHART_COLORS)),
+                legend=None,
             ),
             tooltip=[
                 "Poem:N",
-                "Metric:N",
                 alt.Tooltip("Value:Q", format=".3f"),
             ],
         )
     )
-    means = (
-        alt.Chart(
-            long_frame[["Metric", "Mean"]]
-            .dropna()
-            .drop_duplicates()
-        )
-        .mark_point(
-            shape="diamond",
-            size=120,
-            filled=True,
-            color="#17242d",
-        )
-        .encode(
-            x=alt.X("Mean:Q"),
-            y=alt.Y("Metric:N", sort=None),
-            tooltip=[
-                "Metric:N",
-                alt.Tooltip("Mean:Q", title="Equal-poem mean", format=".3f"),
-            ],
-        )
-    )
     chart = publication_chart(
-        (points + means).properties(
-            height=max(220, min(620, len(selected) * 35))
-        )
+        points.properties(height=max(170, min(440, len(long_frame) * 42)))
     )
     st.altair_chart(chart, width="stretch")
+    range_value = selected.get("Range (Max − Min)")
+    range_text = (
+        f"{float(range_value):.3f}"
+        if range_value is not None and pd.notna(range_value)
+        else "unavailable"
+    )
     st.caption(
-        "Colored circles are individual poems. Black diamonds are equal-poem "
-        "means. Means omit missing evidence and never pool tokens across poems."
+        f"Each point is one poem. Observed range (maximum minus minimum): "
+        f"{range_text} {selected['Unit or Scale']}."
     )
 
 
@@ -1207,25 +1331,31 @@ def _render_comparison_set_panel(
             state_key=state_key,
             poem_labels=poem_labels,
         )
-        display_columns = [
-            "Source",
-            "Metric",
-            *poem_labels,
-            "Equal-Poem Mean",
-            "Poem-Level SD",
-            "Poems Contributing",
-            "Category Summary",
-            "Unit or Scale",
-        ]
-        render_dataframe(
-            _arrow_safe_display_frame(
-                panel_rows[display_columns],
-                value_columns=tuple(poem_labels),
-            ),
-            hide_index=True,
-            width="stretch",
-            height=min(500, 76 + len(panel_rows) * 35),
-        )
+        for family in dict.fromkeys(panel_rows["Metric Family"].tolist()):
+            family_rows = panel_rows[panel_rows["Metric Family"] == family]
+            st.markdown(f"##### {family}")
+            if family == "Within-Poem Dispersion":
+                st.caption(
+                    "These values describe variation among matched observations "
+                    "inside each poem. They are not cross-poem uncertainty."
+                )
+            display_columns = [
+                "Source",
+                "Metric",
+                *poem_labels,
+                "Range (Max − Min)",
+                "Category Summary",
+                "Unit or Scale",
+            ]
+            render_dataframe(
+                _arrow_safe_display_frame(
+                    family_rows[display_columns],
+                    value_columns=tuple(poem_labels),
+                ),
+                hide_index=True,
+                width="stretch",
+                height=min(440, 76 + len(family_rows) * 35),
+            )
         with st.expander("Coverage, denominators, and methodological notes"):
             detail_columns = [
                 "Source",
@@ -1289,31 +1419,42 @@ def _render_comparison_set_results(
     if report_section == "Overview":
         st.subheader("Comparison Set Overview")
         st.info(
-            "Each displayed value uses one shared configuration. Equal-poem "
-            "means give every poem one vote and omit unavailable evidence; "
-            "they are descriptive summaries, not significance tests."
+            "Each displayed value uses one shared configuration. Range is the "
+            "maximum minus the minimum across available poem values; it is a "
+            "descriptive contrast, not a significance test."
         )
         summary_columns = st.columns(4)
         summary_columns[0].metric("Poems", len(comparison_set.analyses))
         summary_columns[1].metric("Shared Metrics", len(frame))
         summary_columns[2].metric(
             "Numeric Metrics",
-            int(frame["Equal-Poem Mean"].notna().sum()) if not frame.empty else 0,
+            int(frame["Range (Max − Min)"].notna().sum()) if not frame.empty else 0,
         )
         summary_columns[3].metric(
             "Categorical Metrics",
             int(frame["Category Summary"].notna().sum()) if not frame.empty else 0,
         )
-        core = _prefer_overview_vad_source(
-            frame[
-                frame["Metric ID"].str.contains(
-                    "vad\\.|concreteness.*mean|frequency.*rarity|"
-                    "lexical_style.*mean|poetry_id\\.categorical",
-                    regex=True,
-                    na=False,
-                )
-            ]
-        ).head(18)
+        metric_ids = frame["Metric ID"].fillna("").astype(str)
+        core_mask = (
+            metric_ids.str.match(
+                r"^vad\.[^.]+\.(valence|arousal|dominance)\.mean$"
+            )
+            | metric_ids.isin(
+                {
+                    "concreteness.mean",
+                    "frequency.mean",
+                    "rarity.mean",
+                    "aoa.mean",
+                    "readability.poetic_reading_ease.score",
+                    "lexical_style.mattr",
+                    "lexical_style.hdd",
+                    "lexical_style.mtld",
+                    "poetry_id.categorical_archetype_id",
+                    "poetry_id.nearest_centroid_archetype_id",
+                }
+            )
+        )
+        core = _prefer_overview_vad_source(frame[core_mask]).head(20)
         if not core.empty:
             st.markdown("#### Core Comparison Snapshot")
             render_dataframe(
@@ -1323,8 +1464,7 @@ def _render_comparison_set_results(
                             "Source",
                             "Metric",
                             *poem_labels,
-                            "Equal-Poem Mean",
-                            "Poem-Level SD",
+                            "Range (Max − Min)",
                             "Category Summary",
                             "Unit or Scale",
                         ]
@@ -1334,6 +1474,33 @@ def _render_comparison_set_results(
                 hide_index=True,
                 width="stretch",
             )
+        dispersion = _prefer_overview_vad_source(
+            frame[frame["Metric Family"] == "Within-Poem Dispersion"]
+        )
+        if not dispersion.empty:
+            with st.expander("Within-Poem Dispersion", expanded=False):
+                st.caption(
+                    "Compare how widely matched observations vary inside each "
+                    "poem. These are poem-specific standard deviations, not a "
+                    "standard deviation across the compared poems."
+                )
+                render_dataframe(
+                    _arrow_safe_display_frame(
+                        dispersion[
+                            [
+                                "Source",
+                                "Metric",
+                                *poem_labels,
+                                "Range (Max − Min)",
+                                "Unit or Scale",
+                            ]
+                        ],
+                        value_columns=tuple(poem_labels),
+                    ),
+                    hide_index=True,
+                    width="stretch",
+                    height=min(420, 76 + len(dispersion) * 35),
+                )
         return
 
     if report_section in _PANEL_ORDER:
@@ -1354,17 +1521,36 @@ def _render_comparison_set_results(
     if report_section == "Evidence & Diagnostics":
         st.subheader("Evidence & Diagnostics")
         st.caption(
-            "Complete shared metric evidence with per-poem denominators, "
-            "coverage, and cautions."
+            "Inspect one analytical panel's denominators, coverage, and cautions. "
+            "The complete long-form audit remains available from Export & Help."
         )
+        panel_options = tuple(
+            dict.fromkeys(frame["Report Panel"].fillna("").tolist())
+        )
+        selected_panel = st.selectbox(
+            "Evidence panel",
+            options=panel_options,
+            key="comparison_set_diagnostic_panel",
+        )
+        diagnostic_rows = frame[frame["Report Panel"] == selected_panel]
+        detail_columns = [
+            "Source",
+            "Metric",
+            *[
+                item
+                for label in poem_labels
+                for item in (
+                    f"{label} · Coverage",
+                    f"{label} · Denominator",
+                )
+            ],
+            "Note",
+        ]
         render_dataframe(
-            _arrow_safe_display_frame(
-                frame,
-                value_columns=tuple(poem_labels),
-            ),
+            diagnostic_rows[detail_columns],
             hide_index=True,
             width="stretch",
-            height=620,
+            height=min(560, 76 + len(diagnostic_rows) * 35),
         )
         return
 
@@ -1430,8 +1616,8 @@ def _render_comparison_set_results(
         with st.expander("How to read a comparison set", expanded=False):
             st.markdown(
                 "- Compare values only within the same source, scale, scope, and weighting.\n"
-                "- Equal-poem means do not pool tokens and omit unavailable results.\n"
-                "- Poem-level SD describes dispersion among poem values, not uncertainty or significance.\n"
+                "- Range is maximum minus minimum across available poem values.\n"
+                "- Within-poem SD describes dispersion among matched observations inside each poem.\n"
                 "- Categorical evidence is summarized by counts rather than numerical averaging.\n"
                 "- Read coverage and denominators before interpreting apparent differences."
             )
@@ -1481,6 +1667,410 @@ def _comparison_profile_state(
     return selected_lexicons, selected_modules, settings
 
 
+def _render_shared_comparison_configuration(
+    *,
+    selected_lexicons: list[str],
+    selected_modules: list[str],
+) -> tuple[_SharedComparisonConfiguration, str]:
+    """Render and validate the methodology shared by every compared poem."""
+
+    selected = set(selected_modules)
+    phrase_options = {
+        "Prefer the longest phrase (recommended)": PhrasePolicy.PHRASE_PREFERRED,
+        "Use unigrams only": PhrasePolicy.UNIGRAM_ONLY,
+        "Count phrases and components (exploratory)": (
+            PhrasePolicy.PHRASE_AND_COMPONENT
+        ),
+    }
+    defaults = {
+        "concreteness": ConcretenessConfiguration(),
+        "sensorimotor": SensorimotorConfiguration(),
+        "frequency": FrequencyConfiguration(),
+        "aoa": AoAConfiguration(),
+        "lexical_style": LexicalStyleConfiguration(),
+        "poetry_id": PoetryIDConfiguration(),
+        "pronunciation": PronunciationConfiguration(),
+        "meter": MeterConfiguration(),
+        "phonology": PhonologicalConfiguration(),
+    }
+    key = lambda name: f"compare_config_{name}"
+    with st.expander(
+        "Shared Configuration and Methodology",
+        expanded=False,
+    ):
+        st.caption(
+            "Every choice below is applied identically to every poem. Disabled "
+            "controls belong to modules that are not currently selected."
+        )
+        general = st.columns(2)
+        phrase_label = general[0].selectbox(
+            "Phrase policy",
+            options=tuple(phrase_options),
+            key=key("phrase_policy_label"),
+        )
+        minimum_matches = general[1].number_input(
+            "Minimum evidence before a result is marked non-sparse",
+            min_value=1,
+            max_value=1000,
+            value=3,
+            step=1,
+            key=key("minimum_matches"),
+        )
+
+        st.markdown("##### Concreteness")
+        columns = st.columns(3)
+        concrete_abstract = columns[0].number_input(
+            "Highly abstract at or below",
+            1.0,
+            4.9,
+            defaults["concreteness"].highly_abstract_max,
+            0.1,
+            key=key("concreteness_abstract_max"),
+            disabled="concreteness" not in selected,
+        )
+        concrete_high = columns[1].number_input(
+            "Highly concrete at or above",
+            1.1,
+            5.0,
+            defaults["concreteness"].highly_concrete_min,
+            0.1,
+            key=key("concreteness_concrete_min"),
+            disabled="concreteness" not in selected,
+        )
+        concrete_coverage = columns[2].number_input(
+            "Coverage caution threshold",
+            0.0,
+            1.0,
+            defaults["concreteness"].low_coverage_warning_threshold,
+            0.05,
+            key=key("concreteness_coverage_warning"),
+            disabled="concreteness" not in selected,
+        )
+        policies = st.columns(2)
+        concrete_proper = policies[0].checkbox(
+            "Exclude model-tagged proper nouns",
+            value=defaults["concreteness"].exclude_proper_nouns,
+            key=key("concreteness_exclude_proper"),
+            disabled="concreteness" not in selected,
+        )
+        concrete_phrases = policies[1].checkbox(
+            "Activate exact source expressions",
+            value=defaults["concreteness"].activate_multiword_expressions,
+            key=key("concreteness_phrases"),
+            disabled="concreteness" not in selected,
+        )
+
+        st.markdown("##### Sensorimotor Imagery and Embodiment")
+        columns = st.columns(3)
+        sensor_proper = columns[0].checkbox(
+            "Exclude proper nouns",
+            value=defaults["sensorimotor"].exclude_proper_nouns,
+            key=key("sensorimotor_exclude_proper"),
+            disabled="sensorimotor" not in selected,
+        )
+        sensor_phrases = columns[1].checkbox(
+            "Activate published multiword concepts",
+            value=defaults["sensorimotor"].include_phrases,
+            key=key("sensorimotor_phrases"),
+            disabled="sensorimotor" not in selected,
+        )
+        sensor_terms = columns[2].number_input(
+            "Terms retained in compact rankings",
+            3,
+            100,
+            defaults["sensorimotor"].top_term_count,
+            1,
+            key=key("sensorimotor_top_terms"),
+            disabled="sensorimotor" not in selected,
+        )
+
+        st.markdown("##### Frequency and Rarity")
+        columns = st.columns(4)
+        rare_below = columns[0].number_input(
+            "Rare below", 1.0, 7.0, defaults["frequency"].rare_below, 0.1,
+            key=key("frequency_rare_below"), disabled="frequency" not in selected,
+        )
+        uncommon_below = columns[1].number_input(
+            "Uncommon below", 1.1, 7.2, defaults["frequency"].uncommon_below, 0.1,
+            key=key("frequency_uncommon_below"), disabled="frequency" not in selected,
+        )
+        moderate_below = columns[2].number_input(
+            "Moderately common below", 1.2, 7.4,
+            defaults["frequency"].moderately_common_below, 0.1,
+            key=key("frequency_moderate_below"), disabled="frequency" not in selected,
+        )
+        common_min = columns[3].number_input(
+            "Very common at or above", 1.3, 8.0,
+            defaults["frequency"].very_common_min, 0.1,
+            key=key("frequency_very_common_min"), disabled="frequency" not in selected,
+        )
+        columns = st.columns(4)
+        frequency_proper = columns[0].checkbox(
+            "Exclude proper nouns", value=defaults["frequency"].exclude_proper_nouns,
+            key=key("frequency_exclude_proper"), disabled="frequency" not in selected,
+        )
+        frequency_content = columns[1].checkbox(
+            "Content words only", value=defaults["frequency"].content_words_only,
+            key=key("frequency_content_words_only"), disabled="frequency" not in selected,
+        )
+        frequency_lemma = columns[2].checkbox(
+            "Allow lemma fallback", value=defaults["frequency"].enable_lemma_fallback,
+            key=key("frequency_lemma_fallback"), disabled="frequency" not in selected,
+        )
+        frequency_coverage = columns[3].number_input(
+            "Coverage caution", 0.0, 1.0,
+            defaults["frequency"].low_coverage_warning_threshold, 0.05,
+            key=key("frequency_coverage_warning"), disabled="frequency" not in selected,
+        )
+
+        st.markdown("##### Age of Acquisition")
+        columns = st.columns(3)
+        aoa_early = columns[0].number_input(
+            "Early acquired at or below", 0.0, 24.9,
+            defaults["aoa"].early_acquired_max, 0.5,
+            key=key("aoa_early_max"), disabled="aoa" not in selected,
+        )
+        aoa_late = columns[1].number_input(
+            "Later acquired at or above", 0.1, 25.0,
+            defaults["aoa"].later_acquired_min, 0.5,
+            key=key("aoa_later_min"), disabled="aoa" not in selected,
+        )
+        aoa_coverage = columns[2].number_input(
+            "Coverage caution", 0.0, 1.0,
+            defaults["aoa"].low_coverage_warning_threshold, 0.05,
+            key=key("aoa_coverage_warning"), disabled="aoa" not in selected,
+        )
+        columns = st.columns(3)
+        aoa_proper = columns[0].checkbox(
+            "Exclude proper nouns", value=defaults["aoa"].exclude_proper_nouns,
+            key=key("aoa_exclude_proper"), disabled="aoa" not in selected,
+        )
+        aoa_content = columns[1].checkbox(
+            "Content words only", value=defaults["aoa"].content_words_only,
+            key=key("aoa_content_words_only"), disabled="aoa" not in selected,
+        )
+        aoa_lemma = columns[2].checkbox(
+            "Allow lemma fallback", value=defaults["aoa"].enable_lemma_fallback,
+            key=key("aoa_lemma_fallback"), disabled="aoa" not in selected,
+        )
+
+        st.markdown("##### Lexical Diversity and Structure")
+        columns = st.columns(4)
+        mattr_window = columns[0].number_input(
+            "MATTR window", 2, 1000, defaults["lexical_style"].mattr_window_size, 1,
+            key=key("lexical_style_mattr_window"), disabled="lexical_style" not in selected,
+        )
+        hdd_sample = columns[1].number_input(
+            "HD-D sample", 2, 1000, defaults["lexical_style"].hdd_sample_size, 1,
+            key=key("lexical_style_hdd_sample"), disabled="lexical_style" not in selected,
+        )
+        mtld_threshold = columns[2].number_input(
+            "MTLD threshold", 0.01, 0.99, defaults["lexical_style"].mtld_threshold, 0.01,
+            key=key("lexical_style_mtld_threshold"), disabled="lexical_style" not in selected,
+        )
+        short_warning = columns[3].number_input(
+            "Short-text caution below", 2, 1000,
+            defaults["lexical_style"].short_text_warning_threshold, 1,
+            key=key("lexical_style_short_warning"), disabled="lexical_style" not in selected,
+        )
+
+        st.markdown("##### PoetryID")
+        columns = st.columns(4)
+        poetry_tokens = columns[0].number_input(
+            "Minimum matched tokens", 1, 1000,
+            defaults["poetry_id"].minimum_matched_tokens, 1,
+            key=key("poetry_id_min_tokens"), disabled="poetry_id" not in selected,
+        )
+        poetry_types = columns[1].number_input(
+            "Minimum matched types", 1, 1000,
+            defaults["poetry_id"].minimum_matched_types, 1,
+            key=key("poetry_id_min_types"), disabled="poetry_id" not in selected,
+        )
+        poetry_token_coverage = columns[2].number_input(
+            "Minimum token coverage", 0.0, 1.0,
+            defaults["poetry_id"].minimum_token_coverage, 0.05,
+            key=key("poetry_id_min_token_coverage"), disabled="poetry_id" not in selected,
+        )
+        poetry_type_coverage = columns[3].number_input(
+            "Minimum type coverage", 0.0, 1.0,
+            defaults["poetry_id"].minimum_type_coverage, 0.05,
+            key=key("poetry_id_min_type_coverage"), disabled="poetry_id" not in selected,
+        )
+
+        sound_enabled = bool(
+            selected & {"pronunciation", "meter", "phonology", "inherited_form"}
+        )
+        st.markdown("##### Pronunciation, Meter, and Sound")
+        columns = st.columns(3)
+        pronunciation_coverage = columns[0].number_input(
+            "Pronunciation coverage caution", 0.0, 1.0,
+            defaults["pronunciation"].low_coverage_warning_threshold, 0.05,
+            key=key("pronunciation_coverage_warning"), disabled=not sound_enabled,
+        )
+        pronunciation_lines = columns[1].number_input(
+            "Minimum complete lines", 1, 1000,
+            defaults["pronunciation"].minimum_complete_lines, 1,
+            key=key("pronunciation_minimum_complete_lines"), disabled=not sound_enabled,
+        )
+        pronunciation_tokens = columns[2].number_input(
+            "Minimum resolved tokens", 1, 1000,
+            defaults["pronunciation"].minimum_resolved_tokens, 1,
+            key=key("pronunciation_minimum_resolved_tokens"), disabled=not sound_enabled,
+        )
+        pronunciation_overrides = st.text_area(
+            "Shared poem-specific pronunciation overrides",
+            value="",
+            key=key("pronunciation_overrides"),
+            disabled=not sound_enabled,
+            placeholder="learned = L ER1 N IH0 D | optional note",
+            help="These session-only overrides are applied to every compared poem.",
+        )
+        columns = st.columns(4)
+        meter_line = columns[0].number_input(
+            "Meter line-fit threshold", 0.0, 1.0,
+            defaults["meter"].line_match_threshold, 0.05,
+            key=key("meter_line_match_threshold"), disabled="meter" not in selected and "inherited_form" not in selected,
+        )
+        meter_poem = columns[1].number_input(
+            "Poem candidate-fit threshold", 0.0, 1.0,
+            defaults["meter"].irregular_fit_threshold, 0.05,
+            key=key("meter_irregular_threshold"), disabled="meter" not in selected and "inherited_form" not in selected,
+        )
+        meter_margin = columns[2].number_input(
+            "Candidate margin", 0.0, 1.0,
+            defaults["meter"].ambiguity_margin_threshold, 0.01,
+            key=key("meter_ambiguity_margin"), disabled="meter" not in selected and "inherited_form" not in selected,
+        )
+        meter_variants = columns[3].number_input(
+            "Maximum stress paths", 1, 4096,
+            defaults["meter"].maximum_line_variants, 1,
+            key=key("meter_maximum_variants"), disabled="meter" not in selected and "inherited_form" not in selected,
+        )
+        columns = st.columns(4)
+        slant_threshold = columns[0].number_input(
+            "Slant-rhyme threshold", 0.0, 1.0,
+            defaults["phonology"].slant_rhyme_threshold, 0.01,
+            key=key("phonological_slant_threshold"), disabled="phonology" not in selected and "inherited_form" not in selected,
+        )
+        sound_repetitions = columns[1].number_input(
+            "Minimum repeated sounds", 2, 20,
+            defaults["phonology"].minimum_sound_repetitions, 1,
+            key=key("phonological_sound_repetitions"), disabled="phonology" not in selected and "inherited_form" not in selected,
+        )
+        ending_coverage = columns[2].number_input(
+            "Ending coverage caution", 0.0, 1.0,
+            defaults["phonology"].low_ending_coverage_warning_threshold, 0.05,
+            key=key("phonological_coverage_warning"), disabled="phonology" not in selected and "inherited_form" not in selected,
+        )
+        maximum_pairs = columns[3].number_input(
+            "Maximum ending pairs", 1, 100000,
+            defaults["phonology"].maximum_pair_evaluations, 100,
+            key=key("phonological_maximum_pairs"), disabled="phonology" not in selected and "inherited_form" not in selected,
+        )
+
+    vad_sources = tuple(
+        lexicon_id
+        for lexicon_id in selected_lexicons
+        if lexicon_id in {
+            "warriner_vad_2013",
+            "nrc_vad_v1",
+            "nrc_vad_v2_1",
+        }
+    )
+    error = ""
+    try:
+        configuration = _SharedComparisonConfiguration(
+            phrase_policy=phrase_options[phrase_label],
+            minimum_matches=int(minimum_matches),
+            concreteness=ConcretenessConfiguration(
+                highly_abstract_max=float(concrete_abstract),
+                highly_concrete_min=float(concrete_high),
+                exclude_proper_nouns=bool(concrete_proper),
+                activate_multiword_expressions=bool(concrete_phrases),
+                minimum_rated_tokens=int(minimum_matches),
+                low_coverage_warning_threshold=float(concrete_coverage),
+            ),
+            sensorimotor=SensorimotorConfiguration(
+                include_phrases=bool(sensor_phrases),
+                exclude_proper_nouns=bool(sensor_proper),
+                minimum_match_requirement=int(minimum_matches),
+                top_term_count=int(sensor_terms),
+            ),
+            frequency=FrequencyConfiguration(
+                rare_below=float(rare_below),
+                uncommon_below=float(uncommon_below),
+                moderately_common_below=float(moderate_below),
+                very_common_min=float(common_min),
+                exclude_proper_nouns=bool(frequency_proper),
+                content_words_only=bool(frequency_content),
+                enable_lemma_fallback=bool(frequency_lemma),
+                minimum_matched_tokens=int(minimum_matches),
+                low_coverage_warning_threshold=float(frequency_coverage),
+            ),
+            aoa=AoAConfiguration(
+                early_acquired_max=float(aoa_early),
+                later_acquired_min=float(aoa_late),
+                exclude_proper_nouns=bool(aoa_proper),
+                content_words_only=bool(aoa_content),
+                enable_lemma_fallback=bool(aoa_lemma),
+                minimum_matched_tokens=int(minimum_matches),
+                low_coverage_warning_threshold=float(aoa_coverage),
+            ),
+            lexical_style=LexicalStyleConfiguration(
+                mattr_window_size=int(mattr_window),
+                hdd_sample_size=int(hdd_sample),
+                mtld_threshold=float(mtld_threshold),
+                short_text_warning_threshold=int(short_warning),
+            ),
+            poetry_id=PoetryIDConfiguration(
+                weighting_modes=("token", "type"),
+                analysis_views=("all_matched", "stopwords_excluded"),
+                vad_lexicon_ids=vad_sources,
+                minimum_matched_tokens=int(poetry_tokens),
+                minimum_matched_types=int(poetry_types),
+                minimum_token_coverage=float(poetry_token_coverage),
+                minimum_type_coverage=float(poetry_type_coverage),
+            ),
+            pronunciation=PronunciationConfiguration(
+                overrides=parse_pronunciation_overrides(pronunciation_overrides),
+                low_coverage_warning_threshold=float(pronunciation_coverage),
+                minimum_complete_lines=int(pronunciation_lines),
+                minimum_resolved_tokens=int(pronunciation_tokens),
+            ),
+            meter=MeterConfiguration(
+                line_match_threshold=float(meter_line),
+                irregular_fit_threshold=float(meter_poem),
+                ambiguity_margin_threshold=float(meter_margin),
+                maximum_line_variants=int(meter_variants),
+            ),
+            phonology=PhonologicalConfiguration(
+                slant_rhyme_threshold=float(slant_threshold),
+                minimum_sound_repetitions=int(sound_repetitions),
+                low_ending_coverage_warning_threshold=float(ending_coverage),
+                maximum_pair_evaluations=int(maximum_pairs),
+            ),
+        )
+        if "poetry_id" in selected and not vad_sources:
+            raise ValueError("PoetryID requires at least one selected VAD lexicon.")
+    except ValueError as exc:
+        error = str(exc)
+        st.warning(error)
+        configuration = _SharedComparisonConfiguration(
+            phrase_policy=PhrasePolicy.PHRASE_PREFERRED,
+            minimum_matches=3,
+            concreteness=defaults["concreteness"],
+            sensorimotor=defaults["sensorimotor"],
+            frequency=defaults["frequency"],
+            aoa=defaults["aoa"],
+            lexical_style=defaults["lexical_style"],
+            poetry_id=defaults["poetry_id"],
+            pronunciation=defaults["pronunciation"],
+            meter=defaults["meter"],
+            phonology=defaults["phonology"],
+        )
+    return configuration, error
+
+
 def render_compare_poems_workspace(
     preprocessor: TextPreprocessor,
     readiness: ResourceReadiness,
@@ -1500,14 +2090,14 @@ def render_compare_poems_workspace(
     render_workspace_header(
         "Compare Poems",
         "Analyze between two and ten poems under one shared configuration, "
-        "then inspect poem-level evidence and equal-poem summaries side by side.",
+        "then inspect focused poem-level evidence side by side.",
         kicker="Multi-poem comparative evaluation for close reading",
         status="Session only",
     )
     st.caption(
         "VerseVAD reports comparable normative evidence. It does not rank "
-        "literary quality, identify a poem's emotion, or treat set means as "
-        "significance tests."
+        "literary quality, identify a poem's emotion, or treat observed ranges "
+        "as significance tests."
     )
 
     with st.container(border=True):
@@ -1651,6 +2241,11 @@ def render_compare_poems_workspace(
             for source_key, target_key in stopword_key_map.items():
                 if source_key in profile_settings:
                     st.session_state[target_key] = profile_settings[source_key]
+            for source_key, target_key in (
+                _PROFILE_TO_COMPARE_CONFIGURATION_KEYS.items()
+            ):
+                if source_key in profile_settings:
+                    st.session_state[target_key] = profile_settings[source_key]
             st.session_state.pop("poem_comparison_set", None)
             st.rerun()
 
@@ -1673,6 +2268,12 @@ def render_compare_poems_workspace(
         )
         with st.expander("Shared stopword sensitivity settings", expanded=False):
             stopwords = render_stopword_settings("compare")
+        shared_configuration, configuration_error = (
+            _render_shared_comparison_configuration(
+                selected_lexicons=list(selected_lexicons),
+                selected_modules=list(selected_modules),
+            )
+        )
 
     with st.container(border=True):
         st.subheader("3. Analyze and Compare")
@@ -1683,6 +2284,9 @@ def render_compare_poems_workspace(
             key="compare_analyze_set",
         )
         if analyze:
+            if configuration_error:
+                st.error(configuration_error)
+                return
             empty_positions = [
                 position
                 for position, poem_id in enumerate(poem_ids, start=1)
@@ -1716,20 +2320,42 @@ def render_compare_poems_workspace(
                             f"compare_{poem_id}_text"
                         ],
                         lexicon_ids=tuple(selected_lexicons),
-                        phrase_policy=PhrasePolicy.PHRASE_PREFERRED,
+                        phrase_policy=shared_configuration.phrase_policy,
+                        minimum_match_requirement=(
+                            shared_configuration.minimum_matches
+                        ),
                         stopword_mode=stopwords.mode,
                         protected_stopwords=stopwords.protected_words,
                         custom_stopword_additions=stopwords.custom_additions,
                         custom_stopword_removals=stopwords.custom_removals,
                         include_concreteness="concreteness" in selected,
+                        concreteness_configuration=(
+                            shared_configuration.concreteness
+                        ),
                         include_frequency="frequency" in selected,
+                        frequency_configuration=shared_configuration.frequency,
                         include_aoa="aoa" in selected,
+                        aoa_configuration=shared_configuration.aoa,
                         include_sensorimotor="sensorimotor" in selected,
+                        sensorimotor_configuration=(
+                            shared_configuration.sensorimotor
+                        ),
                         include_lexical_style="lexical_style" in selected,
+                        lexical_style_configuration=(
+                            shared_configuration.lexical_style
+                        ),
                         include_poetry_id="poetry_id" in selected,
+                        poetry_id_configuration=shared_configuration.poetry_id,
                         include_pronunciation=include_pronunciation,
+                        pronunciation_configuration=(
+                            shared_configuration.pronunciation
+                        ),
                         include_meter=include_meter,
+                        meter_configuration=shared_configuration.meter,
                         include_phonology=include_phonology,
+                        phonological_configuration=(
+                            shared_configuration.phonology
+                        ),
                         include_inherited_form="inherited_form" in selected,
                         include_versemap="versemap" in selected,
                         analysis_cache_enabled=st.session_state.get(

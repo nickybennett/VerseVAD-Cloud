@@ -50,9 +50,11 @@ store configuration only and last for the current browser session.
 Compare Poems starts with two poem inputs. Use **Add Another Poem** or
 **Remove** to maintain a set of two through ten. Every poem receives the same
 lexicons, modules, preprocessing, stopword treatment, and weighting choices.
-Results place poem values side by side and, where meaningful, show an
-equal-poem mean and the population standard deviation of poem-level values.
-These are descriptive summaries rather than significance tests.
+Open **Shared Configuration and Methodology** to customize the same major
+thresholds and evidence policies available in Single Poem. Results place poem
+values side by side and show the observed range (maximum minus minimum) where
+meaningful. Within-poem standard deviations remain separate metric rows. The
+long-form export retains complete audit statistics beyond the concise report.
 
 ## Reference corpora and the Explore workspaces
 
@@ -227,28 +229,30 @@ method used.
    to build a comparison set of two through ten works; titles are editable
    working labels.
 3. Choose one shared built-in or custom analysis profile, then continue
-   customizing the affective sources, installed modules, and stopword policy
-   if needed.
+   customizing the affective sources, installed modules, stopword policy, and
+   the default-collapsed **Shared Configuration and Methodology** controls if
+   needed. Every choice applies identically to every poem.
 4. Click **Analyze _n_ Poems**, then choose one shared all-matched or
    stopword-excluded view and token or type weighting.
 5. Use the same report map as Single Poem: **Overview**, **Affective
    Evidence**, **Lexical Character, Imagery & Embodiment**, **Sound & Form**,
    **Structure**, **VerseMap**, **Evidence & Diagnostics**, and **Export &
    Help**. Each analytical subsection starts collapsed.
-6. Within a subsection, choose one compatible source-and-scale group. Colored
-   points show individual poems and the diamond shows the equal-poem mean; the
-   axis fits the observed values.
-7. Read each source and scale separately. **Equal-Poem Mean** gives every poem
-   one vote and omits missing results. **Poem-Level SD** describes variation
-   among available poem values; neither is a significance test or ranking.
+6. Within a subsection, choose the actual **Metric to chart**. Colored points
+   show the individual poems on an automatically fitted axis. Tables below are
+   separated into meaningful families such as VAD Means, Cumulative Lexical
+   Load, and Within-Poem Dispersion.
+7. Read each source and scale separately. **Range (Max − Min)** describes the
+   span among available poem values; it is not a significance test or ranking.
 8. Check every poem's denominator and coverage before interpreting a contrast.
    Missing evidence remains missing rather than being assigned a neutral value.
 9. Export the long-form comparison-set CSV or narrative `.docx` report.
 
 Within-poem standard-deviation metrics describe dispersion among matched
-normative ratings inside one poem. **Poem-Level SD** instead describes
-dispersion among the displayed poem-level values. Neither is uncertainty in
-the mean.
+normative ratings inside one poem. They remain visible side by side in the
+dedicated **Within-Poem Dispersion** family and are not uncertainty in the
+mean. The normal report does not add a second, easily confused cross-poem SD
+column.
 Raw cumulative lexical load preserves repetition and length under token
 weighting. Its per-100-observation counterpart is the appropriate
 length-normalized comparison prompt.
@@ -671,7 +675,9 @@ of these constructs is normalized into, pooled with, or averaged into VAD.
    choose an **Analysis Report**: Affective Evidence, Lexical Character, Sound & Form, Structure,
    PoetryID, VerseMap, or Evidence & Diagnostics as available. The interface
    presents concise poem-level or compatible collection summaries rather than
-   the underlying audit table.
+   the underlying audit table. For optional modules, choose one **Analysis**
+   and one **Metric family** at a time; methodological notes remain available
+   in a separate collapsed section.
 8. Under **Review & Scenarios**, create a named scenario and record reversible,
    versioned flags, exclusions, or mappings with a rationale and explicit
    occurrence/work/project/global scope.

@@ -79,6 +79,7 @@ class PoemComparisonSetRow:
     categorical_summary: str
     unit_or_scale: str
     note: str
+    numeric_range: float | None = None
 
 
 def build_poem_comparison(
@@ -1268,6 +1269,11 @@ def comparison_set_rows(
             if len(numeric_values) > 1
             else (0.0 if numeric_values else None)
         )
+        numeric_range = (
+            max(numeric_values) - min(numeric_values)
+            if numeric_values
+            else None
+        )
         result.append(
             PoemComparisonSetRow(
                 section=template.section,
@@ -1285,6 +1291,7 @@ def comparison_set_rows(
                 categorical_summary=categorical_summary,
                 unit_or_scale=template.unit_or_scale,
                 note=template.note,
+                numeric_range=numeric_range,
             )
         )
     return tuple(

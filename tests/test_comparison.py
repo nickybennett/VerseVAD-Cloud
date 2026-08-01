@@ -26,6 +26,7 @@ from versevad.ui.comparison import (
     _REPORT_SECTIONS,
     _arrow_safe_display_frame,
     _chart_domain,
+    _comparison_metric_family,
     _report_location,
 )
 
@@ -175,7 +176,7 @@ def test_comparison_csv_and_docx_exports_are_auditable(poem_comparison) -> None:
     assert "Poem A compared with Poem B" in document_xml
 
 
-def test_comparison_set_supports_three_poems_and_equal_poem_summaries(
+def test_comparison_set_supports_three_poems_and_descriptive_ranges(
     poem_comparison_set,
 ) -> None:
     rows = comparison_set_rows(poem_comparison_set)
@@ -190,6 +191,7 @@ def test_comparison_set_supports_three_poems_and_equal_poem_summaries(
     assert mean.contributing_poem_count == 3
     assert mean.numeric_mean == pytest.approx(sum(values) / 3)
     assert mean.numeric_population_standard_deviation is not None
+    assert mean.numeric_range == pytest.approx(max(values) - min(values))
 
 
 def test_comparison_set_enforces_two_to_ten_poem_boundary(
@@ -217,6 +219,7 @@ def test_comparison_set_exports_are_long_form_without_pairwise_differences(
     }
     assert "equal_poem_mean" in rows[0]
     assert "poem_level_population_sd" in rows[0]
+    assert "range_max_minus_min" in rows[0]
     assert "difference_b_minus_a" not in rows[0]
 
     docx_content = export_poem_comparison_set_docx(poem_comparison_set)
@@ -278,6 +281,24 @@ def test_comparison_report_map_matches_single_poem_structure() -> None:
         "Lexical Character, Imagery & Embodiment",
         "Sensorimotor Imagery & Embodiment",
     )
+
+
+def test_comparison_metric_families_separate_means_loads_and_dispersion() -> None:
+    assert _comparison_metric_family(
+        "vad.source.valence.mean",
+        "Mean normative valence",
+        "VAD Profile",
+    ) == "VAD Means"
+    assert _comparison_metric_family(
+        "vad.source.valence.population_sd",
+        "Valence population standard deviation",
+        "VAD Profile",
+    ) == "Within-Poem Dispersion"
+    assert _comparison_metric_family(
+        "vad.source.valence.net_midpoint",
+        "Valence — Net midpoint load",
+        "VAD Profile",
+    ) == "Cumulative Lexical Load"
     assert _report_location("meter.whole_poem_mean_fit") == (
         "Sound & Form",
         "Candidate Meter & Rhythmic Regularity",

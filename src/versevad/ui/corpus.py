@@ -921,6 +921,53 @@ def _humanize_metric(value: str) -> str:
     )
 
 
+def _corpus_metric_family(metric_id: str) -> str:
+    """Return a compact reader-facing family for a corpus metric."""
+
+    identifier = metric_id.casefold()
+    if "population_sd" in identifier or "population_standard_deviation" in identifier:
+        return "Within-Poem Dispersion"
+    if any(
+        marker in identifier
+        for marker in (
+            "rating_total",
+            "midpoint",
+            "cumulative_load",
+            "load_per_100",
+        )
+    ):
+        return "Cumulative Lexical Load"
+    if identifier.startswith("readability.poetic_reading_ease"):
+        return "VerseVAD Poetic Reading Ease"
+    if identifier.startswith("readability."):
+        return "Traditional Readability"
+    if identifier.startswith("sensorimotor."):
+        return "Sensorimotor Profile"
+    if identifier.startswith("poetry_id."):
+        return "PoetryID"
+    if identifier.startswith("lexical_style."):
+        if "line" in identifier or "stanza" in identifier:
+            return "Line and Stanza Structure"
+        if "alphabetic_characters" in identifier or "word_length" in identifier:
+            return "Word Length"
+        return "Lexical Diversity"
+    if identifier.startswith("frequency.") or identifier.startswith("rarity."):
+        return "Frequency and Rarity"
+    if identifier.startswith("aoa."):
+        return "Age of Acquisition"
+    if identifier.startswith("concreteness."):
+        return "Concreteness"
+    if identifier.startswith("pronunciation."):
+        return "Pronunciation and Syllables"
+    if identifier.startswith("meter."):
+        return "Meter and Rhythm"
+    if identifier.startswith("phonology."):
+        return "Rhyme and Recurring Sound"
+    if identifier.startswith("inherited_form."):
+        return "Inherited Form"
+    return "Summary Metrics"
+
+
 def _corpus_result_scope_options(
     texts,
     metrics,
@@ -1231,6 +1278,7 @@ def _render_poem_module_summary(
     frame = pd.DataFrame(
         [
             {
+                "Metric Family": _corpus_metric_family(row.metric_id),
                 "Metric": _humanize_metric(row.metric_id),
                 "Value": heterogeneous_display_value(row.value),
                 "Unit or Scale": row.unit or "—",
@@ -1241,55 +1289,40 @@ def _render_poem_module_summary(
             for row in selected
         ]
     )
+    metric_families = tuple(
+        dict.fromkeys(frame["Metric Family"].tolist())
+    )
+    selected_family = st.selectbox(
+        "Metric family",
+        options=metric_families,
+        key=f"{state_prefix}_{module_name}_poem_metric_family",
+        help=(
+            "Show one readable family at a time. Line-, stanza-, token-, and "
+            "complete audit records remain in exports."
+        ),
+    )
+    visible = frame[frame["Metric Family"] == selected_family]
     render_dataframe(
-        frame,
+        visible[
+            [
+                "Metric",
+                "Value",
+                "Unit or Scale",
+                "Weighting",
+                "Observations",
+            ]
+        ],
         hide_index=True,
         width="stretch",
-        height=min(440, 76 + len(frame) * 35),
+        height=min(440, 76 + len(visible) * 35),
     )
-
-    numeric_rows = tuple(
-        row
-        for row in selected
-        if not isinstance(row.value, bool)
-        and isinstance(row.value, (int, float))
-    )
-    units = sorted({row.unit or "Unspecified" for row in numeric_rows})
-    if numeric_rows and units:
-        unit = st.selectbox(
-            "Chart scale",
-            options=units,
-            key=f"{state_prefix}_{module_name}_chart_unit",
+    with st.expander("Interpretive and Methodological Notes", expanded=False):
+        render_dataframe(
+            visible[["Metric", "Interpretive Note"]],
+            hide_index=True,
+            width="stretch",
+            height=min(360, 76 + len(visible) * 35),
         )
-        chart_frame = pd.DataFrame(
-            [
-                {
-                    "Metric": _humanize_metric(row.metric_id),
-                    "Value": float(row.value),
-                }
-                for row in numeric_rows
-                if (row.unit or "Unspecified") == unit
-            ][:18]
-        )
-        if not chart_frame.empty:
-            chart = (
-                alt.Chart(chart_frame)
-                .mark_bar()
-                .encode(
-                    x=alt.X(
-                        "Value:Q",
-                        scale=alt.Scale(zero=False),
-                        title=unit,
-                    ),
-                    y=alt.Y("Metric:N", sort=None, title=None),
-                    tooltip=[
-                        "Metric:N",
-                        alt.Tooltip("Value:Q", format=".3f"),
-                    ],
-                )
-                .properties(height=max(180, min(520, len(chart_frame) * 30)))
-            )
-            st.altair_chart(publication_chart(chart), width="stretch")
     st.caption(
         "This view intentionally shows poem-level summaries only. Complete line, "
         "stanza, token, configuration, and audit records remain downloadable."
@@ -1347,42 +1380,97 @@ def _render_corpus_modules(
     total_works = len({row.text_id for row in selected})
     profiles = corpus_module_profiles(selected, total_works=total_works)
     if profiles:
-        st.markdown("**Compatible collection summaries**")
-        render_dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "Metric": row.metric_id,
-                        "Source / view": row.scope_id or "—",
-                        "Unit": row.unit,
-                        "Weighting": row.weighting or "—",
-                        "Works included": row.works_included,
-                        "Works omitted": row.works_omitted,
-                        "Equal-work mean": row.equal_work_mean,
-                        "Observation-weighted mean": (
-                            row.observation_weighted_mean
-                        ),
-                        "Observations": row.total_observations or None,
-                        "Configuration": row.configuration_id,
-                        "Interpretive note": row.note,
-                    }
-                    for row in profiles
-                ]
-            ).style.format(
+        st.markdown("**Compatible Collection Summaries**")
+        profile_frame = pd.DataFrame(
+            [
                 {
-                    "Equal-work mean": "{:.3f}",
-                    "Observation-weighted mean": "{:.3f}",
+                    "Metric Family": _corpus_metric_family(row.metric_id),
+                    "Metric": _humanize_metric(row.metric_id),
+                    "Source / View": row.scope_id or "—",
+                    "Unit": row.unit,
+                    "Weighting": (
+                        _humanize_metric(row.weighting)
+                        if row.weighting
+                        else "—"
+                    ),
+                    "Works Included": row.works_included,
+                    "Works Omitted": row.works_omitted,
+                    "Equal-Work Mean": row.equal_work_mean,
+                    "Observation-Weighted Mean": (
+                        row.observation_weighted_mean
+                    ),
+                    "Observations": row.total_observations or None,
+                    "Methodological Note": row.note,
+                }
+                for row in profiles
+            ]
+        )
+        profile_families = tuple(
+            dict.fromkeys(profile_frame["Metric Family"].tolist())
+        )
+        selected_family = st.selectbox(
+            "Metric family",
+            options=profile_families,
+            key=f"{state_prefix}_{selected_module}_profile_family",
+            help=(
+                "Show one readable metric family at a time. The corpus export "
+                "retains every compatible summary."
+            ),
+        )
+        visible_profiles = profile_frame[
+            profile_frame["Metric Family"] == selected_family
+        ]
+        render_dataframe(
+            visible_profiles[
+                [
+                    "Metric",
+                    "Source / View",
+                    "Unit",
+                    "Weighting",
+                    "Works Included",
+                    "Works Omitted",
+                    "Equal-Work Mean",
+                    "Observation-Weighted Mean",
+                    "Observations",
+                ]
+            ].style.format(
+                {
+                    "Equal-Work Mean": "{:.3f}",
+                    "Observation-Weighted Mean": "{:.3f}",
                 },
                 na_rep="—",
             ),
             hide_index=True,
             width="stretch",
-            height=360,
+            height=min(420, 76 + len(visible_profiles) * 35),
         )
+        with st.expander("Methodological Notes", expanded=False):
+            render_dataframe(
+                visible_profiles[
+                    ["Metric", "Source / View", "Methodological Note"]
+                ],
+                hide_index=True,
+                width="stretch",
+                height=min(360, 76 + len(visible_profiles) * 35),
+            )
 
     categories = corpus_module_category_profiles(selected)
     if categories:
-        st.markdown("**Work-level categorical prevalence**")
+        st.markdown("**Work-Level Categorical Prevalence**")
+        category_metric_ids = tuple(
+            dict.fromkeys(row.metric_id for row in categories)
+        )
+        selected_category_metric = st.selectbox(
+            "Categorical measure",
+            options=category_metric_ids,
+            format_func=_humanize_metric,
+            key=f"{state_prefix}_{selected_module}_category_metric",
+        )
+        visible_categories = tuple(
+            row
+            for row in categories
+            if row.metric_id == selected_category_metric
+        )
         render_dataframe(
             pd.DataFrame(
                 [
@@ -1397,7 +1485,7 @@ def _render_corpus_modules(
                         "Configuration": row.configuration_id,
                         "Note": row.note,
                     }
-                    for row in categories
+                    for row in visible_categories
                 ]
             ).style.format({"Prevalence": "{:.1%}"}),
             hide_index=True,

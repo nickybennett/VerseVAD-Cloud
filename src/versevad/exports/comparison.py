@@ -165,6 +165,7 @@ def export_poem_comparison_set_csv(
         "coverage",
         "equal_poem_mean",
         "poem_level_population_sd",
+        "range_max_minus_min",
         "contributing_poems",
         "categorical_summary",
         "note",
@@ -209,6 +210,9 @@ def export_poem_comparison_set_csv(
                         if row.numeric_population_standard_deviation is None
                         else row.numeric_population_standard_deviation
                     ),
+                    "range_max_minus_min": (
+                        "" if row.numeric_range is None else row.numeric_range
+                    ),
                     "contributing_poems": row.contributing_poem_count,
                     "categorical_summary": row.categorical_summary,
                     "note": row.note,
@@ -244,7 +248,7 @@ def export_poem_comparison_set_docx(
         text_title=f"Comparison set: {', '.join(titles)}",
         result_id=comparison_set.comparison_set_id,
         warnings=(
-            "Set means are equal-poem descriptive summaries, not significance tests.",
+            "Ranges are descriptive maximum-minus-minimum comparisons, not significance tests.",
             "Missing values remain missing; compare coverage and denominators before interpretation.",
         ),
         additional_paragraphs=(

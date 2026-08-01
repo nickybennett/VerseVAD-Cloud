@@ -6,6 +6,13 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Reworked Compare Poems around actual metric selection, side-by-side poem
+  values, max-minus-min range, and separate metric-family tables; within-poem
+  dispersion remains visible without an easily confused cross-poem SD column.
+- Added shared comparison methodology controls for phrase handling, evidence
+  thresholds, lexical modules, PoetryID, pronunciation, meter, and phonology.
+- Made Saved Projects results show one poem or whole corpus, one report/module,
+  and one metric family at a time while retaining complete audit exports.
 - Versioned VV-PRE as `vv-pre-content-word-profile-1.0`: Frequency, AoA, and
   Word Complexity now use token-weighted `NOUN`/`VERB`/`ADJ`/`ADV`
   occurrences with repetition retained, while Line Accessibility continues to

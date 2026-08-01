@@ -567,6 +567,8 @@ def test_interface_opens_compare_poems_workspace() -> None:
     ) == 2
     assert "Analyze 2 Poems" in [button.label for button in app.button]
     assert "Add Another Poem" in [button.label for button in app.button]
+    assert "Phrase policy" in [field.label for field in app.selectbox]
+    assert "MATTR window" in [field.label for field in app.number_input]
     module_selector = next(
         field
         for field in app.multiselect
@@ -574,6 +576,17 @@ def test_interface_opens_compare_poems_workspace() -> None:
     )
     if "sensorimotor" in module_selector.options:
         assert "sensorimotor" in module_selector.value
+
+    profile = next(
+        field
+        for field in app.selectbox
+        if field.label == "Analysis profile"
+    )
+    profile.set_value("Teaching/Introductory")
+    app.run(timeout=30)
+    _button(app, "Apply / Restore").click()
+    app.run(timeout=30)
+    assert not app.exception
 
     _button(app, "Add Another Poem").click()
     app.run(timeout=30)
@@ -635,6 +648,11 @@ def test_compare_poems_analyzes_two_and_three_poem_sets(
         field for field in app.selectbox if field.label == "Report Section"
     )
     assert report.value == "Overview"
+
+    report.set_value("Structure")
+    app.run(timeout=60)
+    assert not app.exception
+    assert "Metric to chart" in [field.label for field in app.selectbox]
 
     _button(app, "Add Another Poem").click()
     app.run(timeout=60)

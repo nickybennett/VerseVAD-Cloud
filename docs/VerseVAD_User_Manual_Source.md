@@ -246,6 +246,29 @@ as an application-level local preference, not in a project or analysis
 configuration. Appearance does not change calculations, result IDs, project
 data, or exports. Publication-oriented charts remain light.
 
+### Compare Poems
+
+Compare Poems accepts two through ten poems and applies one shared analysis
+profile to every work. The default-collapsed **Shared Configuration and
+Methodology** section exposes the same major phrase, evidence, lexical,
+PoetryID, pronunciation, meter, and phonological choices used by Single Poem.
+Each analytical report then presents one real metric at a time in a fitted
+side-by-side point chart. Tables are separated into reader-facing metric
+families rather than combining VAD means, cumulative loads, dispersion, and
+unrelated scales.
+
+**Range (Max − Min)** is the maximum available poem value minus the minimum;
+it is a descriptive span rather than a significance test. Standard-deviation
+rows in **Within-Poem Dispersion** describe variation among matched
+observations inside each poem. The concise report does not add a second
+cross-poem SD column. Complete values, denominators, coverage, legacy audit
+summaries, and precision remain available in the comparison-set exports.
+
+Saved Projects use the same progressive-disclosure rule: choose **Whole
+Corpus** or one poem, choose a report and module, then choose one metric
+family. Full work-, line-, stanza-, token-, configuration-, and warning
+records remain in the corpus exports.
+
 ## Reference corpora and research workspaces
 
 **Collections → Reference Corpora** inventories the corpora packaged with this

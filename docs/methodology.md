@@ -551,6 +551,26 @@ or short phrase is not a defensible readability document.
 
 ## Cross-lexicon comparison
 
+### Multi-poem comparison summaries
+
+Compare Poems applies one validated `AnalysisRequest` configuration to every
+poem. A displayed numeric row therefore compares like with like: the same
+source, analysis view, weighting, metric definition, and unit. The normal
+report shows each available poem value and the observed range:
+
+```text
+range = maximum available poem value − minimum available poem value
+```
+
+Missing values are omitted from the range and remain visible through coverage
+and denominator evidence; they are never replaced with zero or a neutral
+rating. Range is a descriptive span, not an effect size, confidence interval,
+or significance test. Standard-deviation metric rows remain separately labeled
+as **Within-Poem Dispersion** because they describe matched observations inside
+each poem. Complete legacy equal-poem summaries and cross-poem dispersion are
+retained only in the long-form audit export for reproducibility, not promoted
+in the normal report.
+
 Each lexicon is analyzed independently. Numeric VAD means may be displayed on a
 separate normalized 0-1 scale alongside source-scale results. NRC VAD v1 and
 v2.1 remain labeled as versions of the same family, not independent

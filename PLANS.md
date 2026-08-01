@@ -1,5 +1,21 @@
 # VerseVAD Implementation Plan
 
+## Completed comparison and corpus usability refinement
+
+- [x] Expose shared phrase, evidence, lexical, PoetryID, pronunciation, meter,
+  and phonological configuration in Compare Poems.
+- [x] Replace opaque source/scale chart navigation with selection by actual
+  metric and one fitted side-by-side poem chart.
+- [x] Replace normal-view equal-poem mean and cross-poem SD columns with
+  maximum-minus-minimum range while retaining full audit calculations and
+  within-poem dispersion rows.
+- [x] Split comparison results into reader-facing metric families and keep
+  coverage/denominator diagnostics focused by analytical panel.
+- [x] Make Saved Projects corpus results expose one scope, report, module, and
+  metric family at a time while keeping complete records in exports.
+- [x] Validate two- and three-poem comparisons, profile restoration, corpus
+  scope navigation, exports, documentation, and hosted behavior.
+
 ## Completed VV-PRE content-word scoring profile
 
 - [x] Version the fixed calculation as `vv-pre-content-word-profile-1.0`.
