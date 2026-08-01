@@ -6,6 +6,8 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Replaced the pronunciation dashboard's median syllables-per-line card with
+  mean syllables per complete physical line; detailed exports retain both.
 - Recovered safely from stale saved-analysis identifiers after a hosted
   redeploy or deletion by detaching only the missing library reference while
   preserving the active text and analysis state.

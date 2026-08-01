@@ -1504,6 +1504,8 @@ review required.
 
 ## Release polish - profile defaults, parity, and responsiveness
 
+- [x] Prefer mean syllables per complete line on the pronunciation dashboard
+  while retaining mean and median in statistical exports.
 - [x] Make stale session-only saved-analysis identifiers self-healing after a
   hosted redeploy without discarding the active analysis.
 - [x] Include proper nouns by default in the four requested lexical modules

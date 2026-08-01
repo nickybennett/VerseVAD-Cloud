@@ -691,6 +691,12 @@ def test_workspace_can_run_pronunciation_without_an_affective_lexicon(
         row["section"] == "Pronunciation and prosody foundation"
         for row in summary_rows
     )
+    mean_line_row = next(
+        row
+        for row in summary_rows
+        if row["metric"] == "Mean syllables per complete line"
+    )
+    assert float(mean_line_row["value"]) == pytest.approx(2.0)
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         names = set(bundle.namelist())
         assert "pronunciation_summary.csv" in names

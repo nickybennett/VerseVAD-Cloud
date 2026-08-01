@@ -1586,6 +1586,10 @@ def test_interface_runs_optional_pronunciation_and_override_workflow() -> None:
         metric for metric in app.metric if metric.label == "Resolved coverage"
     )
     assert coverage.value == "100.0%"
+    mean_line_syllables = next(
+        metric for metric in app.metric if metric.label == "Mean syllables / line"
+    )
+    assert mean_line_syllables.value == "2.500"
     assert any(
         "CMUdict supplies North American dictionary pronunciations"
         in warning.value

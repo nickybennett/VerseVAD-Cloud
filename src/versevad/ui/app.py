@@ -5539,8 +5539,8 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 ),
             )
             metric_columns[2].metric(
-                "Median syllables / line",
-                _decimal(summary.syllables_per_complete_line.median),
+                "Mean syllables / line",
+                _decimal(summary.syllables_per_complete_line.mean),
                 help=(
                     f"Based on {summary.complete_line_count} complete physical "
                     "lines; incomplete lines remain missing."

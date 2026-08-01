@@ -3887,8 +3887,8 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                 ),
             ),
             (
-                "Median syllables per complete line",
-                summary.syllables_per_complete_line.median,
+                "Mean syllables per complete line",
+                summary.syllables_per_complete_line.mean,
                 "dictionary syllables per complete physical line",
                 f"{summary.complete_line_count} complete lines",
                 "Incomplete lines remain missing rather than undercounted.",
