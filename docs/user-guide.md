@@ -240,13 +240,39 @@ method used.
    Help**. Each analytical subsection starts collapsed.
 6. Within a subsection, choose the actual **Metric to chart**. Colored points
    show the individual poems on an automatically fitted axis. Tables below are
-   separated into meaningful families such as VAD Means, Cumulative Lexical
-   Load, and Within-Poem Dispersion.
+   separated and ordered for reading: mean or headline measures first,
+   cumulative lexical loads next, and within-poem dispersion last. Frequency
+   places mean Zipf frequency before mean rarity; Acquisition & Readability
+   places VV-PRE before traditional formulas and AoA.
 7. Read each source and scale separately. **Range (Max − Min)** describes the
    span among available poem values; it is not a significance test or ranking.
 8. Check every poem's denominator and coverage before interpreting a contrast.
    Missing evidence remains missing rather than being assigned a neutral value.
 9. Export the long-form comparison-set CSV or narrative `.docx` report.
+
+The normal PoetryID dashboard deliberately retains only two rows for the
+active shared scope and weighting: **Category Fit Archetype** followed by
+**Nearest Centroid Archetype**. If several VAD sources can supply PoetryID, the
+dashboard uses the declared fixed source priority and identifies that source;
+the complete source/view/weighting records remain in the statistical export.
+
+The affective report includes source-specific VAD, NRC emotion and
+positive/negative association proportions, NRC emotion-intensity means and
+dispersion, VADER sentiment, and PoetryID when their required sources are
+enabled. Association categories are multi-label and therefore need not sum to
+100%.
+
+When sound evidence is enabled, **Pronunciation Review** lists unresolved and
+prosodically ambiguous forms by poem. A manually documented shared ARPAbet
+override can be applied and all poems reanalyzed. Because the same spelling can
+legitimately be performed differently in different poems, a shared override is
+never presented as poem-specific; resolve conflicting readings in Single Poem.
+
+When VerseMap is enabled, choose the built-in index before analysis. Its
+dashboard shows the poems together in the same PCA space and reports only PCA
+Components 1 and 2, nearest reference poem, and nearest poet centroid. Profile
+inputs and coverage remain in the audit export and in their corresponding
+analytical sections instead of being duplicated on the map dashboard.
 
 Within-poem standard-deviation metrics describe dispersion among matched
 normative ratings inside one poem. They remain visible side by side in the
@@ -286,6 +312,12 @@ Use this order:
    normalization, versions, and warnings.
 7. **Export & Help** — download the readable summary, tables, module exports,
    or full audit ZIP, then open the methodology/how-to-read section as needed.
+
+In Compare Poems, **Evidence & Diagnostics** is the audit layer for the visible
+dashboard. It repeats metric labels only as identifiers for their coverage,
+denominator, and caution fields; it is not a second score table. Use it to ask
+whether an apparent contrast rests on comparable evidence and use the export
+for the complete long-form audit.
 
 The selected report section is retained when a lexicon, token/type weighting,
 all-matched/stopword-excluded view, or other display control refreshes the

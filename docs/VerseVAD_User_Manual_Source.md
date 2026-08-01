@@ -257,12 +257,33 @@ side-by-side point chart. Tables are separated into reader-facing metric
 families rather than combining VAD means, cumulative loads, dispersion, and
 unrelated scales.
 
+Within each analytical panel, headline means or composite scores appear first,
+cumulative lexical loads next, and within-poem dispersion last. The PoetryID
+dashboard shows only **Category Fit Archetype** and **Nearest Centroid
+Archetype** for the active shared scope, weighting, and identified VAD source;
+the full alternate-source evidence remains in the statistical export. The
+affective report also includes NRC emotion and positive/negative associations,
+emotion-intensity means and dispersion, and VADER when their sources are
+enabled.
+
+Sound-enabled comparisons include a pronunciation-review table and a shared
+ARPAbet override editor. One shared override applies to the same spelling in
+every compared poem; use Single Poem when the same word requires different
+poem-specific readings. The hosted VerseMap uses its built-in indexed reference
+corpus. Its visual dashboard is limited to the joint PCA plot, PCA Components 1
+and 2, nearest reference poem, and nearest poet centroid; complete profile
+dimensions and provenance remain in export.
+
 **Range (Max − Min)** is the maximum available poem value minus the minimum;
 it is a descriptive span rather than a significance test. Standard-deviation
 rows in **Within-Poem Dispersion** describe variation among matched
 observations inside each poem. The concise report does not add a second
 cross-poem SD column. Complete values, denominators, coverage, legacy audit
 summaries, and precision remain available in the comparison-set exports.
+
+**Evidence & Diagnostics** is the audit layer for these displayed results. It
+uses each metric label to expose coverage, denominator, and methodological
+cautions rather than presenting a second copy of the score dashboard.
 
 Saved Projects use the same progressive-disclosure rule: choose **Whole
 Corpus** or one poem, choose a report and module, then choose one metric

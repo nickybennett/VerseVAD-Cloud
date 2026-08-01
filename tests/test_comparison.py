@@ -1,6 +1,7 @@
 import csv
 import io
 import zipfile
+from types import SimpleNamespace
 
 import pytest
 import pandas as pd
@@ -9,6 +10,9 @@ import pyarrow as pa
 from versevad.analysis.phase2 import analyze_lexicon, compare_lexicons
 from versevad.application import AnalysisRequest, WorkspaceAnalysis
 from versevad.comparison import (
+    PoemComparisonSet,
+    PoemComparisonSetRow,
+    PoemComparisonSetValue,
     build_poem_comparison,
     build_poem_comparison_set,
     comparison_rows,
@@ -20,13 +24,19 @@ from versevad.exports.comparison import (
     export_poem_comparison_set_csv,
     export_poem_comparison_set_docx,
 )
-from versevad.phase2_validation import phase2_synthetic_vad_lexicon
+from versevad.phase2_validation import (
+    phase2_synthetic_emotion_lexicon,
+    phase2_synthetic_intensity_lexicon,
+    phase2_synthetic_vad_lexicon,
+)
 from versevad.preprocessing import PreparedPoemPreprocessor, create_text_document
 from versevad.ui.comparison import (
     _REPORT_SECTIONS,
     _arrow_safe_display_frame,
     _chart_domain,
     _comparison_metric_family,
+    _comparison_set_frame,
+    _ordered_metric_families,
     _report_location,
 )
 
@@ -52,6 +62,42 @@ def _workspace(preprocessor, *, identifier: str, title: str, text: str):
         document=document,
         results=(result,),
         comparison=compare_lexicons((result,)),
+        poem_document=poem,
+    )
+
+
+def _emotion_workspace(preprocessor, *, identifier: str, title: str, text: str):
+    document = create_text_document(identifier, title, text)
+    poem = preprocessor.process_document(document)
+    prepared = PreparedPoemPreprocessor(poem)
+    results = (
+        analyze_lexicon(
+            document,
+            phase2_synthetic_emotion_lexicon(),
+            prepared,
+            minimum_match_requirement=1,
+        ),
+        analyze_lexicon(
+            document,
+            phase2_synthetic_intensity_lexicon(),
+            prepared,
+            minimum_match_requirement=1,
+        ),
+    )
+    request = AnalysisRequest(
+        project_name="Comparison test",
+        title=title,
+        original_text=text,
+        lexicon_ids=tuple(
+            result.lexicon_metadata.lexicon_id for result in results
+        ),
+        minimum_match_requirement=1,
+    )
+    return WorkspaceAnalysis(
+        request=request,
+        document=document,
+        results=results,
+        comparison=compare_lexicons(results),
         poem_document=poem,
     )
 
@@ -135,6 +181,34 @@ def test_comparison_type_view_changes_repetition_sensitive_denominator(
 
     assert token.denominator_b != type_weighted.denominator_b
     assert token.value_b != type_weighted.value_b
+
+
+def test_comparison_retains_nrc_association_and_intensity_rows_in_stopword_view(
+    preprocessor,
+) -> None:
+    first = _emotion_workspace(
+        preprocessor,
+        identifier="emotion-a",
+        title="Emotion A",
+        text="Joy and fear rage.",
+    )
+    second = _emotion_workspace(
+        preprocessor,
+        identifier="emotion-b",
+        title="Emotion B",
+        text="Fear fear and joy.",
+    )
+
+    rows = comparison_rows(
+        build_poem_comparison(first, second),
+        analysis_view="stopwords_excluded",
+        weighting="token",
+    )
+    metric_ids = {row.metric_id for row in rows}
+
+    assert "emotion.synthetic_emotion_phase2.positive.proportion" in metric_ids
+    assert "emotion.synthetic_emotion_phase2.negative.proportion" in metric_ids
+    assert "emotion_intensity.synthetic_intensity_phase2.anger.mean" in metric_ids
 
 
 def test_comparison_rejects_mismatched_configuration(
@@ -303,6 +377,89 @@ def test_comparison_metric_families_separate_means_loads_and_dispersion() -> Non
         "Sound & Form",
         "Candidate Meter & Rhythmic Regularity",
     )
+
+
+def test_reader_facing_family_order_places_means_before_loads_and_dispersion() -> None:
+    rows = pd.DataFrame(
+        {
+            "Metric Family": [
+                "Within-Poem Dispersion",
+                "Cumulative Lexical Load",
+                "VAD Means",
+            ]
+        }
+    )
+
+    assert _ordered_metric_families(rows, "VAD Profile") == (
+        "VAD Means",
+        "Cumulative Lexical Load",
+        "Within-Poem Dispersion",
+    )
+
+
+def test_comparison_dashboard_keeps_one_active_poetry_id_source(
+    monkeypatch,
+) -> None:
+    analyses = tuple(
+        SimpleNamespace(request=SimpleNamespace(title=f"Poem {index}"))
+        for index in (1, 2)
+    )
+    comparison_set = PoemComparisonSet("set", analyses)
+
+    def poetry_row(source_id: str, view: str, weighting: str, metric_id: str):
+        values = tuple(
+            PoemComparisonSetValue(
+                poem_id=f"poem-{index}",
+                title=f"Poem {index}",
+                value="observer",
+                denominator="three classified VAD levels",
+                coverage=None,
+            )
+            for index in (1, 2)
+        )
+        return PoemComparisonSetRow(
+            section="Affective Evidence",
+            source="Poetry Id",
+            analysis_view=f"{source_id}:{view}",
+            weighting=weighting,
+            metric_id=metric_id,
+            metric=metric_id,
+            values=values,
+            numeric_mean=None,
+            numeric_population_standard_deviation=None,
+            contributing_poem_count=2,
+            categorical_summary="observer (2/2)",
+            unit_or_scale="canonical profile ID",
+            note="",
+            numeric_range=None,
+        )
+
+    rows = tuple(
+        poetry_row(source, view, weighting, metric)
+        for source in ("warriner_vad_2013", "nrc_vad_v2_1")
+        for view in ("all_matched", "stopwords_excluded")
+        for weighting in ("token", "type")
+        for metric in (
+            "poetry_id.categorical_archetype_id",
+            "poetry_id.nearest_centroid_archetype_id",
+        )
+    )
+    monkeypatch.setattr(
+        "versevad.ui.comparison.comparison_set_rows",
+        lambda *args, **kwargs: rows,
+    )
+
+    frame = _comparison_set_frame(
+        comparison_set,
+        analysis_view="all_matched",
+        weighting="token",
+    )
+
+    assert frame["Metric ID"].tolist() == [
+        "poetry_id.categorical_archetype_id",
+        "poetry_id.nearest_centroid_archetype_id",
+    ]
+    assert frame["Source"].str.contains("NRC VAD v2.1").all()
 
 
 def test_comparison_value_chart_domain_is_fitted_around_observed_values() -> None:

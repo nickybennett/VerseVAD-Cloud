@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -42,6 +43,12 @@ from versevad.lexical_style import LexicalStyleConfiguration
 from versevad.phonology import PhonologicalConfiguration
 from versevad.poetry_id import PoetryIDConfiguration
 from versevad.preprocessing import TextPreprocessor
+from versevad.reference_corpora import (
+    ReferenceCorpusDescriptor,
+    ReferenceCorpusError,
+    list_reference_corpora,
+    load_corpus_index,
+)
 from versevad.prosody import (
     MeterConfiguration,
     PronunciationConfiguration,
@@ -64,6 +71,7 @@ from versevad.ui.vad_overview import (
     overview_metric_matches_vad_preference,
     preferred_overview_vad_lexicon_id,
 )
+from versevad.versemap import VerseMapAnalysisResult
 
 
 _MODULE_LABELS = {
@@ -309,9 +317,11 @@ def _comparison_metric_family(
 
     identifier = metric_id.casefold()
     label = metric.casefold()
-    if "population_sd" in identifier or "population_standard_deviation" in identifier:
-        return "Within-Poem Dispersion"
-    if any(
+    is_dispersion = (
+        "population_sd" in identifier
+        or "population_standard_deviation" in identifier
+    )
+    is_cumulative = any(
         marker in identifier
         for marker in (
             "rating_total",
@@ -319,28 +329,57 @@ def _comparison_metric_family(
             "cumulative_load",
             "load_per_100",
         )
-    ):
-        return "Cumulative Lexical Load"
+    )
     if panel == "VAD Profile":
+        if is_dispersion:
+            return "Within-Poem Dispersion"
+        if is_cumulative:
+            return "Cumulative Lexical Load"
         return "VAD Means"
     if panel == "Emotion Association, Intensity & Sentiment":
         if identifier.startswith("vader."):
             return "VADER Sentiment"
         if identifier.startswith("emotion_intensity."):
-            return "Emotion Intensity"
-        return "Emotion Association"
+            return (
+                "Emotion-Intensity Dispersion"
+                if is_dispersion
+                else "Emotion Intensity Means"
+            )
+        return "NRC Emotion and Polarity Associations"
     if panel == "PoetryID":
         return "PoetryID Archetypes"
+    if panel == "Concreteness":
+        if is_dispersion:
+            return "Concreteness Dispersion"
+        if is_cumulative:
+            return "Cumulative Concreteness"
+        return "Mean Concreteness"
     if panel == "Sensorimotor Imagery & Embodiment":
+        if is_dispersion:
+            return "Sensorimotor Dispersion"
+        if is_cumulative:
+            return "Cumulative Sensorimotor Loads"
         return "Sensorimotor Dimension Means"
     if panel == "Frequency & Rarity":
-        return "Rarity Profile" if identifier.startswith("rarity.") else "Frequency Profile"
+        if is_dispersion:
+            return "Frequency and Rarity Dispersion"
+        if is_cumulative:
+            return "Cumulative Frequency Loads"
+        return (
+            "Mean Rarity"
+            if identifier.startswith("rarity.")
+            else "Mean Frequency"
+        )
     if panel == "Acquisition & Readability":
         if "poetic_reading_ease" in identifier:
             return "VerseVAD Poetic Reading Ease"
         if identifier.startswith("readability."):
             return "Traditional Readability"
-        return "Age of Acquisition"
+        if is_dispersion:
+            return "Age-of-Acquisition Dispersion"
+        if is_cumulative:
+            return "Cumulative Age of Acquisition"
+        return "Mean Age of Acquisition"
     if panel == "Language Profile":
         return "Part-of-Speech Profile"
     if panel == "Lexical & Structural Measures":
@@ -349,9 +388,62 @@ def _comparison_metric_family(
         if "alphabetic_characters" in identifier or "word_length" in identifier:
             return "Word Length"
         return "Lexical Diversity"
+    if is_dispersion:
+        return "Within-Poem Dispersion"
+    if is_cumulative:
+        return "Cumulative Lexical Load"
     if "coverage" in identifier or "matched" in label:
         return "Coverage and Evidence"
     return "Summary Metrics"
+
+
+_FAMILY_ORDER = {
+    "VAD Profile": (
+        "VAD Means",
+        "Cumulative Lexical Load",
+        "Within-Poem Dispersion",
+    ),
+    "Emotion Association, Intensity & Sentiment": (
+        "NRC Emotion and Polarity Associations",
+        "Emotion Intensity Means",
+        "VADER Sentiment",
+        "Emotion-Intensity Dispersion",
+    ),
+    "PoetryID": ("PoetryID Archetypes",),
+    "Concreteness": (
+        "Mean Concreteness",
+        "Cumulative Concreteness",
+        "Concreteness Dispersion",
+    ),
+    "Sensorimotor Imagery & Embodiment": (
+        "Sensorimotor Dimension Means",
+        "Cumulative Sensorimotor Loads",
+        "Sensorimotor Dispersion",
+    ),
+    "Frequency & Rarity": (
+        "Mean Frequency",
+        "Mean Rarity",
+        "Cumulative Frequency Loads",
+        "Frequency and Rarity Dispersion",
+    ),
+    "Acquisition & Readability": (
+        "VerseVAD Poetic Reading Ease",
+        "Traditional Readability",
+        "Mean Age of Acquisition",
+        "Cumulative Age of Acquisition",
+        "Age-of-Acquisition Dispersion",
+    ),
+}
+
+
+def _ordered_metric_families(panel_rows: pd.DataFrame, panel: str) -> tuple[str, ...]:
+    """Return stable reader-facing order without discarding uncommon metrics."""
+
+    observed = tuple(dict.fromkeys(panel_rows["Metric Family"].tolist()))
+    preferred = _FAMILY_ORDER.get(panel, ())
+    return tuple(item for item in preferred if item in observed) + tuple(
+        item for item in observed if item not in preferred
+    )
 
 
 def _comparison_frame(
@@ -1145,6 +1237,9 @@ def _clear_comparison_set() -> None:
         st.session_state.pop(f"compare_{poem_id}_upload", None)
         st.session_state.pop(f"compare_{poem_id}_upload_error", None)
     st.session_state.pop("poem_comparison_set", None)
+    st.session_state.pop("compare_results_pronunciation_overrides", None)
+    st.session_state.pop("_pending_compare_pronunciation_overrides", None)
+    st.session_state.pop("_compare_reanalyze_requested", None)
 
 
 def _comparison_set_labels(comparison_set: PoemComparisonSet) -> list[str]:
@@ -1187,6 +1282,17 @@ def _comparison_set_frame(
             "poetry_id.nearest_centroid_archetype_id",
         }:
             continue
+        poetry_id_source = ""
+        if report_panel == "PoetryID":
+            poetry_id_source, separator, poetry_id_view = (
+                row.analysis_view.partition(":")
+            )
+            if (
+                not separator
+                or poetry_id_view != analysis_view
+                or row.weighting != weighting
+            ):
+                continue
         metric_label = {
             "poetry_id.categorical_archetype_id": "Category Fit Archetype",
             "poetry_id.nearest_centroid_archetype_id": (
@@ -1202,7 +1308,20 @@ def _comparison_set_frame(
             "Report Section": report_section,
             "Report Panel": report_panel,
             "Metric Family": metric_family,
-            "Source": row.source,
+            "Source": (
+                "PoetryID / "
+                + next(
+                    (
+                        spec.display_name
+                        for spec in LEXICON_SPECS
+                        if spec.lexicon_id == poetry_id_source
+                    ),
+                    poetry_id_source,
+                )
+                if poetry_id_source
+                else row.source
+            ),
+            "_PoetryID Source": poetry_id_source,
             "Metric": metric_label,
             "Metric ID": row.metric_id,
             "Analysis View": row.analysis_view.replace("_", " ").title(),
@@ -1222,7 +1341,29 @@ def _comparison_set_frame(
         records.append(record)
     if not records:
         return pd.DataFrame()
-    return pd.DataFrame(records).drop_duplicates(ignore_index=True)
+    frame = pd.DataFrame(records).drop_duplicates(ignore_index=True)
+    poetry_mask = frame["Report Panel"] == "PoetryID"
+    poetry_sources = tuple(
+        frame.loc[poetry_mask, "_PoetryID Source"].dropna().astype(str)
+    )
+    preferred_poetry_source = preferred_overview_vad_lexicon_id(
+        poetry_sources
+    )
+    if preferred_poetry_source:
+        frame = frame.loc[
+            ~poetry_mask
+            | (frame["_PoetryID Source"] == preferred_poetry_source)
+        ]
+    poetry_order = {
+        "poetry_id.categorical_archetype_id": 0,
+        "poetry_id.nearest_centroid_archetype_id": 1,
+    }
+    frame["_Dashboard Order"] = frame["Metric ID"].map(poetry_order).fillna(2)
+    return frame.sort_values(
+        ["Report Section", "Report Panel", "_Dashboard Order", "Metric"],
+        kind="stable",
+        ignore_index=True,
+    )
 
 
 def _render_comparison_set_chart(
@@ -1306,9 +1447,271 @@ def _render_comparison_set_chart(
     )
 
 
+def _comparison_versemap_summary_frame(
+    comparison_set: PoemComparisonSet,
+) -> pd.DataFrame:
+    """Return only the map position and nearest context used by the dashboard."""
+
+    labels = _comparison_set_labels(comparison_set)
+    rows = []
+    for label, analysis in zip(labels, comparison_set.analyses, strict=True):
+        result = analysis.versemap
+        if not isinstance(result, VerseMapAnalysisResult):
+            continue
+        nearest_poem = result.nearest_poems[0] if result.nearest_poems else None
+        nearest_poet = result.nearest_poets[0] if result.nearest_poets else None
+        rows.append(
+            {
+                "Poem": label,
+                "PCA Component 1": result.coordinate_1,
+                "PCA Component 2": result.coordinate_2,
+                "Nearest Reference Poem": (
+                    f"{nearest_poem.title} - {nearest_poem.poet_name}"
+                    if nearest_poem is not None
+                    else None
+                ),
+                "Nearest Poet Centroid": (
+                    nearest_poet.poet_name if nearest_poet is not None else None
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _comparison_pronunciation_attention_frame(
+    comparison_set: PoemComparisonSet,
+) -> pd.DataFrame:
+    """Collect unresolved or genuinely ambiguous pronunciation types by poem."""
+
+    labels = _comparison_set_labels(comparison_set)
+    rows = []
+    attention_statuses = {
+        "ambiguous_dictionary",
+        "source_without_marked_vowel",
+        "unmatched",
+    }
+    for label, analysis in zip(labels, comparison_set.analyses, strict=True):
+        result = analysis.pronunciation
+        if result is None:
+            continue
+        seen: set[tuple[str, str]] = set()
+        for item in result.token_audit:
+            status = str(item.status)
+            if not item.eligible or status not in attention_statuses:
+                continue
+            identity = (item.lookup_form, status)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            rows.append(
+                {
+                    "Poem": label,
+                    "Word": item.surface_form,
+                    "Status": status.replace("_", " ").title(),
+                    "Dictionary Candidates": (
+                        " | ".join(item.dictionary_candidate_phones)
+                        if item.dictionary_candidate_phones
+                        else "None"
+                    ),
+                    "Line": item.line_number,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _render_comparison_pronunciation_review(
+    comparison_set: PoemComparisonSet,
+) -> None:
+    """Offer safe shared overrides without pretending they are poem-specific."""
+
+    attention = _comparison_pronunciation_attention_frame(comparison_set)
+    st.markdown("##### Pronunciation Review")
+    if attention.empty:
+        st.caption(
+            "No unresolved or prosodically ambiguous pronunciation types were "
+            "reported across the comparison set."
+        )
+        return
+    st.caption(
+        "Review these forms before interpreting syllable, meter, rhyme, or form "
+        "differences. A shared override applies to the same spelling in every "
+        "poem in this set. If a word needs different readings in different poems, "
+        "resolve each poem separately in Single Poem instead."
+    )
+    render_dataframe(
+        attention,
+        hide_index=True,
+        width="stretch",
+        height=min(360, 76 + len(attention) * 35),
+    )
+    review_key = "compare_results_pronunciation_overrides"
+    st.session_state.setdefault(
+        review_key,
+        st.session_state.get("compare_config_pronunciation_overrides", ""),
+    )
+    override_text = st.text_area(
+        "Shared ARPAbet overrides",
+        key=review_key,
+        placeholder="word = W ER1 D | selected for this comparison set",
+        help=(
+            "Use one row per spelling: word = ARPAbet phones | scholarly note. "
+            "Dictionary candidates in the table can be copied directly."
+        ),
+    )
+    if st.button(
+        "Apply Shared Overrides and Reanalyze",
+        key="compare_apply_reviewed_pronunciations",
+        type="primary",
+    ):
+        try:
+            parse_pronunciation_overrides(override_text)
+        except ValueError as error:
+            st.error(str(error))
+        else:
+            st.session_state["_pending_compare_pronunciation_overrides"] = (
+                override_text
+            )
+            st.session_state["_compare_reanalyze_requested"] = True
+            st.rerun()
+
+
+def _render_comparison_versemap(
+    comparison_set: PoemComparisonSet,
+) -> None:
+    """Render a focused multi-poem map without repeating profile metrics."""
+
+    labels = _comparison_set_labels(comparison_set)
+    available = [
+        (label, analysis.versemap)
+        for label, analysis in zip(labels, comparison_set.analyses, strict=True)
+        if isinstance(analysis.versemap, VerseMapAnalysisResult)
+    ]
+    st.subheader("VerseMap")
+    st.caption(
+        "The dashboard shows only the compared poems' PCA positions and nearest "
+        "reference context. The Standard Profile dimensions remain available in "
+        "the statistical export and in their relevant analytical sections."
+    )
+    if not available:
+        st.info(
+            "Enable VerseMap in the shared profile and analyze the poems to "
+            "compare them against a reference corpus."
+        )
+        return
+    if len(available) != len(comparison_set.analyses):
+        st.warning(
+            "VerseMap evidence is unavailable for one or more poems, so only "
+            "mapped poems are displayed."
+        )
+
+    first_result = available[0][1]
+    releases = {result.reference_release_id for _, result in available}
+    if len(releases) > 1:
+        st.warning(
+            "These historical results use different reference releases and "
+            "should not be interpreted as one shared map. Reanalyze them under "
+            "one reference corpus."
+        )
+    reference_rows = [
+        {
+            "Series": (
+                "Reference poems"
+                if point.point_kind == "reference_poem"
+                else "Poet centroids"
+            ),
+            "Poet": point.poet_name,
+            "Title": point.title,
+            "PCA Component 1": point.coordinate_1,
+            "PCA Component 2": point.coordinate_2,
+            "Point Size": 34 if point.point_kind == "reference_poem" else 105,
+        }
+        for point in first_result.map_points
+    ]
+    query_rows = [
+        {
+            "Series": label,
+            "Poet": "",
+            "Title": label,
+            "PCA Component 1": result.coordinate_1,
+            "PCA Component 2": result.coordinate_2,
+            "Point Size": 230,
+        }
+        for label, result in available
+    ]
+    map_frame = pd.DataFrame([*reference_rows, *query_rows]).dropna(
+        subset=["PCA Component 1", "PCA Component 2"]
+    )
+    if not map_frame.empty:
+        query_palette = list(PUBLICATION_CHART_COLORS)
+        domain = ["Reference poems", "Poet centroids", *[row[0] for row in available]]
+        color_range = ["#9AA3AA", "#4E5961"] + [
+            query_palette[index % len(query_palette)]
+            for index in range(len(available))
+        ]
+        chart = (
+            alt.Chart(map_frame)
+            .mark_circle(opacity=0.72, strokeWidth=1.2)
+            .encode(
+                x=alt.X(
+                    "PCA Component 1:Q",
+                    title=(
+                        "PCA Component 1 "
+                        f"({first_result.explained_variance_1:.1%} reference variance)"
+                    ),
+                ),
+                y=alt.Y(
+                    "PCA Component 2:Q",
+                    title=(
+                        "PCA Component 2 "
+                        f"({first_result.explained_variance_2:.1%} reference variance)"
+                    ),
+                ),
+                color=alt.Color(
+                    "Series:N",
+                    scale=alt.Scale(domain=domain, range=color_range),
+                    sort=domain,
+                    title=None,
+                ),
+                size=alt.Size(
+                    "Point Size:Q",
+                    scale=None,
+                    legend=None,
+                ),
+                tooltip=[
+                    "Series:N",
+                    "Poet:N",
+                    "Title:N",
+                    alt.Tooltip("PCA Component 1:Q", format=".3f"),
+                    alt.Tooltip("PCA Component 2:Q", format=".3f"),
+                ],
+            )
+            .properties(height=560)
+            .interactive()
+        )
+        st.altair_chart(publication_chart(chart), width="stretch")
+        st.caption(
+            "The chart is a two-dimensional PCA projection. Nearest neighbors "
+            "are calculated in the full registered feature space, so the closest "
+            "point on screen is not necessarily the nearest full-profile match."
+        )
+
+    summary = _comparison_versemap_summary_frame(comparison_set)
+    if not summary.empty:
+        render_dataframe(
+            summary,
+            column_config={
+                "PCA Component 1": st.column_config.NumberColumn(format="%.3f"),
+                "PCA Component 2": st.column_config.NumberColumn(format="%.3f"),
+            },
+            hide_index=True,
+            width="stretch",
+        )
+
+
 def _render_comparison_set_panel(
     frame: pd.DataFrame,
     *,
+    comparison_set: PoemComparisonSet,
     report_section: str,
     panel: str,
     state_key: str,
@@ -1320,6 +1723,8 @@ def _render_comparison_set_panel(
     ]
     with st.expander(panel, expanded=False):
         st.caption(_PANEL_NOTES.get(panel, "Shared comparison evidence."))
+        if panel == "Pronunciation, Syllables & Stress":
+            _render_comparison_pronunciation_review(comparison_set)
         if panel_rows.empty:
             st.info(
                 "No compatible evidence is available for this comparison set "
@@ -1331,10 +1736,10 @@ def _render_comparison_set_panel(
             state_key=state_key,
             poem_labels=poem_labels,
         )
-        for family in dict.fromkeys(panel_rows["Metric Family"].tolist()):
+        for family in _ordered_metric_families(panel_rows, panel):
             family_rows = panel_rows[panel_rows["Metric Family"] == family]
             st.markdown(f"##### {family}")
-            if family == "Within-Poem Dispersion":
+            if "Dispersion" in family:
                 st.caption(
                     "These values describe variation among matched observations "
                     "inside each poem. They are not cross-poem uncertainty."
@@ -1503,11 +1908,16 @@ def _render_comparison_set_results(
                 )
         return
 
+    if report_section == "VerseMap":
+        _render_comparison_versemap(comparison_set)
+        return
+
     if report_section in _PANEL_ORDER:
         st.subheader(report_section)
         for panel in _PANEL_ORDER[report_section]:
             _render_comparison_set_panel(
                 frame,
+                comparison_set=comparison_set,
                 report_section=report_section,
                 panel=panel,
                 state_key=(
@@ -1521,8 +1931,11 @@ def _render_comparison_set_results(
     if report_section == "Evidence & Diagnostics":
         st.subheader("Evidence & Diagnostics")
         st.caption(
-            "Inspect one analytical panel's denominators, coverage, and cautions. "
-            "The complete long-form audit remains available from Export & Help."
+            "This is the audit layer for the dashboard, not a second results "
+            "report. Select a panel to inspect exactly which observations formed "
+            "each displayed result, how much eligible evidence was matched, and "
+            "which methodological cautions apply. The complete long-form audit "
+            "remains available from Export & Help."
         )
         panel_options = tuple(
             dict.fromkeys(frame["Report Panel"].fillna("").tolist())
@@ -2077,6 +2490,14 @@ def render_compare_poems_workspace(
 ) -> None:
     """Render a session-only shared-design comparison of two through ten poems."""
 
+    pending_pronunciation_overrides = st.session_state.pop(
+        "_pending_compare_pronunciation_overrides",
+        None,
+    )
+    if pending_pronunciation_overrides is not None:
+        st.session_state["compare_config_pronunciation_overrides"] = str(
+            pending_pronunciation_overrides
+        )
     poem_ids = _comparison_set_poem_ids()
     with st.sidebar:
         st.metric("Poems", len(poem_ids))
@@ -2183,6 +2604,7 @@ def render_compare_poems_workspace(
     ]
     st.session_state.setdefault("compare_lexicons", default_lexicons)
     st.session_state.setdefault("compare_modules", default_modules)
+    selected_reference_corpus: ReferenceCorpusDescriptor | None = None
 
     with st.container(border=True):
         st.subheader("2. Choose One Shared Analysis Profile")
@@ -2266,6 +2688,39 @@ def render_compare_poems_workspace(
                 "VADER and readability evidence are produced automatically."
             ),
         )
+        if "versemap" in selected_modules:
+            corpora = tuple(
+                item
+                for item in list_reference_corpora(
+                    include_user=(
+                        os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT") != "1"
+                    )
+                )
+                if item.index_available
+            )
+            if corpora:
+                corpus_by_label = {
+                    f"{item.display_name} | {item.scope_label}": item
+                    for item in corpora
+                }
+                selected_corpus_label = st.selectbox(
+                    "VerseMap reference corpus",
+                    options=tuple(corpus_by_label),
+                    key="compare_versemap_reference_corpus",
+                    help=(
+                        "All poems are projected into this same indexed Standard "
+                        "Profile 1.0 reference space. Local user corpora appear "
+                        "after they are validated and indexed."
+                    ),
+                )
+                selected_reference_corpus = corpus_by_label[
+                    selected_corpus_label
+                ]
+            else:
+                st.warning(
+                    "No indexed VerseMap reference corpus is available. Disable "
+                    "VerseMap or build an index under Collections > Reference Corpora."
+                )
         with st.expander("Shared stopword sensitivity settings", expanded=False):
             stopwords = render_stopword_settings("compare")
         shared_configuration, configuration_error = (
@@ -2282,6 +2737,9 @@ def render_compare_poems_workspace(
             type="primary",
             width="stretch",
             key="compare_analyze_set",
+        )
+        analyze = analyze or bool(
+            st.session_state.pop("_compare_reanalyze_requested", False)
         )
         if analyze:
             if configuration_error:
@@ -2369,6 +2827,12 @@ def render_compare_poems_workspace(
                     )
 
                 try:
+                    versemap_index = (
+                        load_corpus_index(selected_reference_corpus)
+                        if "versemap" in selected
+                        and selected_reference_corpus is not None
+                        else None
+                    )
                     analyses = []
                     with st.status(
                         f"Analyzing {len(poem_ids)} poems under one shared design…",
@@ -2388,17 +2852,28 @@ def render_compare_poems_workspace(
                                 run_workspace_analysis(
                                     request(poem_id, position),
                                     preprocessor=preprocessor,
+                                    versemap_index=versemap_index,
                                 )
                             )
                         st.session_state["poem_comparison_set"] = (
                             build_poem_comparison_set(analyses)
+                        )
+                        st.session_state[
+                            "compare_results_pronunciation_overrides"
+                        ] = st.session_state.get(
+                            "compare_config_pronunciation_overrides",
+                            "",
                         )
                         status.update(
                             label="Comparison-set analysis complete.",
                             state="complete",
                             expanded=False,
                         )
-                except (ValueError, WorkspaceAnalysisError) as error:
+                except (
+                    ValueError,
+                    WorkspaceAnalysisError,
+                    ReferenceCorpusError,
+                ) as error:
                     st.error(str(error))
 
     comparison_set = st.session_state.get("poem_comparison_set")

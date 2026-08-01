@@ -571,6 +571,27 @@ each poem. Complete legacy equal-poem summaries and cross-poem dispersion are
 retained only in the long-form audit export for reproducibility, not promoted
 in the normal report.
 
+The dashboard imposes a presentation order without changing calculations:
+headline means or composite scores, cumulative lexical loads, then within-poem
+dispersion. PoetryID is narrowed to the selected analysis view and weighting,
+then to one identified VAD source, and displays category fit before nearest
+centroid. All alternate source/view/weighting rows remain auditable in export.
+
+NRC emotion and positive/negative association proportions use eligible lexical
+tokens or types as their denominator. The stopword-excluded comparison view is
+reconstructed from each immutable match record's explicit stopword-view
+inclusion flag; it does not rerun or relabel the all-token aggregate. NRC
+emotion-intensity means and population standard deviations are reconstructed
+from the retained word-emotion pairs under the same token/type choice. An
+absent word-emotion pair remains missing rather than becoming zero.
+
+The Compare Poems VerseMap view projects every poem into one selected,
+versioned reference index. The visible table is limited to the two PCA
+coordinates and nearest poem/poet-centroid labels. Neighbor selection still
+uses full registered standardized feature-space distance, not apparent
+two-dimensional screen distance. All Standard Profile inputs, coverage, and
+model provenance remain in the export.
+
 Each lexicon is analyzed independently. Numeric VAD means may be displayed on a
 separate normalized 0-1 scale alongside source-scale results. NRC VAD v1 and
 v2.1 remain labeled as versions of the same family, not independent

@@ -1039,6 +1039,184 @@ def _generic_dependent_rows(
     return rows
 
 
+def _stopword_excluded_emotion_rows(
+    comparison: PoemComparison,
+    *,
+    weighting: str,
+) -> list[PoemComparisonRow]:
+    """Derive stopword-excluded NRC rows from the published match audit."""
+
+    rows: list[PoemComparisonRow] = []
+    first_by_id = {
+        result.lexicon_metadata.lexicon_id: result
+        for result in comparison.first.results
+    }
+    second_by_id = {
+        result.lexicon_metadata.lexicon_id: result
+        for result in comparison.second.results
+    }
+    for lexicon_id in sorted(set(first_by_id) & set(second_by_id)):
+        first = first_by_id[lexicon_id]
+        second = second_by_id[lexicon_id]
+        source = first.lexicon_metadata.display_name
+        retained_a = tuple(
+            item
+            for item in first.matches
+            if item.included and item.included_in_stopword_view
+        )
+        retained_b = tuple(
+            item
+            for item in second.matches
+            if item.included and item.included_in_stopword_view
+        )
+        coverage_a = first.stopword_coverage
+        coverage_b = second.stopword_coverage
+        eligible_a = (
+            (
+                coverage_a.eligible_token_count
+                if weighting == "token"
+                else coverage_a.eligible_unique_type_count
+            )
+            if coverage_a is not None
+            else 0
+        )
+        eligible_b = (
+            (
+                coverage_b.eligible_token_count
+                if weighting == "token"
+                else coverage_b.eligible_unique_type_count
+            )
+            if coverage_b is not None
+            else 0
+        )
+        denominator_a = f"{eligible_a} stopword-excluded lexical {weighting}s"
+        denominator_b = f"{eligible_b} stopword-excluded lexical {weighting}s"
+
+        categories = sorted(
+            {item.category for item in first.category_statistics}
+            | {item.category for item in second.category_statistics}
+        )
+        for category in categories:
+            category_a = tuple(
+                item for item in retained_a if category in item.associations
+            )
+            category_b = tuple(
+                item for item in retained_b if category in item.associations
+            )
+            count_a = (
+                len(category_a)
+                if weighting == "token"
+                else len(
+                    {
+                        item.matched_lookup_form
+                        for item in category_a
+                        if item.matched_lookup_form
+                    }
+                )
+            )
+            count_b = (
+                len(category_b)
+                if weighting == "token"
+                else len(
+                    {
+                        item.matched_lookup_form
+                        for item in category_b
+                        if item.matched_lookup_form
+                    }
+                )
+            )
+            rows.append(
+                _row(
+                    section="Affective Evidence",
+                    source=source,
+                    analysis_view="stopwords_excluded",
+                    weighting=weighting,
+                    metric_id=f"emotion.{lexicon_id}.{category}.proportion",
+                    metric=f"{category.title()} association proportion",
+                    value_a=count_a / eligible_a if eligible_a else None,
+                    value_b=count_b / eligible_b if eligible_b else None,
+                    unit_or_scale="proportion",
+                    denominator_a=denominator_a,
+                    denominator_b=denominator_b,
+                    note=(
+                        "NRC associations are multi-label and need not sum to one. "
+                        "This view excludes active stopwords from its denominator."
+                    ),
+                )
+            )
+
+        intensity_categories = sorted(
+            {item.category for item in first.intensity_statistics}
+            & {item.category for item in second.intensity_statistics}
+        )
+        for category in intensity_categories:
+            def retained_values(matches) -> tuple[float, ...]:
+                pairs = [
+                    (
+                        item.matched_lookup_form or item.matched_term or "",
+                        float(item.intensity_map()[category]),
+                    )
+                    for item in matches
+                    if category in item.intensity_map()
+                ]
+                if weighting == "type":
+                    pairs = list(dict(pairs).items())
+                return tuple(value for _, value in pairs)
+
+            values_a = retained_values(retained_a)
+            values_b = retained_values(retained_b)
+            mean_a = statistics.fmean(values_a) if values_a else None
+            mean_b = statistics.fmean(values_b) if values_b else None
+            sd_a = statistics.pstdev(values_a) if values_a else None
+            sd_b = statistics.pstdev(values_b) if values_b else None
+            pair_denominator_a = f"{len(values_a)} matched pairs"
+            pair_denominator_b = f"{len(values_b)} matched pairs"
+            rows.extend(
+                (
+                    _row(
+                        section="Affective Evidence",
+                        source=source,
+                        analysis_view="stopwords_excluded",
+                        weighting=weighting,
+                        metric_id=(
+                            f"emotion_intensity.{lexicon_id}.{category}.mean"
+                        ),
+                        metric=f"Mean matched {category} intensity",
+                        value_a=mean_a,
+                        value_b=mean_b,
+                        unit_or_scale="source 0-1",
+                        denominator_a=pair_denominator_a,
+                        denominator_b=pair_denominator_b,
+                        note=(
+                            "Absent word-emotion pairs remain missing, not zero; "
+                            "active stopwords are excluded."
+                        ),
+                    ),
+                    _row(
+                        section="Affective Evidence",
+                        source=source,
+                        analysis_view="stopwords_excluded",
+                        weighting=weighting,
+                        metric_id=(
+                            "emotion_intensity."
+                            f"{lexicon_id}.{category}.population_sd"
+                        ),
+                        metric=(
+                            f"{category.title()} intensity population standard "
+                            "deviation"
+                        ),
+                        value_a=sd_a,
+                        value_b=sd_b,
+                        unit_or_scale="source-scale points",
+                        denominator_a=pair_denominator_a,
+                        denominator_b=pair_denominator_b,
+                        note="Within-poem dispersion across retained source pairs.",
+                    ),
+                )
+            )
+    return rows
+
+
 def _emotion_rows(
     comparison: PoemComparison,
     *,
@@ -1046,7 +1224,10 @@ def _emotion_rows(
     weighting: str,
 ) -> list[PoemComparisonRow]:
     if analysis_view != "all_matched":
-        return []
+        return _stopword_excluded_emotion_rows(
+            comparison,
+            weighting=weighting,
+        )
     rows = []
     first_by_id = {
         result.lexicon_metadata.lexicon_id: result

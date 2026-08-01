@@ -1,5 +1,21 @@
 # VerseVAD Implementation Plan
 
+## Completed focused Compare Poems dashboard refinement
+
+- [x] Limit visible PoetryID comparison evidence to the active shared scope,
+  weighting, and one identified source: Category Fit then Nearest Centroid.
+- [x] Order VAD, concreteness, frequency/rarity, sensorimotor, AoA, and
+  readability families from headline means/composites through cumulative loads
+  to within-poem dispersion.
+- [x] Retain NRC emotion, positive/negative association, and emotion-intensity
+  evidence under all-matched and stopword-excluded comparison views.
+- [x] Add safe shared pronunciation review and dependent reanalysis while
+  directing genuinely poem-specific conflicting readings to Single Poem.
+- [x] Replace the repeated VerseMap feature dashboard with one joint PCA plot
+  and a concise coordinate/nearest-poem/nearest-poet table.
+- [x] Clarify Evidence & Diagnostics as coverage/denominator/method audit rather
+  than a second score dashboard; validate interface, exports, and documentation.
+
 ## Completed comparison and corpus usability refinement
 
 - [x] Expose shared phrase, evidence, lexical, PoetryID, pronunciation, meter,
