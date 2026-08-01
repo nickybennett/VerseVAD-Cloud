@@ -125,6 +125,9 @@ class PoeticReadingEaseSummary:
     interpretation_band: str | None
     components: tuple[PoeticReadingEaseComponent, ...]
     missing_component_ids: tuple[str, ...]
+    evidence_confidence: str | None
+    minimum_component_coverage: float | None
+    minimum_lexical_matched_count: int | None
 
     @property
     def is_complete(self) -> bool:
@@ -197,6 +200,37 @@ def poetic_reading_ease_band(score: float) -> str:
     return "Highly Demanding"
 
 
+def _poetic_reading_ease_confidence(
+    components: tuple[PoeticReadingEaseComponent, ...],
+) -> tuple[str | None, float | None, int | None]:
+    """Classify evidence sufficiency without changing the VV-PRE score."""
+
+    if any(component.ease_score is None for component in components):
+        return None, None, None
+    coverages = tuple(
+        component.coverage
+        for component in components
+        if component.coverage is not None
+    )
+    lexical_counts = tuple(
+        component.matched_count
+        for component in components
+        if component.component_id in {"frequency", "aoa"}
+        and component.matched_count is not None
+    )
+    if len(coverages) != len(components) or len(lexical_counts) != 2:
+        return None, None, None
+    minimum_coverage = min(coverages)
+    minimum_lexical_count = min(lexical_counts)
+    if minimum_coverage >= 0.90 and minimum_lexical_count >= 20:
+        confidence = "High"
+    elif minimum_coverage >= 0.75 and minimum_lexical_count >= 10:
+        confidence = "Moderate"
+    else:
+        confidence = "Limited"
+    return confidence, minimum_coverage, minimum_lexical_count
+
+
 def calculate_poetic_reading_ease(
     *,
     mean_zipf: float | None,
@@ -222,7 +256,7 @@ def calculate_poetic_reading_ease(
             source_metric_id="frequency.mean_zipf",
             raw_value=mean_zipf,
             raw_unit="SUBTLEX-US Zipf",
-            weight=0.35,
+            weight=0.30,
             easy_anchor=6.5,
             difficult_anchor=2.5,
             eligible_count=frequency_eligible,
@@ -240,7 +274,7 @@ def calculate_poetic_reading_ease(
             source_metric_id="aoa.mean_years",
             raw_value=mean_aoa,
             raw_unit="source mean age in years",
-            weight=0.30,
+            weight=0.25,
             easy_anchor=4.0,
             difficult_anchor=12.0,
             eligible_count=aoa_eligible,
@@ -256,7 +290,7 @@ def calculate_poetic_reading_ease(
             ),
             raw_value=mean_words_per_line,
             raw_unit="words per nonblank line",
-            weight=0.20,
+            weight=0.30,
             easy_anchor=3.0,
             difficult_anchor=15.0,
             eligible_count=line_count,
@@ -298,11 +332,17 @@ def calculate_poetic_reading_ease(
             )
         )
         band = poetic_reading_ease_band(score)
+    confidence, minimum_coverage, minimum_lexical_count = (
+        _poetic_reading_ease_confidence(components)
+    )
     return PoeticReadingEaseSummary(
         score=score,
         interpretation_band=band,
         components=components,
         missing_component_ids=missing,
+        evidence_confidence=confidence,
+        minimum_component_coverage=minimum_coverage,
+        minimum_lexical_matched_count=minimum_lexical_count,
     )
 
 
@@ -392,7 +432,7 @@ def attach_poetic_reading_ease(
             value=poetic.score,
             layer=ResultLayer.COMPUTED_SUMMARY,
             unit="0-100 ease score; higher is more accessible",
-            weighting="35% frequency + 30% AoA + 20% line + 15% syllables",
+            weighting="30% frequency + 25% AoA + 30% line + 15% syllables",
             denominator="all four declared VV-PRE components",
             note="Experimental surface-level linguistic accessibility composite.",
         ),
@@ -402,6 +442,39 @@ def attach_poetic_reading_ease(
             layer=ResultLayer.INTERPRETATION,
             unit="declared experimental interpretation band",
             denominator="VV-PRE score",
+        ),
+        ModuleMetric(
+            metric_id="readability.poetic_reading_ease.evidence_confidence",
+            value=poetic.evidence_confidence,
+            layer=ResultLayer.INTERPRETATION,
+            unit="declared evidence-sufficiency band",
+            denominator=(
+                "minimum component coverage and minimum Frequency/AoA "
+                "matched-token count"
+            ),
+            note=(
+                "High requires at least 90% coverage and 20 matched lexical "
+                "occurrences; Moderate requires 75% and 10; otherwise Limited."
+            ),
+        ),
+        ModuleMetric(
+            metric_id=(
+                "readability.poetic_reading_ease.minimum_component_coverage"
+            ),
+            value=poetic.minimum_component_coverage,
+            layer=ResultLayer.COMPUTED_SUMMARY,
+            unit="proportion",
+            denominator="lowest coverage among the four VV-PRE components",
+        ),
+        ModuleMetric(
+            metric_id=(
+                "readability.poetic_reading_ease."
+                "minimum_lexical_matched_count"
+            ),
+            value=poetic.minimum_lexical_matched_count,
+            layer=ResultLayer.COMPUTED_SUMMARY,
+            unit="matched token occurrences",
+            denominator="smaller of Frequency and AoA matched-token counts",
         ),
     ]
     for component in poetic.components:
@@ -466,6 +539,19 @@ def attach_poetic_reading_ease(
                 severity=WarningSeverity.INFORMATION,
             ),
         )
+    elif poetic.evidence_confidence == "Limited":
+        warnings += (
+            ModuleWarning(
+                code="readability.poetic_reading_ease.limited_evidence",
+                message=(
+                    "VV-PRE is calculable, but its evidence confidence is Limited "
+                    "because component coverage is below 75% or the smaller of "
+                    "the Frequency and AoA matched-token counts is below 10. "
+                    "The numerical score is not adjusted or penalized."
+                ),
+                severity=WarningSeverity.INFORMATION,
+            ),
+        )
     identity = json.dumps(
         {
             "base_result_id": result.module_result.result_id,
@@ -477,7 +563,7 @@ def attach_poetic_reading_ease(
     module_result = replace(
         result.module_result,
         result_id=(
-            "readability-result-v2:"
+            "readability-result-v3:"
             + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:20]
         ),
         metrics=existing_metrics + tuple(poetic_metrics),
@@ -487,8 +573,10 @@ def attach_poetic_reading_ease(
             inclusion_policy=(
                 result.module_result.provenance.inclusion_policy
                 + " VV-PRE uses a positive weighted sum of four independently "
-                "clamped 0-100 ease components and remains missing unless all "
-                "four inputs are available."
+                "clamped 0-100 ease components: 30% Frequency, 25% AoA, 30% "
+                "Line Accessibility, and 15% Word Complexity. It remains "
+                "missing unless all four inputs are available. Evidence "
+                "confidence is reported separately and never alters the score."
             ),
         ),
     )
@@ -785,7 +873,7 @@ class ReadabilityModule:
     """Calculate familiar English prose formulas without external downloads."""
 
     name = "readability"
-    version = "1.1.0"
+    version = "1.2.0"
 
     def analyze(self, module_input: ModuleInput) -> ModuleResult:
         return self.analyze_detailed(module_input).module_result

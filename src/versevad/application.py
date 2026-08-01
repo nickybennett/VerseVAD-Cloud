@@ -3449,6 +3449,25 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                             "Demanding."
                         ),
                     },
+                    {
+                        "section": "Readability",
+                        "lexicon": "VerseVAD Poetic Reading Ease (Experimental)",
+                        "analysis_view": "Complete preserved text",
+                        "metric": "VV-PRE evidence confidence",
+                        "value": (
+                            getattr(poetic, "evidence_confidence", None) or ""
+                        ),
+                        "unit_or_scale": "declared evidence-sufficiency band",
+                        "denominator": (
+                            "minimum component coverage and smaller Frequency/AoA "
+                            "matched-token count"
+                        ),
+                        "plain_language_note": (
+                            "High requires 90% coverage and 20 matches; Moderate "
+                            "requires 75% and 10; otherwise Limited. This label "
+                            "does not alter the score."
+                        ),
+                    },
                 )
             )
             for component in poetic.components:
@@ -4197,8 +4216,9 @@ def csv_reading_guide() -> bytes:
                 "do familiar English readability formulas report?"
             ),
             "start_with": (
-                "VV-PRE score, interpretation band, four component rows and "
-                "coverage, then Flesch, grade, Fog, ARI, Coleman-Liau, and SMOG."
+                "VV-PRE score, interpretation band, evidence confidence, four "
+                "component rows and coverage, then Flesch, grade, Fog, ARI, "
+                "Coleman-Liau, and SMOG."
             ),
             "important_caution": (
                 "VV-PRE is experimental surface-level accessibility evidence; "

@@ -152,9 +152,9 @@ def test_poetic_reading_ease_uses_positive_weights_and_fixed_anchors() -> None:
     assert midpoint.score == pytest.approx(50.0)
     assert midpoint.interpretation_band == "Demanding"
     assert [component.weight for component in midpoint.components] == [
-        0.35,
         0.30,
-        0.20,
+        0.25,
+        0.30,
         0.15,
     ]
 
@@ -170,6 +170,45 @@ def test_poetic_reading_ease_does_not_reweight_missing_components() -> None:
     assert result.score is None
     assert result.interpretation_band is None
     assert result.missing_component_ids == ("aoa",)
+    assert result.evidence_confidence is None
+
+
+def test_poetic_reading_ease_confidence_uses_coverage_and_sample_size() -> None:
+    common = {
+        "mean_zipf": 5.5,
+        "mean_aoa": 6.0,
+        "mean_words_per_line": 4.0,
+        "mean_syllables_per_word": 1.2,
+        "line_count": 8,
+    }
+    high = calculate_poetic_reading_ease(
+        **common,
+        frequency_counts=(25, 23),
+        aoa_counts=(24, 22),
+        syllable_counts=(25, 24),
+    )
+    moderate = calculate_poetic_reading_ease(
+        **common,
+        frequency_counts=(20, 16),
+        aoa_counts=(18, 14),
+        syllable_counts=(20, 18),
+    )
+    limited = calculate_poetic_reading_ease(
+        **common,
+        frequency_counts=(6, 6),
+        aoa_counts=(6, 6),
+        syllable_counts=(6, 6),
+    )
+
+    assert high.evidence_confidence == "High"
+    assert high.minimum_component_coverage == pytest.approx(22 / 24)
+    assert high.minimum_lexical_matched_count == 22
+    assert moderate.evidence_confidence == "Moderate"
+    assert moderate.minimum_component_coverage == pytest.approx(14 / 18)
+    assert moderate.minimum_lexical_matched_count == 14
+    assert limited.evidence_confidence == "Limited"
+    assert limited.minimum_component_coverage == pytest.approx(1.0)
+    assert limited.minimum_lexical_matched_count == 6
 
 
 def test_readability_export_retains_vv_pre_score_components_and_coverage(
@@ -203,3 +242,8 @@ def test_readability_export_retains_vv_pre_score_components_and_coverage(
     )
     assert float(exported["frequency.ease_score"]["value"]) == pytest.approx(75.0)
     assert float(exported["frequency.coverage"]["value"]) == pytest.approx(5 / 6)
+    assert exported["vv_pre_evidence_confidence"]["value"] == "Limited"
+    assert float(
+        exported["vv_pre_minimum_component_coverage"]["value"]
+    ) == pytest.approx(4 / 6)
+    assert exported["vv_pre_minimum_lexical_matched_count"]["value"] == "4"

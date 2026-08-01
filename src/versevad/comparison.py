@@ -775,6 +775,54 @@ def _method_fixed_rows(comparison: PoemComparison) -> list[PoemComparisonRow]:
                         denominator_b="VV-PRE score",
                         note="Band boundaries are fixed and documented.",
                     ),
+                    _row(
+                        section="Lexical Character, Imagery & Embodiment",
+                        source="VerseVAD Poetic Reading Ease (Experimental)",
+                        analysis_view="complete preserved text",
+                        weighting="fixed evidence-sufficiency rules",
+                        metric_id=(
+                            "readability.poetic_reading_ease.evidence_confidence"
+                        ),
+                        metric="VV-PRE evidence confidence",
+                        value_a=getattr(poetic_a, "evidence_confidence", None),
+                        value_b=getattr(poetic_b, "evidence_confidence", None),
+                        unit_or_scale="High, Moderate, or Limited",
+                        denominator_a=(
+                            "minimum component coverage and lexical match count"
+                        ),
+                        denominator_b=(
+                            "minimum component coverage and lexical match count"
+                        ),
+                        note=(
+                            "Evidence sufficiency qualifies interpretation and "
+                            "does not alter either numerical score."
+                        ),
+                    ),
+                    _row(
+                        section="Lexical Character, Imagery & Embodiment",
+                        source="VerseVAD Poetic Reading Ease (Experimental)",
+                        analysis_view="complete preserved text",
+                        weighting="method fixed",
+                        metric_id=(
+                            "readability.poetic_reading_ease."
+                            "minimum_component_coverage"
+                        ),
+                        metric="VV-PRE minimum component coverage",
+                        value_a=getattr(
+                            poetic_a,
+                            "minimum_component_coverage",
+                            None,
+                        ),
+                        value_b=getattr(
+                            poetic_b,
+                            "minimum_component_coverage",
+                            None,
+                        ),
+                        unit_or_scale="proportion",
+                        denominator_a="four VV-PRE components",
+                        denominator_b="four VV-PRE components",
+                        note="Lowest component coverage used by the confidence rule.",
+                    ),
                 )
             )
             components_b = {

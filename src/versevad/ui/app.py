@@ -61,7 +61,7 @@ _application_was_reloaded = (
         != "1.2.0"
     )
     or getattr(_application_services.ReadabilityModule, "version", "")
-    != "1.1.0"
+    != "1.2.0"
 )
 if _application_was_reloaded:
     # Reload the framework-independent dependency graph in type-definition
@@ -4917,13 +4917,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 poetic_reading_ease is not None
                 and poetic_reading_ease.is_complete
             ):
-                poetic_score, poetic_band = st.columns([1, 1])
+                poetic_score, poetic_band, poetic_confidence = st.columns(3)
                 poetic_score.metric(
                     "VV-PRE",
                     f"{poetic_reading_ease.score:.3f} / 100",
                     help=(
-                        "A fixed positive weighted sum: 35% vocabulary "
-                        "frequency, 30% normative Age of Acquisition, 20% mean "
+                        "A fixed positive weighted sum: 30% vocabulary "
+                        "frequency, 25% normative Age of Acquisition, 30% mean "
                         "words per nonblank line, and 15% mean estimated "
                         "syllables per word."
                     ),
@@ -4931,6 +4931,42 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 poetic_band.metric(
                     "Interpretation",
                     poetic_reading_ease.interpretation_band,
+                )
+                poetic_confidence.metric(
+                    "Evidence Confidence",
+                    getattr(
+                        poetic_reading_ease,
+                        "evidence_confidence",
+                        None,
+                    )
+                    or "Not Assessed",
+                    help=(
+                        "This is an evidence-sufficiency designation, not a "
+                        "statistical confidence interval. High requires at least "
+                        "90% coverage across every component and at least 20 "
+                        "matched Frequency and AoA token occurrences. Moderate "
+                        "requires at least 75% coverage and 10 matched occurrences; "
+                        "otherwise the result is Limited. Confidence never changes "
+                        "the numerical VV-PRE score."
+                    ),
+                )
+                minimum_component_coverage = getattr(
+                    poetic_reading_ease,
+                    "minimum_component_coverage",
+                    None,
+                )
+                minimum_lexical_matched_count = getattr(
+                    poetic_reading_ease,
+                    "minimum_lexical_matched_count",
+                    None,
+                )
+                st.caption(
+                    "Evidence basis: minimum component coverage "
+                    f"{_percentage(minimum_component_coverage)}; smaller "
+                    "Frequency/AoA matched-token count "
+                    f"{minimum_lexical_matched_count if minimum_lexical_matched_count is not None else '—'}. "
+                    "The confidence label qualifies interpretation without "
+                    "penalizing or inflating the score."
                 )
                 render_dataframe(
                     pd.DataFrame(
@@ -4997,7 +5033,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "sentence length, making it more suitable for poetic texts with "
                 "unconventional punctuation or extended syntax. This score reflects "
                 "ease of lexical processing and presentation rather than thematic, "
-                "symbolic, or interpretive complexity."
+                "symbolic, or interpretive complexity. Its separately reported "
+                "evidence confidence reflects coverage and matched-token support, "
+                "not statistical certainty."
             )
             st.markdown("#### Traditional Prose-Oriented Formulas")
             st.write(

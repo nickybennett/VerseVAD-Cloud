@@ -1939,6 +1939,7 @@ def test_interface_reports_complete_experimental_poetic_reading_ease() -> None:
         "Demanding",
         "Highly Demanding",
     }
+    assert metrics["Evidence Confidence"] == "Limited"
     assert any(
         "VerseVAD Poetic Reading Ease (Experimental)" in heading.value
         for heading in app.markdown

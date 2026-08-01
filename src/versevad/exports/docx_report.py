@@ -78,6 +78,7 @@ REPORT_PROFILES: Mapping[str, NarrativeReportProfile] = {
         "length; the traditional scores remain prose-oriented orientation evidence.",
         (
             "VV-PRE does not measure thematic, symbolic, interpretive, or literary complexity.",
+            "Its separate High, Moderate, or Limited evidence-confidence label reflects declared coverage and matched-token thresholds; it does not alter the score or represent statistical certainty.",
             "Poetic lineation, fragments, and deliberate syntactic disruption can make the formulas unstable.",
             "Out-of-dictionary syllables use an explicitly labeled orthographic heuristic unless a session override is supplied.",
         ),

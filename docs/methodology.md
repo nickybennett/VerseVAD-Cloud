@@ -149,7 +149,7 @@ Measures, and readability syllable evidence are all available. Unlike the
 traditional formulas, VV-PRE does not use sentence length. It normalizes four
 components to 0-100 and combines them as a positive weighted sum:
 
-`VV-PRE = 0.35(frequency ease) + 0.30(AoA ease) + 0.20(line accessibility) + 0.15(word complexity)`
+`VV-PRE = 0.30(frequency ease) + 0.25(AoA ease) + 0.30(line accessibility) + 0.15(word complexity)`
 
 Frequency ease maps mean SUBTLEX-US Zipf 2.5 to 0 and 6.5 to 100. AoA ease maps
 mean AoA 12 to 0 and 4 to 100. Line accessibility maps 15 words per nonblank
@@ -164,6 +164,13 @@ Moderately Demanding, 40-54 Demanding, and 0-39 Highly Demanding. VV-PRE
 estimates surface-level linguistic accessibility and presentation. It does not
 measure thematic, symbolic, interpretive, or literary complexity, actual
 comprehension, or a reader's ability.
+
+VV-PRE reports a separate evidence-confidence designation; it does not modify
+the numerical score. **High** requires at least 90% coverage for every
+component and at least 20 matched token occurrences in both Frequency and AoA.
+**Moderate** requires at least 75% component coverage and 10 matched
+occurrences. Otherwise confidence is **Limited**. This is a declared
+evidence-sufficiency rule, not a statistical confidence interval or probability.
 
 ## Line-level lexical trajectory
 

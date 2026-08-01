@@ -316,8 +316,8 @@ default-collapsed attention list for estimated words. Contractions such as
 
 VV-PRE is a 0-100 transparent composite in which higher scores mean greater
 estimated surface-level linguistic accessibility. It does not use sentence
-length. Its positive weighted formula is 35% SUBTLEX Zipf frequency ease, 30%
-normative AoA ease, 20% words-per-nonblank-line accessibility, and 15%
+length. Its positive weighted formula is 30% SUBTLEX Zipf frequency ease, 25%
+normative AoA ease, 30% words-per-nonblank-line accessibility, and 15%
 estimated-syllables-per-word ease.
 
 The anchors are: Zipf 2.5 to 6.5, AoA 12 to 4 years, 15 to 3 words per line,
@@ -330,6 +330,12 @@ Bands are 85-100 Highly Accessible, 70-84 Accessible, 55-69 Moderately
 Demanding, 40-54 Demanding, and 0-39 Highly Demanding. These are declared
 experimental orientations, not findings about interpretation, symbolism,
 literary merit, actual comprehension, or reader ability.
+
+Evidence confidence is reported separately and never changes the score. High
+requires at least 90% coverage across all components and 20 matched Frequency
+and AoA token occurrences. Moderate requires 75% coverage and 10 matches.
+Otherwise the designation is Limited. This is a transparent evidence-
+sufficiency label, not a statistical confidence interval or probability.
 
 ## Dictionary Pronunciation, Syllables, and Lexical Stress
 

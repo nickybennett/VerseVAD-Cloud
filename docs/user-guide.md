@@ -340,8 +340,8 @@ session override in **Sound & Form > Words Needing Attention** when needed.
 The same subsection reports **VerseVAD Poetic Reading Ease
 (Experimental)** (**VV-PRE**) when all four required source measures are
 available. Higher scores indicate greater estimated surface-level linguistic
-accessibility. The transparent positive-weight formula is 35% mean SUBTLEX
-Zipf frequency ease, 30% normative AoA ease, 20% mean words-per-nonblank-line
+accessibility. The transparent positive-weight formula is 30% mean SUBTLEX
+Zipf frequency ease, 25% normative AoA ease, 30% mean words-per-nonblank-line
 accessibility, and 15% mean estimated-syllables-per-word ease. Each component
 is clamped to 0-100 before weighting. The interface and exports retain the raw
 inputs, component scores, anchors, weights, match counts, and coverage.
@@ -351,6 +351,13 @@ matched value is missing. Its bands are 85-100 Highly Accessible, 70-84
 Accessible, 55-69 Moderately Demanding, 40-54 Demanding, and 0-39 Highly
 Demanding. The score concerns lexical processing and presentation; it does not
 measure thematic, symbolic, interpretive, or literary complexity.
+
+The adjacent **Evidence Confidence** label qualifies the available support
+without changing the score. High requires at least 90% coverage for every
+component and at least 20 matched Frequency and AoA token occurrences;
+Moderate requires 75% coverage and 10 matches; otherwise the label is Limited.
+The report shows the minimum component coverage and smaller Frequency/AoA
+match count used by this rule. It is not a statistical confidence interval.
 
 In every interactive results table, the header row stays visible while
 scrolling vertically and the leftmost data column stays pinned while scrolling

@@ -65,7 +65,7 @@ def export_readability_summary_csv(result: ReadabilityAnalysisResult) -> bytes:
                     "unit_or_scale": "0-100; higher means more accessible",
                     "denominator": "all four declared weighted components",
                     "note": (
-                        "35% frequency + 30% AoA + 20% line accessibility + "
+                        "30% frequency + 25% AoA + 30% line accessibility + "
                         "15% word complexity; unavailable components are not reweighted."
                     ),
                 },
@@ -79,6 +79,55 @@ def export_readability_summary_csv(result: ReadabilityAnalysisResult) -> bytes:
                         "Surface-level linguistic accessibility, not thematic, "
                         "symbolic, interpretive, or literary complexity."
                     ),
+                },
+                {
+                    "section": "versevad_poetic_reading_ease_experimental",
+                    "metric": "vv_pre_evidence_confidence",
+                    "value": getattr(poetic, "evidence_confidence", None) or "",
+                    "unit_or_scale": "declared evidence-sufficiency band",
+                    "denominator": (
+                        "minimum component coverage and minimum Frequency/AoA "
+                        "matched-token count"
+                    ),
+                    "note": (
+                        "High: at least 90% coverage and 20 matches; Moderate: "
+                        "at least 75% and 10; otherwise Limited. This does not "
+                        "alter the numerical score."
+                    ),
+                },
+                {
+                    "section": "versevad_poetic_reading_ease_experimental",
+                    "metric": "vv_pre_minimum_component_coverage",
+                    "value": (
+                        getattr(poetic, "minimum_component_coverage", None)
+                        if getattr(
+                            poetic,
+                            "minimum_component_coverage",
+                            None,
+                        )
+                        is not None
+                        else ""
+                    ),
+                    "unit_or_scale": "proportion",
+                    "denominator": "lowest coverage among four components",
+                    "note": "Used only to qualify evidence confidence.",
+                },
+                {
+                    "section": "versevad_poetic_reading_ease_experimental",
+                    "metric": "vv_pre_minimum_lexical_matched_count",
+                    "value": (
+                        getattr(poetic, "minimum_lexical_matched_count", None)
+                        if getattr(
+                            poetic,
+                            "minimum_lexical_matched_count",
+                            None,
+                        )
+                        is not None
+                        else ""
+                    ),
+                    "unit_or_scale": "matched token occurrences",
+                    "denominator": "smaller Frequency/AoA matched-token count",
+                    "note": "Used only to qualify evidence confidence.",
                 },
                 {
                     "section": "versevad_poetic_reading_ease_experimental",
