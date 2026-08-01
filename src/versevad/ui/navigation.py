@@ -122,6 +122,13 @@ ROUTES: tuple[WorkspaceRoute, ...] = (
         "learn-methodology",
         ":material/science:",
     ),
+    WorkspaceRoute(
+        "Learn",
+        "Training",
+        "Training",
+        "learn-training",
+        ":material/school:",
+    ),
 )
 
 ROUTE_BY_PATH: Mapping[str, WorkspaceRoute] = {

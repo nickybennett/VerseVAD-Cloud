@@ -10,8 +10,8 @@ Project / Corpus), the working **Analysis Library**, and read-only **Reference
 Corpora**. Personal Corpus and private reference-corpus maintenance remain
 local-only and do not appear in the hosted edition. Explore contains the
 standalone **VerseMap**, **Lexicon Explorer**, **Form Library**, and **Corpus
-Browser**; Learn contains the packaged **Documentation** and **Methodology**
-readers. Single-text and
+Browser**; Learn contains the packaged **Documentation**, **Methodology**, and
+**Training** readers. Single-text and
 comparison-set analyses remain temporary until saved in the session-only
 Analysis Library or downloaded.
 Corpus projects, preserved text versions, metadata, completed results, and
@@ -78,6 +78,21 @@ inherited-form definitions, rules, weights, sources, and limitations without
 running a poem analysis. **Learn → Documentation** and **Methodology** read the
 packaged guides inside VerseVAD; the complete Word manual remains
 downloadable.
+
+## Use the free Training pathway
+
+Open **Learn → Training** to review the four free VerseVAD learning levels:
+**VerseVAD Foundations**, **Computational Close Reading with VerseVAD — Analyst
+Level 1**, **Advanced Corpus and Research Analysis — Analyst Level 2**, and
+**VerseVAD Authorized Instructor Training**. Each course card provides the
+public learner manual and applied analysis exercise as Word downloads.
+
+The Training workspace also links prominently to
+[versevad.org/training](https://www.versevad.org/training) for current pathway
+information. Evaluator answer keys, rubrics, completion decisions,
+certificates, and authorization materials are not packaged with VerseVAD and
+are not exposed by these downloads. Downloading a course packet does not by
+itself confer a credential or instructor authorization.
 
 ## Analysis Library and research notes
 

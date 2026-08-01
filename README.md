@@ -57,10 +57,18 @@ read-only Whole Corpus/individual poem scope selector with concise map,
 Standard Profile, distribution, and poem-profile reports. Complete profile
 matrices remain downloadable. **Form Library** exposes
 the inherited-form registry as an educational reference, and
-**Documentation** plus **Methodology** make packaged guidance, calculations,
-provenance, and limitations searchable in the application. Private
+**Documentation**, **Methodology**, and **Training** make packaged guidance,
+calculations, provenance, limitations, and the free four-course learning
+pathway searchable in the application. Private
 reference-corpus creation remains available only in the downloadable local
 edition because hosted storage is temporary.
+
+The **Learn → Training** workspace describes VerseVAD Foundations, Analyst
+Levels 1 and 2, and Authorized Instructor Training. It provides public
+downloads of each learner manual and applied analysis exercise, plus a direct
+link to [versevad.org/training](https://www.versevad.org/training). Evaluator
+answer keys, scoring rubrics, completion decisions, certificates, and
+authorization materials are intentionally not distributed in this repository.
 
 The one-text report uses a persistent dropdown, all large report panels start
 collapsed while remaining independently expandable, and the native sidebar

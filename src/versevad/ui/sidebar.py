@@ -70,7 +70,7 @@ def _context_heading(workspace: str) -> tuple[str, str]:
         return ("Current Collection Tool", "Read-only Corpus Browser")
     if workspace == "Form Library":
         return ("Current Reference", "Inherited Form Library")
-    if workspace in {"Documentation", "Methodology"}:
+    if workspace in {"Documentation", "Methodology", "Training"}:
         return ("Current Learning Workspace", workspace)
     return ("Current Workspace", workspace)
 
@@ -100,6 +100,10 @@ _WORKSPACE_DESCRIPTIONS = {
         "Search calculations, data provenance, evidence rules, and known "
         "limitations for VerseVAD metrics."
     ),
+    "Training": (
+        "Download four free learner manuals and applied exercises, and visit "
+        "the VerseVAD training website for current program information."
+    ),
 }
 
 _RELATED_WORKSPACES = {
@@ -114,8 +118,9 @@ _RELATED_WORKSPACES = {
     "VerseMap": ("Reference Corpora", "Corpus Browser", "Analysis Library"),
     "Form Library": ("Single Poem", "Methodology", "Documentation"),
     "Corpus Browser": ("Reference Corpora", "VerseMap", "Form Library"),
-    "Documentation": ("Methodology", "Single Poem", "Reference Corpora"),
-    "Methodology": ("Documentation", "Lexicon Explorer", "Form Library"),
+    "Documentation": ("Methodology", "Training", "Single Poem"),
+    "Methodology": ("Documentation", "Training", "Lexicon Explorer"),
+    "Training": ("Documentation", "Methodology", "Single Poem"),
 }
 
 

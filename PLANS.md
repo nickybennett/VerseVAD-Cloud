@@ -1,5 +1,17 @@
 # VerseVAD Implementation Plan
 
+## Completed public training workspace
+
+- [x] Add **Learn → Training** to the shared local/hosted navigation and sidebar.
+- [x] Describe the four free VerseVAD courses and link prominently to
+  `versevad.org/training`.
+- [x] Package only the four learner manuals and four applied analysis exercises
+  for public download.
+- [x] Keep evaluator answer keys, scoring rubrics, certificates, and private
+  instructional source files outside the repository and application routes.
+- [x] Record the owner decision to defer automated and rendered-document
+  validation for this packaging pass.
+
 ## Completed focused Compare Poems dashboard refinement
 
 - [x] Limit visible PoetryID comparison evidence to the active shared scope,

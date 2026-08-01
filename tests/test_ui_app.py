@@ -104,6 +104,7 @@ def test_final_library_and_learning_workspaces_are_live_and_have_sidebars(
         "Corpus Browser",
         "Documentation",
         "Methodology",
+        "Training",
     ):
         _open_workspace(app, workspace)
         assert not app.exception, f"{workspace}: {app.exception}"

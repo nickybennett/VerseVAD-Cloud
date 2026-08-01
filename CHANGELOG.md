@@ -6,6 +6,10 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Added **Learn → Training** with descriptions of the four free VerseVAD
+  courses, public Word downloads for learner manuals and applied analysis
+  exercises, and a prominent link to `versevad.org/training`; evaluator keys
+  and rubrics remain private and are not packaged.
 - Reworked Compare Poems around actual metric selection, side-by-side poem
   values, max-minus-min range, and separate metric-family tables; within-poem
   dispersion remains visible without an easily confused cross-poem SD column.

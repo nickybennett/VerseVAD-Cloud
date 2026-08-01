@@ -959,6 +959,10 @@ if workspace_page == "Methodology":
     from versevad.ui.stage3 import render_methodology_workspace
 
     render_methodology_workspace()
+if workspace_page == "Training":
+    from versevad.ui.training import render_training_workspace
+
+    render_training_workspace()
 
 
 if workspace_page in {"Single Poem", "Other Text"}:

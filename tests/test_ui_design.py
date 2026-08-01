@@ -384,6 +384,9 @@ def test_top_level_navigation_groups_stable_workspace_routes() -> None:
         "Other Text",
         "Lexicon Explorer",
     }
+    assert {
+        route.title for route in ROUTES if route.section == "Learn"
+    } == {"Documentation", "Methodology", "Training"}
     personal = next(route for route in ROUTES if route.title == "Personal Corpus")
     assert personal.section == "Collections"
     assert personal.local_only
