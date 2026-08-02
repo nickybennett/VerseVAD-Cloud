@@ -157,6 +157,35 @@ def test_word_counts_exclude_punctuation_and_numeric_tokens_without_zero_fill(
     assert math.isfinite(result.summary.mattr)
 
 
+def test_line_edge_unicode_whitespace_does_not_change_structural_metrics(
+    preprocessor,
+) -> None:
+    configuration = LexicalStyleConfiguration(
+        mattr_window_size=3,
+        hdd_sample_size=3,
+        short_text_warning_threshold=3,
+    )
+    clean = _analyze(
+        preprocessor,
+        "red blue red\ngreen blue\n\nyellow red",
+        configuration,
+    )
+    indented = _analyze(
+        preprocessor,
+        (
+            "\t\u00a0red blue red \u2003\n"
+            " \u2003green blue\t\n"
+            "\u00a0\t\u2009\n"
+            "\u2003yellow red\u00a0"
+        ),
+        configuration,
+    )
+
+    assert indented.summary == clean.summary
+    assert [item.word_count for item in indented.line_summaries] == [3, 2, 0, 2]
+    assert [item.word_count for item in indented.stanza_summaries] == [5, 2]
+
+
 def test_module_requires_the_shared_poem_document(preprocessor) -> None:
     poem = preprocessor.process_document(
         create_text_document("missing-poem", "Missing poem", "red blue")

@@ -90,6 +90,10 @@ section/stanza/physical-line structure, separate model sentences, shared
 tokens, morphology and dependency annotations, optional entities,
 orthographic spans, configuration, coverage, and warnings. A one-poem request
 is processed once and the same tokens are reused across all selected lexicons.
+Line-edge Unicode whitespace is removed only from the analysis view and each
+annotation is mapped back to its exact preserved source offset. Indentation
+therefore remains visible and auditable without changing metrics or structural
+counts.
 The common document is available to Stage 0 module inputs and is exported
 locally as explicit `processing_*.csv` tables. Stage 1 does not change database schema 3 or
 existing affective calculations. See

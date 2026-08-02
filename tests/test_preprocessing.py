@@ -61,3 +61,48 @@ def test_same_surface_form_retains_different_pos_and_lemma_analyses(preprocessor
         "NOUN",
         "saw",
     )
+
+
+def test_line_edge_unicode_whitespace_is_analytically_inert(preprocessor) -> None:
+    clean = "Stone turns.\n\nNight falls.\n"
+    indented = (
+        "\t\u00a0\u2003Stone turns. \t\u00a0\u2009\n"
+        " \t\u00a0\u2003 \n"
+        "\u00a0\tNight falls.\u2003\u00a0\n"
+    )
+
+    clean_poem = preprocessor.process_document(
+        create_text_document("clean-spacing", "Clean spacing", clean)
+    )
+    indented_poem = preprocessor.process_document(
+        create_text_document("mixed-spacing", "Mixed spacing", indented)
+    )
+
+    def token_signature(poem):
+        return [
+            (
+                token.surface_form,
+                token.normalized_form,
+                token.normalized_lemma,
+                token.part_of_speech,
+                token.is_punctuation,
+                token.is_stopword,
+                token.line_number,
+                token.stanza_number,
+            )
+            for token in poem.tokens
+        ]
+
+    assert token_signature(indented_poem) == token_signature(clean_poem)
+    assert [line.is_blank for line in indented_poem.lines] == [False, True, False]
+    assert [token.stanza_number for token in indented_poem.tokens if token.is_lexical] == [
+        1,
+        1,
+        2,
+        2,
+    ]
+    assert indented_poem.lines[0].indentation == "\t\u00a0\u2003"
+    assert indented_poem.lines[1].indentation == " \t\u00a0\u2003 "
+    assert indented_poem.lines[2].indentation == "\u00a0\t"
+    assert indented_poem.source.original_text == indented
+    assert indented_poem.source.text_sha256 != clean_poem.source.text_sha256

@@ -78,12 +78,83 @@ class _LineLocation:
     is_blank: bool
 
 
+@dataclass(frozen=True)
+class _AnalysisText:
+    text: str
+    original_character_offsets: tuple[int, ...]
+
+    def original_span(self, start: int, end: int) -> tuple[int, int]:
+        """Map a nonempty analysis-text span back to preserved source offsets."""
+
+        if start < 0 or end < start or end > len(self.original_character_offsets):
+            raise ValueError("Analysis-text span is outside the preserved source.")
+        if start == end:
+            if start < len(self.original_character_offsets):
+                boundary = self.original_character_offsets[start]
+            elif self.original_character_offsets:
+                boundary = self.original_character_offsets[-1] + 1
+            else:
+                boundary = 0
+            return boundary, boundary
+        return (
+            self.original_character_offsets[start],
+            self.original_character_offsets[end - 1] + 1,
+        )
+
+
 def _line_ending(raw_line: str) -> str:
     if raw_line.endswith("\r\n"):
         return "\r\n"
     if raw_line.endswith(("\r", "\n")):
         return raw_line[-1]
     return ""
+
+
+def _analysis_text_without_line_edge_whitespace(text: str) -> _AnalysisText:
+    """Build the metric-evaluation view plus its source-offset mapping."""
+
+    raw_lines = text.splitlines(keepends=True)
+    if not raw_lines:
+        raw_lines = [""]
+    consumed = sum(len(line) for line in raw_lines)
+    if consumed < len(text):
+        raw_lines.append(text[consumed:])
+
+    analysis_characters: list[str] = []
+    original_offsets: list[int] = []
+    source_offset = 0
+    for raw_line in raw_lines:
+        ending = _line_ending(raw_line)
+        context = raw_line[: -len(ending)] if ending else raw_line
+        leading_count = len(context) - len(context.lstrip())
+        trailing_boundary = len(context.rstrip())
+        if trailing_boundary < leading_count:
+            trailing_boundary = leading_count
+
+        for index in range(leading_count, trailing_boundary):
+            analysis_characters.append(context[index])
+            original_offsets.append(source_offset + index)
+        for index, character in enumerate(ending, start=len(context)):
+            analysis_characters.append(character)
+            original_offsets.append(source_offset + index)
+        source_offset += len(raw_line)
+
+    return _AnalysisText(
+        text="".join(analysis_characters),
+        original_character_offsets=tuple(original_offsets),
+    )
+
+
+def strip_line_edge_whitespace(text: str) -> str:
+    """Remove Unicode whitespace at physical-line edges for metric evaluation.
+
+    VerseVAD preserves the supplied source text, offsets, line endings, and
+    indentation in its audit record.  This helper provides the corresponding
+    analysis-only view for the small number of modules that score raw strings
+    directly.  Internal whitespace and every line break remain unchanged.
+    """
+
+    return _analysis_text_without_line_edge_whitespace(text).text
 
 
 class _LineIndex:
@@ -109,7 +180,10 @@ class _LineIndex:
             else:
                 inside_stanza = False
             line_stanza = stanza if context.strip() else 0
-            indentation_match = re.match(r"[ \t]*", context)
+            # Capture all Unicode horizontal whitespace used as indentation,
+            # including tabs and non-breaking/em/thin spaces.  The source is
+            # retained verbatim; this field is audit metadata only.
+            indentation_match = re.match(r"[^\S\r\n]*", context)
             starts.append(offset)
             locations.append(
                 _LineLocation(
@@ -306,6 +380,7 @@ class SpacyEnglishPreprocessor:
         document: TextDocument,
         spacy_document: object,
         record_by_spacy_index: dict[int, TokenRecord],
+        analysis_text: _AnalysisText,
     ) -> tuple[SentenceUnit, ...]:
         units = []
         try:
@@ -313,6 +388,10 @@ class SpacyEnglishPreprocessor:
         except ValueError:
             sentences = ()
         for sentence_number, sentence in enumerate(sentences, start=1):
+            character_start, character_end = analysis_text.original_span(
+                sentence.start_char,
+                sentence.end_char,
+            )
             records = tuple(
                 record_by_spacy_index[token.i]
                 for token in sentence
@@ -330,11 +409,9 @@ class SpacyEnglishPreprocessor:
                     text_id=document.text_id,
                     text_version_id=document.text_version_id,
                     ordinal=sentence_number,
-                    character_start=sentence.start_char,
-                    character_end=sentence.end_char,
-                    raw_text=document.original_text[
-                        sentence.start_char : sentence.end_char
-                    ],
+                    character_start=character_start,
+                    character_end=character_end,
+                    raw_text=document.original_text[character_start:character_end],
                     token_ids=tuple(record.token_id for record in records),
                     line_numbers=line_numbers,
                     stanza_numbers=stanza_numbers,
@@ -388,6 +465,7 @@ class SpacyEnglishPreprocessor:
         document: TextDocument,
         spacy_document: object,
         record_by_spacy_index: dict[int, TokenRecord],
+        analysis_text: _AnalysisText,
         *,
         enabled: bool,
     ) -> tuple[EntityRecord, ...]:
@@ -395,6 +473,10 @@ class SpacyEnglishPreprocessor:
             return ()
         records = []
         for entity_number, entity in enumerate(spacy_document.ents, start=1):
+            character_start, character_end = analysis_text.original_span(
+                entity.start_char,
+                entity.end_char,
+            )
             tokens = tuple(
                 record_by_spacy_index[token.i]
                 for token in entity
@@ -404,11 +486,9 @@ class SpacyEnglishPreprocessor:
                 EntityRecord(
                     entity_id=f"{document.text_version_id}:entity:{entity_number}",
                     label=entity.label_,
-                    character_start=entity.start_char,
-                    character_end=entity.end_char,
-                    raw_text=document.original_text[
-                        entity.start_char : entity.end_char
-                    ],
+                    character_start=character_start,
+                    character_end=character_end,
+                    raw_text=document.original_text[character_start:character_end],
                     token_ids=tuple(token.token_id for token in tokens),
                     line_numbers=tuple(
                         dict.fromkeys(token.line_number for token in tokens)
@@ -705,7 +785,10 @@ class SpacyEnglishPreprocessor:
         return tuple(warnings)
 
     def process_document(self, document: TextDocument) -> PoemDocument:
-        spacy_document = self._nlp(document.original_text)
+        analysis_text = _analysis_text_without_line_edge_whitespace(
+            document.original_text
+        )
+        spacy_document = self._nlp(analysis_text.text)
         if self._configuration.merge_possessives:
             self._merge_possessives(spacy_document)
         line_index = _LineIndex(document.original_text)
@@ -722,7 +805,11 @@ class SpacyEnglishPreprocessor:
         for token in spacy_document:
             if token.is_space:
                 continue
-            location = line_index.locate(token.idx)
+            character_start, character_end = analysis_text.original_span(
+                token.idx,
+                token.idx + len(token.text),
+            )
+            location = line_index.locate(character_start)
             token_position = len(records) + 1
             sentence_number, position_in_sentence = sentence_positions.get(
                 token.i, (None, None)
@@ -749,8 +836,8 @@ class SpacyEnglishPreprocessor:
                     token_position=token_position,
                     sentence_number=sentence_number,
                     token_position_in_sentence=position_in_sentence,
-                    character_start=token.idx,
-                    character_end=token.idx + len(token.text),
+                    character_start=character_start,
+                    character_end=character_end,
                     surface_form=surface,
                     lowercase_form=surface.lower(),
                     punctuation_stripped_form=stripped,
@@ -776,7 +863,10 @@ class SpacyEnglishPreprocessor:
         }
         structural_units = self._structural_units(document, line_index)
         sentences = self._sentence_units(
-            document, spacy_document, record_by_spacy_index
+            document,
+            spacy_document,
+            record_by_spacy_index,
+            analysis_text,
         )
         dependencies = self._dependency_records(
             spacy_document, record_by_spacy_index
@@ -785,6 +875,7 @@ class SpacyEnglishPreprocessor:
             document,
             spacy_document,
             record_by_spacy_index,
+            analysis_text,
             enabled=self._configuration.enable_ner,
         )
         orthographic_spans = self._orthographic_spans(document, token_records)

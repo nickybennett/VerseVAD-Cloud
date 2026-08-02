@@ -69,6 +69,15 @@ sentence boundaries, dependencies, and optional named entities remain
 model-generated proposals that can be uncertain for poetic, historical,
 dialectal, fragmented, or ambiguous language.
 
+Leading and trailing whitespace on every physical line is analytically inert.
+This includes ordinary spaces, tabs, non-breaking spaces, and other Unicode
+whitespace, including mixed indentation. VerseVAD removes those characters
+only from the analysis view supplied to statistical and raw-string scoring
+methods, then maps tokens and spans back to the preserved source offsets.
+Whitespace-only physical lines remain blank stanza separators. The exact
+original spacing, indentation, line endings, text checksum, and source display
+remain unchanged for audit and Corpus Browser views.
+
 The configuration explicitly groups POS tags as content, function, other, or
 non-lexical and records hyphenated expressions, contractions, and apostrophe
 forms as exact spans over their retained token components. Named-entity

@@ -23,6 +23,7 @@ from versevad.core.modules import (
     WarningSeverity,
 )
 from versevad.phonology import PhonologicalAnalysisResult
+from versevad.preprocessing import strip_line_edge_whitespace
 from versevad.prosody import (
     MeterAnalysisResult,
     MeterLineStatus,
@@ -1380,7 +1381,9 @@ def _observations(
         }
     return _Observations(
         line_numbers=line_numbers,
-        line_texts=tuple(line.content_text for line in lines),
+        line_texts=tuple(
+            strip_line_edge_whitespace(line.content_text) for line in lines
+        ),
         line_words=line_words,
         line_word_proper_flags=line_word_proper_flags,
         line_token_ids=line_token_ids,

@@ -68,6 +68,35 @@ def test_vader_reports_proportions_compound_sentences_and_cautions(
     assert summary["compound_score"]["value"]
 
 
+def test_vader_and_readability_ignore_line_edge_unicode_whitespace(
+    preprocessor,
+) -> None:
+    clean_text = "I love this bright day.\nI hate the cruel night."
+    indented_text = (
+        "\t\u00a0I love this bright day. \u2003\n"
+        "\u2003I hate the cruel night.\u00a0\t"
+    )
+
+    clean_vader = VaderSentimentModule().analyze_detailed(
+        _input(preprocessor, clean_text)
+    )
+    indented_vader = VaderSentimentModule().analyze_detailed(
+        _input(preprocessor, indented_text)
+    )
+    clean_readability = ReadabilityModule().analyze_detailed(
+        _input(preprocessor, clean_text)
+    )
+    indented_readability = ReadabilityModule().analyze_detailed(
+        _input(preprocessor, indented_text)
+    )
+
+    assert indented_vader.document_score == clean_vader.document_score
+    assert [item.score for item in indented_vader.sentence_scores] == [
+        item.score for item in clean_vader.sentence_scores
+    ]
+    assert indented_readability.summary == clean_readability.summary
+
+
 def test_readability_uses_transparent_formulas_and_keeps_contractions_whole(
     preprocessor,
 ) -> None:

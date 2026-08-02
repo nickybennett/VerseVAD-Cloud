@@ -21,6 +21,7 @@ from versevad.core.modules import (
     ResultLayer,
     WarningSeverity,
 )
+from versevad.preprocessing import strip_line_edge_whitespace
 
 
 VADER_PACKAGE_VERSION = importlib.metadata.version("vaderSentiment")
@@ -209,14 +210,20 @@ class VaderSentimentModule:
             raise ValueError(
                 "VADER sentiment analysis requires the shared processing record."
             )
-        document_score = _score(module_input.document.original_text, configuration)
+        document_score = _score(
+            strip_line_edge_whitespace(module_input.document.original_text),
+            configuration,
+        )
         sentence_scores = tuple(
             VaderSegmentScore(
                 segment_id=sentence.sentence_id,
                 ordinal=sentence.ordinal,
                 source_text=sentence.raw_text,
                 line_numbers=sentence.line_numbers,
-                score=_score(sentence.raw_text, configuration),
+                score=_score(
+                    strip_line_edge_whitespace(sentence.raw_text),
+                    configuration,
+                ),
             )
             for sentence in poem.sentences
             if sentence.raw_text.strip()

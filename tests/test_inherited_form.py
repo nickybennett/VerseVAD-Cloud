@@ -114,6 +114,36 @@ def test_villanelle_refrain_and_stanza_architecture_rank_first(
     assert "Agreement:" in result.best_candidate.tooltip
 
 
+def test_line_edge_unicode_whitespace_does_not_change_form_ranking(
+    preprocessor,
+) -> None:
+    clean_text = _villanelle_text()
+    indented_text = "\n".join(
+        (
+            line
+            if not line
+            else f"\t\u00a0\u2003{line}\u2009\u00a0"
+        )
+        for line in clean_text.split("\n")
+    )
+
+    clean = _structural_result(preprocessor, clean_text, "villanelle-clean")
+    indented = _structural_result(
+        preprocessor,
+        indented_text,
+        "villanelle-indented",
+    )
+
+    assert indented.best_candidate is not None
+    assert clean.best_candidate is not None
+    assert indented.best_candidate.profile_id == clean.best_candidate.profile_id
+    assert indented.best_candidate.consistency == clean.best_candidate.consistency
+    assert (
+        indented.best_candidate.required_evidence_coverage
+        == clean.best_candidate.required_evidence_coverage
+    )
+
+
 def test_sestina_rotation_and_envoi_rank_first(preprocessor) -> None:
     result = _structural_result(
         preprocessor,
