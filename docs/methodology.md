@@ -907,9 +907,13 @@ work count, token count, configuration, and aggregation method remain visible.
 Meter and rhyme remain work-level candidates/evidence; Stage 11 does not
 declare a collection's definitive meter or rhyme scheme.
 
-Lexicon Explorer performs read-only local lookup in affective lexicons,
-concreteness, SUBTLEX-US, Kuperman AoA, and CMUdict. Source entries and fields
-remain separate. Exact, lemma-derived, and user-mapped evidence is labeled;
+Lexicon Explorer performs read-only local lookup in the packaged Open English
+WordNet 2025+ dictionary, affective lexicons, concreteness, SUBTLEX-US,
+Kuperman AoA, and CMUdict. Dictionary senses are grouped by source part of
+speech and retain definitions, examples, identifiers, synonyms, antonyms, and
+available broader/narrower relations. VerseVAD does not rank those senses by
+context or claim to perform word-sense disambiguation. Source entries and
+fields remain separate. Exact, lemma-derived, and user-mapped evidence is labeled;
 CMUdict alternatives remain separate. Resource-unavailable,
 available-but-unmatched, and source-entry-without-numeric-rating states remain
 distinct. Explorer evidence is decontextualized and does not resolve poetic

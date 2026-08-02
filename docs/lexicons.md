@@ -224,6 +224,29 @@ ratings or the suitability of a particular match in context.
 To repeat the read-only check, run `python scripts/inspect_lexicons.py` once the
 project runtime is installed.
 
+## Packaged Open English WordNet dictionary
+
+Lexicon Explorer also provides lexical definitions and relations from Open
+English WordNet 2025+. This is a dictionary service, not an affective or
+normative-rating lexicon: its senses never affect poem scores, coverage, or
+matching in the analytical modules.
+
+The repository packages a pre-indexed, XZ-compressed database built from the
+official 2025+ release and read through pinned `wn` 1.1.0. VerseVAD validates
+the packaged archive, expands it into the ignored local runtime directory on
+first use, and then performs lookups entirely offline. Lexicon Explorer shows
+definitions, examples, synonyms, antonyms, and broader or narrower concepts
+where the source provides them. It orders senses using the query and the
+processing lemma and part of speech, but it does not claim to identify the
+contextually correct sense.
+
+Open English WordNet is licensed under CC BY 4.0 and incorporates material
+covered by the Princeton WordNet license. The repository retains both license
+texts, the official citation record, source and package checksums, and the
+storage-transformation notice under `resources/open_english_wordnet/`. See
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) for consolidated
+attribution.
+
 ## Optional local concreteness resource
 
 The Poetic Fingerprint Stage 2 concreteness workbook is a separate optional

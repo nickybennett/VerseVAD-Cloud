@@ -4,6 +4,8 @@
 !/resources/README.md
 !/resources/training/
 !/resources/training/**
+!/resources/open_english_wordnet/
+!/resources/open_english_wordnet/**
 !/resources/Lancaster_Sensorimotor_Norms/
 !/resources/Lancaster_Sensorimotor_Norms/**
 !/resources/VerseMap_Reference_Corpus/

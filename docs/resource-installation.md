@@ -1,10 +1,17 @@
 # Installing VerseVAD Research Resources
 
-VerseVAD is open-source software, but its research datasets are separate
+VerseVAD is open-source software, but most research datasets are separate
 works with separate licenses or terms. They are intentionally absent from the
-public source repository. Download each resource from its official source,
-review and follow its terms, and install it locally. VerseVAD never downloads,
-uploads, edits, or redistributes these files.
+public source repository. Download each optional resource from its official
+source, review and follow its terms, and install it locally. VerseVAD never downloads
+or redistributes those restricted research files, and it does not upload or edit
+them.
+
+Open English WordNet 2025+ is the explicit exception: it is packaged for
+offline Lexicon Explorer definitions under CC BY 4.0 with Princeton WordNet
+attribution. Users do not download it separately. Its complete licenses,
+citation, hashes, source URL, and transformation notice are retained under
+`resources/open_english_wordnet/` and in `THIRD_PARTY_NOTICES.md`.
 
 The app remains usable when only some resources are installed. Affective
 sources that fail validation are removed from the available-source selector.
@@ -131,6 +138,11 @@ The tracked `.gitignore` excludes:
 - project databases;
 - exports and backups; and
 - private runtime state.
+
+The `.gitignore` explicitly permits documented redistributable resource
+folders, including `resources/open_english_wordnet/`, the public training
+materials, and the public-domain VerseMap reference corpus. The private cloud
+repository separately tracks resources whose licenses permit that deployment.
 
 Before publishing a fork, run `git status` and confirm that no research data,
 literary text, database, export, or backup has entered source control. The

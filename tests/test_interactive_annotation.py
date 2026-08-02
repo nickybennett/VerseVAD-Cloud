@@ -218,5 +218,8 @@ def test_client_component_uses_streamlit_theme_tokens_and_responsive_layout() ->
     assert "--vv-theme-background" in css
     assert ".vv-panel-empty[hidden], .vv-panel-content[hidden]" in css
     assert "display: none !important" in css
+    assert ".vv-panel { position: sticky" in css
+    assert "max-height: calc(100vh - 6.25rem)" in css
+    assert ".vv-panel { position: static; max-height: none" in css
     assert "@media (max-width: 860px)" in css
     assert "@media (prefers-reduced-motion: reduce)" in css

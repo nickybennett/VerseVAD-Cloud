@@ -28,6 +28,104 @@ def _score(value: float | None) -> str:
     return "—" if value is None else f"{value:.3f}"
 
 
+def _render_dictionary(result: LexiconExplorerResult) -> None:
+    dictionary = result.dictionary
+    if dictionary is None:
+        return
+    st.subheader("Dictionary Senses")
+    st.caption(
+        "Open English WordNet reports available lexical senses; VerseVAD does "
+        "not infer which sense is intended in a poem, phrase, or historical context."
+    )
+    if not dictionary.available:
+        st.warning(dictionary.status_message)
+        return
+    if not dictionary.senses:
+        st.info(dictionary.status_message)
+        return
+
+    by_pos = {}
+    for sense in dictionary.senses:
+        by_pos.setdefault(sense.part_of_speech_label, []).append(sense)
+    limited = any(len(senses) > 8 for senses in by_pos.values())
+    show_all = False
+    if limited:
+        show_all = st.checkbox(
+            "Show every available dictionary sense",
+            value=False,
+            key="lexicon_explorer_show_all_dictionary_senses",
+            help=(
+                "Common polysemous words can have dozens of entries. The printable "
+                "Word report retains every available sense regardless of this display setting."
+            ),
+        )
+
+    preferred = {
+        "NOUN": "Noun",
+        "PROPN": "Noun",
+        "VERB": "Verb",
+        "AUX": "Verb",
+        "ADJ": "Adjective",
+        "ADV": "Adverb",
+    }.get(result.processing_pos.upper(), "")
+    for label, senses in by_pos.items():
+        visible = senses if show_all else senses[:8]
+        with st.expander(
+            f"{label} senses ({len(senses)})",
+            expanded=(label == preferred),
+        ):
+            if len(visible) < len(senses):
+                st.caption(
+                    f"Showing the first {len(visible)} of {len(senses)} source-ordered "
+                    "senses. Select the option above to display all."
+                )
+            for position, sense in enumerate(visible, start=1):
+                st.markdown(f"**{label} {position}.**")
+                st.write(sense.definition)
+                if sense.examples:
+                    st.caption("Examples: " + " | ".join(sense.examples))
+                if sense.synonyms:
+                    st.write("**Synonyms:** " + ", ".join(sense.synonyms))
+                if sense.antonyms:
+                    st.write("**Antonyms:** " + ", ".join(sense.antonyms))
+                if sense.broader_terms:
+                    suffix = (
+                        f" (showing {len(sense.broader_terms)} of "
+                        f"{sense.broader_term_count})"
+                        if sense.broader_term_count > len(sense.broader_terms)
+                        else ""
+                    )
+                    st.write(
+                        "**Broader concepts:** "
+                        + ", ".join(sense.broader_terms)
+                        + suffix
+                    )
+                if sense.narrower_terms:
+                    suffix = (
+                        f" (showing {len(sense.narrower_terms)} of "
+                        f"{sense.narrower_term_count})"
+                        if sense.narrower_term_count > len(sense.narrower_terms)
+                        else ""
+                    )
+                    st.write(
+                        "**Narrower concepts:** "
+                        + ", ".join(sense.narrower_terms)
+                        + suffix
+                    )
+                st.caption(
+                    f"Matched lemma: {sense.matched_lemma} · Sense ID: "
+                    f"{sense.sense_id} · Synset: {sense.synset_id}"
+                )
+                if position != len(visible):
+                    st.divider()
+
+    st.caption(
+        f"{dictionary.source} {dictionary.version} · {dictionary.match_method} "
+        f"for ‘{dictionary.lookup_form}’ · {dictionary.license}. Source order is "
+        "not a context-sensitive probability or interpretation."
+    )
+
+
 def _render_vad(result: LexiconExplorerResult) -> None:
     vad = [row for row in result.entries if row.original_scores is not None]
     if not vad:
@@ -620,7 +718,8 @@ def render_lexicon_explorer(preprocessor: TextPreprocessor) -> None:
         )
     render_workspace_header(
         "Lexicon Explorer",
-        "Look up a word or phrase across all installed affective lexicons plus "
+        "Look up a word or phrase in Open English WordNet and across all "
+        "installed affective lexicons plus "
         "concreteness, Lancaster sensorimotor imagery and embodiment, SUBTLEX-US "
         "frequency, age of acquisition, and CMUdict pronunciation and stress, "
         "with local VADER polarity and applicable word-level readability "
@@ -670,6 +769,7 @@ def render_lexicon_explorer(preprocessor: TextPreprocessor) -> None:
     st.write(" · ".join(details))
     for notice in result.notices:
         st.info(notice)
+    _render_dictionary(result)
     if not result.entries:
         st.warning(
             "No exact or lemma-derived affective entry was found in the installed "

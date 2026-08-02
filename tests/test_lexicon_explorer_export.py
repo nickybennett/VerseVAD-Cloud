@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from docx import Document
 
+from versevad.dictionary import lookup_open_english_wordnet
 from versevad.explorer import (
     SupplementaryEvidenceValue,
     SupplementaryExplorerEntry,
@@ -58,6 +59,11 @@ def test_lexicon_explorer_word_report_is_complete_and_deterministic(
             ),
         ),
         notices=("Synthetic lookup notice.",),
+        dictionary=lookup_open_english_wordnet(
+            "bright",
+            lemma="bright",
+            processing_pos="ADJ",
+        ),
     )
 
     first = export_lexicon_explorer_docx(result)
@@ -74,6 +80,9 @@ def test_lexicon_explorer_word_report_is_complete_and_deterministic(
     assert document.core_properties.title == "Lexicon Explorer Report"
     assert "Query: bright." in content
     assert "Matched Source Entry: bright." in content
+    assert "Dictionary Sense 1 - Adjective" in content
+    assert "Open English WordNet" in content
+    assert "CC BY 4.0" in content
     assert "Valence - Original: 8 (1 to 9)." in content
     assert "Valence - Normalized: 0.875 (derived 0-1)." in content
     assert "Zipf Value: 4.25 (synthetic Zipf)." in content

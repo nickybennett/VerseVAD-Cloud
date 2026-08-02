@@ -12,9 +12,12 @@ not a programmer. Preserve methodological choices instead of hiding them.
 - Never rename, rewrite, clean, merge, or redistribute a supplied lexicon.
 - Read source lexicons in place and record SHA-256 hashes. Store derived data
   outside `source_lexicons/` and retain a link to the exact source hash.
-- Never commit lexicons, literary corpora, project databases, exports, or
-  backups to source control, except the explicitly curated public-domain
-  VerseMap reference corpus under `resources/VerseMap_Reference_Corpus/`.
+- Never commit restricted lexicons, literary corpora, project databases,
+  exports, or backups to source control. The only data exceptions are the
+  explicitly curated public-domain VerseMap reference corpus under
+  `resources/VerseMap_Reference_Corpus/` and the separately attributed,
+  redistributable Open English WordNet resource under
+  `resources/open_english_wordnet/`.
 - Do not send texts, lexicons, project data, or results to external services.
 - Preserve imported text exactly. Perform normalization only in a separate,
   traceable processing representation.

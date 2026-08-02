@@ -233,12 +233,15 @@ and `without`, supports auditable custom additions/removals, and preserves
 published phrase matches intact. Neither view assigns a value to unmatched
 tokens.
 
-Lexicon Explorer searches all installed affective sources plus concreteness,
-Lancaster sensorimotor norms, SUBTLEX-US, Kuperman AoA, and CMUdict for exact
+Lexicon Explorer searches the packaged Open English WordNet 2025+ dictionary
+and all installed affective sources plus concreteness, Lancaster sensorimotor
+norms, SUBTLEX-US, Kuperman AoA, and CMUdict for exact
 entries, phrases, explicitly
 labeled lemma-derived or user-mapped lookups, ratings, frequency fields,
 pronunciation/stress candidates, emotion associations/intensities, Warriner
 uncertainty fields, source provenance, and derived normalized comparisons. It
+shows source senses, definitions, examples, synonyms, antonyms, and available
+semantic relations without claiming contextual word-sense disambiguation. It
 also reports local VADER polarity for the entered word or phrase and applicable
 word-level readability evidence—character count, syllable estimate and method,
 polysyllabic status, and pronunciation coverage—while reserving document-level
@@ -320,6 +323,11 @@ public repository. This separate private deployment repository contains only
 the checksum-pinned runtime copies that its owner is authorized to host.
 Third-party sources retain their own licenses and are not relicensed by the
 VerseVAD GPL.
+
+The redistributable Open English WordNet 2025+ dictionary is packaged under
+CC BY 4.0 with underlying Princeton WordNet attribution. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the complete packaged
+[license files](resources/open_english_wordnet/).
 
 Users download each desired source from its official page and place the
 unchanged file at the exact documented path. On startup, VerseVAD reports

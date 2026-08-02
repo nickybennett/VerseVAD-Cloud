@@ -1639,6 +1639,22 @@ The button remains unavailable until the title matches exactly. Deletion removes
 5. Select **Download printable Word report** to save the complete current
    lookup with its evidence, notices, comparisons, and provenance.
 
+## Dictionary senses
+
+Near the top of every completed lookup, **Dictionary Senses** reports available
+Open English WordNet 2025+ definitions grouped by part of speech. Each sense
+may include examples, synonyms, antonyms, broader concepts, narrower concepts,
+and stable source identifiers. Highly polysemous words initially show the first
+eight source-ordered senses per part of speech; select **Show every available
+dictionary sense** to expand the interface. The printable Word report always
+retains every available sense.
+
+The dictionary is packaged for offline use under CC BY 4.0 with Princeton
+WordNet attribution. First use expands its validated database into VerseVAD's
+ignored local `.runtime/` directory. Source order is not a contextual ranking:
+VerseVAD does not infer which sense is intended in a poem, resolve historical
+usage, or perform word-sense disambiguation.
+
 ## Match labels
 
 The Explorer distinguishes:

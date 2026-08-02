@@ -6,6 +6,17 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Added offline Open English WordNet 2025+ definitions, examples, synonyms,
+  antonyms, and semantic relations near the top of Lexicon Explorer; complete
+  source senses remain available in narrative exports.
+- Kept the Interactive Annotation evidence panel beside the poem while a user
+  scrolls, with an internal panel scrollbar for long evidence and a stacked
+  non-sticky layout on narrow screens.
+- Fixed Interactive Annotation evidence disappearing above the viewport when
+  selecting words late in a long poem.
+- Retained the bundled Open English WordNet resource under CC BY 4.0 and the
+  Princeton WordNet license, with both license texts and full attribution in
+  the packaged resource and `THIRD_PARTY_NOTICES.md`.
 - Unified custom analysis profiles across every analytical profile selector;
   profiles can now be added, updated or renamed, and deleted from Single Poem,
   Other Text, Compare Poems, and corpus analysis during the hosted session.

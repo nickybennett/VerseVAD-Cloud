@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from difflib import get_close_matches
 from functools import lru_cache
 from pathlib import Path
@@ -28,6 +28,10 @@ from versevad.application import (
     load_lexicon,
 )
 from versevad.core.modules import ModuleInput
+from versevad.dictionary import (
+    DictionaryLookupResult,
+    lookup_open_english_wordnet,
+)
 from versevad.lexical_semantic.aoa import AoAModule, KUPERMAN_AOA_SPEC
 from versevad.lexical_semantic.concreteness import (
     BRYSBAERT_CONCRETENESS_SPEC,
@@ -168,6 +172,7 @@ class LexiconExplorerResult:
     notices: tuple[str, ...]
     vader_sentiment: VaderSentimentAnalysisResult | None = None
     readability: ReadabilityAnalysisResult | None = None
+    dictionary: DictionaryLookupResult | None = None
 
 
 def _mean_scores(values: Iterable[VadScores]) -> VadScores:
@@ -973,12 +978,20 @@ def explore_lexicons(
 ) -> LexiconExplorerResult:
     """Load and search every installed source, using the known source hashes."""
 
-    return explore_loaded_lexicons(
+    result = explore_loaded_lexicons(
         query,
         (load_lexicon(spec.lexicon_id) for spec in LEXICON_SPECS),
         preprocessor,
         mapped_query=mapped_query,
         supplementary_resources=load_supplementary_explorer_resources(
             str(RESOURCE_ROOT.resolve())
+        ),
+    )
+    return replace(
+        result,
+        dictionary=lookup_open_english_wordnet(
+            result.query,
+            lemma=result.processing_lemma,
+            processing_pos=result.processing_pos,
         ),
     )

@@ -1,5 +1,18 @@
 # VerseVAD Implementation Plan
 
+## Completed offline dictionary and annotation-panel refinement
+
+- [x] Package the checksum-pinned Open English WordNet 2025+ database with
+  complete CC BY 4.0 and Princeton WordNet attribution.
+- [x] Add offline definitions, examples, synonyms, antonyms, and semantic
+  relations near the top of Lexicon Explorer without changing poem scores.
+- [x] Preserve every available dictionary sense in the printable Word report
+  and state that source order is not contextual word-sense disambiguation.
+- [x] Keep the Interactive Annotation evidence panel visible while scrolling
+  long poems, with a bounded internal scrollbar and narrow-screen fallback.
+- [x] Validate public and hosted behavior, exports, licensing boundaries, and
+  cross-repository parity with automated and synthetic tests.
+
 ## Completed saved-result and hosted-theme reliability pass
 
 - [x] Keep restored immutable results visible when the historical notice is

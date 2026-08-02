@@ -87,6 +87,62 @@ def export_lexicon_explorer_docx(result: LexiconExplorerResult) -> bytes:
             value="No exact or lemma-derived affective entry was found.",
         )
 
+    if result.dictionary is not None:
+        dictionary = result.dictionary
+        _add_row(
+            rows,
+            section="Dictionary lookup",
+            metric="Status",
+            value=dictionary.status_message,
+        )
+        _add_row(
+            rows,
+            section="Dictionary lookup",
+            metric="Lookup form",
+            value=dictionary.lookup_form,
+            note=dictionary.match_method,
+        )
+        for position, sense in enumerate(dictionary.senses, start=1):
+            section = (
+                f"Dictionary sense {position} - {sense.part_of_speech_label}"
+            )
+            for metric, value in (
+                ("Definition", sense.definition),
+                ("Examples", " | ".join(sense.examples)),
+                ("Synonyms", ", ".join(sense.synonyms)),
+                ("Antonyms", ", ".join(sense.antonyms)),
+                ("Broader concepts", ", ".join(sense.broader_terms)),
+                ("Narrower concepts", ", ".join(sense.narrower_terms)),
+                ("Matched lemma", sense.matched_lemma),
+                ("Sense ID", sense.sense_id),
+                ("Synset ID", sense.synset_id),
+            ):
+                if value:
+                    _add_row(
+                        rows,
+                        section=section,
+                        metric=metric,
+                        value=value,
+                    )
+        _add_source_provenance(
+            rows,
+            section="Dictionary source provenance",
+            values={
+                "Resource": dictionary.source,
+                "Version": dictionary.version,
+                "Library": dictionary.library,
+                "Adapter version": dictionary.adapter_version,
+                "Source URL": dictionary.source_url,
+                "Source LMF SHA-256": dictionary.source_lmf_sha256,
+                "Packaged database SHA-256": (
+                    dictionary.packaged_database_sha256
+                ),
+                "License": dictionary.license,
+                "License URL": dictionary.license_url,
+                "Citation": dictionary.citation,
+            },
+        )
+
     for entry in result.entries:
         section = f"Affective evidence - {entry.lexicon}"
         _add_row(

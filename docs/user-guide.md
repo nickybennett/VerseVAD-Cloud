@@ -903,14 +903,26 @@ version and decision revisions used, so the baseline is never overwritten.
 ## Use Lexicon Explorer
 
 1. Choose **Lexicon Explorer** in the workspace tabs across the top.
-2. Enter one word or phrase. VerseVAD searches every installed source.
-3. Read **How it matched** before reading values: exact entry, exact phrase,
+2. Enter one word or phrase. VerseVAD searches the packaged Open English
+   WordNet dictionary and every installed research source.
+3. Read **Dictionary Senses** near the top. Senses are grouped by part of
+   speech and include definitions, examples, synonyms, antonyms, and available
+   broader/narrower concepts. Their source order is not a contextual prediction.
+4. Read **How it matched** before reading values: exact entry, exact phrase,
    lemma-derived entry, or user-supplied mapped lookup are distinct.
-4. Leave **Original and normalized** selected to retain source ratings and the
+5. Leave **Original and normalized** selected to retain source ratings and the
    separate derived 0-1 comparison together.
-5. Expand variation/provenance panels when investigating a surprising entry.
-6. Select **Download printable Word report** to save the complete lookup,
+6. Expand variation/provenance panels when investigating a surprising entry.
+7. Select **Download printable Word report** to save the complete lookup,
    including available evidence, comparisons, notices, and source provenance.
+
+Open English WordNet 2025+ is packaged for offline use and does not require a
+separate download. On its first dictionary lookup, VerseVAD losslessly expands
+the validated database into the ignored local `.runtime/` directory; this is a
+one-time operation for that installation and ordinarily takes only a moment.
+Dictionary senses are decontextualized. VerseVAD does not claim that a listed
+sense is active in a poem, resolve historical usage, or perform word-sense
+disambiguation.
 
 The **Additional Lexical Evidence** section searches installed concreteness,
 Lancaster sensorimotor, SUBTLEX-US, Kuperman AoA, and CMUdict resources. It
@@ -944,7 +956,7 @@ Scenarios**.
 The Explorer Word report is a printable record of the current lookup. It
 includes affective ratings and associations, original and normalized VAD,
 source uncertainty where available, supplementary lexical evidence,
-pronunciation alternatives, local VADER and word-level readability evidence,
+dictionary senses, pronunciation alternatives, local VADER and word-level readability evidence,
 derived comparisons, missing-resource statuses, and provenance. It does not
 alter or replace the CSV audit exports produced by poem and corpus analyses.
 

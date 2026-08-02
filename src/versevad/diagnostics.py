@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from versevad import __version__
 from versevad.analysis.phase2 import analyze_lexicon
 from versevad.application import LEXICON_SPECS, load_lexicon
+from versevad.dictionary import lookup_open_english_wordnet
 from versevad.phase2_validation import (
     PHASE2_PHRASE_TEXT,
     phase2_synthetic_emotion_lexicon,
@@ -42,6 +43,25 @@ def run_runtime_self_test() -> tuple[DiagnosticCheck, ...]:
         )
     except Exception as error:  # pragma: no cover - exercised only on broken installs
         checks.append(DiagnosticCheck("Graphical framework", False, str(error)))
+
+    try:
+        dictionary = lookup_open_english_wordnet(
+            "poem",
+            lemma="poem",
+            processing_pos="NOUN",
+        )
+        checks.append(
+            DiagnosticCheck(
+                "Offline dictionary",
+                dictionary.available and bool(dictionary.senses),
+                (
+                    "Packaged Open English WordNet 2025+ definitions are "
+                    "available locally."
+                ),
+            )
+        )
+    except Exception as error:
+        checks.append(DiagnosticCheck("Offline dictionary", False, str(error)))
 
     try:
         preview = synthesize_arpabet_wav("T EH1 S T")
