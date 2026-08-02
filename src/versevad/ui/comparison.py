@@ -71,7 +71,18 @@ from versevad.ui.design import (
     render_stateful_section_navigation,
     render_workspace_header,
 )
-from versevad.ui.profiles import load_custom_profiles, normalize_profile_settings
+from versevad.ui.profile_management import (
+    analysis_profile_options,
+    consume_pending_profile_selection,
+    custom_profile_settings,
+    render_custom_profile_manager,
+    selected_custom_profile_name,
+)
+from versevad.ui.profiles import (
+    COMPARISON_PROFILE_SETTING_KEYS,
+    normalize_profile_settings,
+    snapshot_profile_settings,
+)
 from versevad.ui.stopwords import render_stopword_settings
 from versevad.ui.vad_overview import (
     overview_metric_matches_vad_preference,
@@ -194,57 +205,26 @@ class _SharedComparisonConfiguration:
 
 _PROFILE_TO_COMPARE_CONFIGURATION_KEYS = {
     key: f"compare_config_{key}"
-    for key in (
-        "phrase_policy_label",
-        "minimum_matches",
-        "concreteness_abstract_max",
-        "concreteness_concrete_min",
-        "concreteness_exclude_proper",
-        "concreteness_phrases",
-        "concreteness_coverage_warning",
-        "sensorimotor_exclude_proper",
-        "sensorimotor_phrases",
-        "sensorimotor_top_terms",
-        "frequency_rare_below",
-        "frequency_uncommon_below",
-        "frequency_moderate_below",
-        "frequency_very_common_min",
-        "frequency_exclude_proper",
-        "frequency_content_words_only",
-        "frequency_lemma_fallback",
-        "frequency_coverage_warning",
-        "aoa_early_max",
-        "aoa_later_min",
-        "aoa_exclude_proper",
-        "aoa_content_words_only",
-        "aoa_lemma_fallback",
-        "aoa_coverage_warning",
-        "lexical_style_mattr_window",
-        "lexical_style_hdd_sample",
-        "lexical_style_mtld_threshold",
-        "lexical_style_short_warning",
-        "poetry_id_min_tokens",
-        "poetry_id_min_types",
-        "poetry_id_min_token_coverage",
-        "poetry_id_min_type_coverage",
-        "pronunciation_coverage_warning",
-        "pronunciation_minimum_complete_lines",
-        "pronunciation_minimum_resolved_tokens",
-        "meter_line_match_threshold",
-        "meter_irregular_threshold",
-        "meter_ambiguity_margin",
-        "meter_maximum_variants",
-        "meter_analysis_mode",
-        "meter_style_profile",
-        "meter_interpretation_depth",
-        "meter_performance_candidate_limit",
-        "meter_realized_alternatives",
-        "meter_allow_visible_elision",
-        "phonological_slant_threshold",
-        "phonological_sound_repetitions",
-        "phonological_coverage_warning",
-        "phonological_maximum_pairs",
-    )
+    for key in COMPARISON_PROFILE_SETTING_KEYS
+}
+_PROFILE_INCLUDE_TO_MODULE = {
+    "include_concreteness": "concreteness",
+    "include_frequency": "frequency",
+    "include_aoa": "aoa",
+    "include_sensorimotor": "sensorimotor",
+    "include_lexical_style": "lexical_style",
+    "include_poetry_id": "poetry_id",
+    "include_pronunciation": "pronunciation",
+    "include_meter": "meter",
+    "include_phonology": "phonology",
+    "include_inherited_form": "inherited_form",
+    "include_versemap": "versemap",
+}
+_PROFILE_TO_COMPARE_STOPWORD_KEYS = {
+    "single_stopword_mode": "compare_stopword_mode",
+    "single_protected_stopwords": "compare_protected_stopwords",
+    "single_custom_stopword_additions": "compare_custom_stopword_additions",
+    "single_custom_stopword_removals": "compare_custom_stopword_removals",
 }
 
 
@@ -345,6 +325,16 @@ def _comparison_metric_family(
     if panel == "VAD Profile":
         if is_dispersion:
             return "Within-Poem Dispersion"
+        if "poem_mean" in identifier:
+            return "Mean-Centered Lexical Volatility"
+        if (
+            "midpoint" in identifier
+            and (
+                identifier.endswith("per_observation")
+                or identifier.endswith("per_100")
+            )
+        ):
+            return "Length-Normalized Midpoint Deviation"
         if is_cumulative:
             return "Cumulative Lexical Load"
         return "VAD Means"
@@ -413,6 +403,8 @@ _FAMILY_ORDER = {
     "VAD Profile": (
         "VAD Means",
         "Cumulative Lexical Load",
+        "Length-Normalized Midpoint Deviation",
+        "Mean-Centered Lexical Volatility",
         "Within-Poem Dispersion",
     ),
     "Emotion Association, Intensity & Sentiment": (
@@ -1767,10 +1759,31 @@ def _render_comparison_set_panel(
         for family in _ordered_metric_families(panel_rows, panel):
             family_rows = panel_rows[panel_rows["Metric Family"] == family]
             st.markdown(f"##### {family}")
-            if "Dispersion" in family:
+            if family == "Within-Poem Dispersion" and panel == "VAD Profile":
+                st.caption(
+                    "Population SD describes spread around each poem's own VAD "
+                    "mean and gives unusually distant ratings more influence by "
+                    "squaring departures. Mean absolute deviation below weights "
+                    "departures linearly. Both are length-neutral and "
+                    "order-insensitive."
+                )
+            elif "Dispersion" in family:
                 st.caption(
                     "These values describe variation among matched observations "
                     "inside each poem. They are not cross-poem uncertainty."
+                )
+            elif family == "Length-Normalized Midpoint Deviation":
+                st.caption(
+                    "Use these rates—not raw cumulative loads—to compare poems of "
+                    "different lengths. Per-observation and per-100 values are the "
+                    "same normalized evidence on two display scales."
+                )
+            elif family == "Mean-Centered Lexical Volatility":
+                st.caption(
+                    "These length-normalized rates measure dispersion around each "
+                    "poem's own VAD mean. Mean absolute deviation weights departures "
+                    "linearly; population SD above emphasizes extremes. Neither "
+                    "measure preserves lexical order."
                 )
             display_columns = [
                 "Source",
@@ -2074,31 +2087,14 @@ def _comparison_profile_state(
     available_lexicons: tuple[str, ...],
     installed_modules: tuple[str, ...],
 ) -> tuple[list[str], list[str], dict[str, object]]:
-    include_to_module = {
-        "include_concreteness": "concreteness",
-        "include_frequency": "frequency",
-        "include_aoa": "aoa",
-        "include_sensorimotor": "sensorimotor",
-        "include_lexical_style": "lexical_style",
-        "include_poetry_id": "poetry_id",
-        "include_pronunciation": "pronunciation",
-        "include_meter": "meter",
-        "include_phonology": "phonology",
-        "include_inherited_form": "inherited_form",
-        "include_versemap": "versemap",
-    }
     if profile_name in MODULE_PRESETS and profile_name != "Custom":
         settings = preset_widget_state(
             profile_name,
             available_lexicon_ids=available_lexicons,
         )
     else:
-        custom_name = profile_name.removeprefix("Custom · ")
-        session_profiles = st.session_state.get("_session_custom_profiles", {})
-        if custom_name in session_profiles:
-            settings = dict(session_profiles[custom_name])
-        else:
-            settings = dict(load_custom_profiles()[custom_name].settings)
+        custom_name = selected_custom_profile_name(profile_name)
+        settings = dict(custom_profile_settings().get(custom_name or "", {}))
     settings = normalize_profile_settings(settings)
     selected_lexicons = [
         item
@@ -2107,10 +2103,34 @@ def _comparison_profile_state(
     ]
     selected_modules = [
         module_id
-        for include_key, module_id in include_to_module.items()
+        for include_key, module_id in _PROFILE_INCLUDE_TO_MODULE.items()
         if settings.get(include_key) is True and module_id in installed_modules
     ]
     return selected_lexicons, selected_modules, settings
+
+
+def _comparison_profile_snapshot() -> dict[str, object]:
+    """Map shared comparison controls back to the canonical profile schema."""
+
+    settings: dict[str, object] = {
+        "selected_lexicons": list(
+            st.session_state.get("compare_lexicons", [])
+        )
+    }
+    selected_modules = set(st.session_state.get("compare_modules", []))
+    for include_key, module_id in _PROFILE_INCLUDE_TO_MODULE.items():
+        settings[include_key] = module_id in selected_modules
+    for profile_key, compare_key in (
+        _PROFILE_TO_COMPARE_STOPWORD_KEYS.items()
+    ):
+        if compare_key in st.session_state:
+            settings[profile_key] = st.session_state[compare_key]
+    for profile_key, compare_key in (
+        _PROFILE_TO_COMPARE_CONFIGURATION_KEYS.items()
+    ):
+        if compare_key in st.session_state:
+            settings[profile_key] = st.session_state[compare_key]
+    return snapshot_profile_settings(settings)
 
 
 def _render_shared_comparison_configuration(
@@ -2140,6 +2160,109 @@ def _render_shared_comparison_configuration(
         "phonology": PhonologicalConfiguration(),
     }
     key = lambda name: f"compare_config_{name}"
+    configuration_defaults = {
+        "phrase_policy_label": next(iter(phrase_options)),
+        "minimum_matches": 3,
+        "concreteness_abstract_max": defaults["concreteness"].highly_abstract_max,
+        "concreteness_concrete_min": defaults["concreteness"].highly_concrete_min,
+        "concreteness_coverage_warning": defaults[
+            "concreteness"
+        ].low_coverage_warning_threshold,
+        "concreteness_exclude_proper": defaults[
+            "concreteness"
+        ].exclude_proper_nouns,
+        "concreteness_phrases": defaults[
+            "concreteness"
+        ].activate_multiword_expressions,
+        "sensorimotor_exclude_proper": defaults[
+            "sensorimotor"
+        ].exclude_proper_nouns,
+        "sensorimotor_phrases": defaults["sensorimotor"].include_phrases,
+        "sensorimotor_top_terms": defaults["sensorimotor"].top_term_count,
+        "frequency_rare_below": defaults["frequency"].rare_below,
+        "frequency_uncommon_below": defaults["frequency"].uncommon_below,
+        "frequency_moderate_below": defaults[
+            "frequency"
+        ].moderately_common_below,
+        "frequency_very_common_min": defaults["frequency"].very_common_min,
+        "frequency_exclude_proper": defaults[
+            "frequency"
+        ].exclude_proper_nouns,
+        "frequency_content_words_only": defaults[
+            "frequency"
+        ].content_words_only,
+        "frequency_lemma_fallback": defaults[
+            "frequency"
+        ].enable_lemma_fallback,
+        "frequency_coverage_warning": defaults[
+            "frequency"
+        ].low_coverage_warning_threshold,
+        "aoa_early_max": defaults["aoa"].early_acquired_max,
+        "aoa_later_min": defaults["aoa"].later_acquired_min,
+        "aoa_coverage_warning": defaults["aoa"].low_coverage_warning_threshold,
+        "aoa_exclude_proper": defaults["aoa"].exclude_proper_nouns,
+        "aoa_content_words_only": defaults["aoa"].content_words_only,
+        "aoa_lemma_fallback": defaults["aoa"].enable_lemma_fallback,
+        "lexical_style_mattr_window": defaults[
+            "lexical_style"
+        ].mattr_window_size,
+        "lexical_style_hdd_sample": defaults["lexical_style"].hdd_sample_size,
+        "lexical_style_mtld_threshold": defaults[
+            "lexical_style"
+        ].mtld_threshold,
+        "lexical_style_short_warning": defaults[
+            "lexical_style"
+        ].short_text_warning_threshold,
+        "poetry_id_min_tokens": defaults["poetry_id"].minimum_matched_tokens,
+        "poetry_id_min_types": defaults["poetry_id"].minimum_matched_types,
+        "poetry_id_min_token_coverage": defaults[
+            "poetry_id"
+        ].minimum_token_coverage,
+        "poetry_id_min_type_coverage": defaults[
+            "poetry_id"
+        ].minimum_type_coverage,
+        "pronunciation_coverage_warning": defaults[
+            "pronunciation"
+        ].low_coverage_warning_threshold,
+        "pronunciation_minimum_complete_lines": defaults[
+            "pronunciation"
+        ].minimum_complete_lines,
+        "pronunciation_minimum_resolved_tokens": defaults[
+            "pronunciation"
+        ].minimum_resolved_tokens,
+        "pronunciation_overrides": "",
+        "meter_analysis_mode": "Compare candidate and performance-aware readings",
+        "meter_style_profile": next(iter(METER_STYLE_LABELS)),
+        "meter_interpretation_depth": list(METER_DEPTH_LABELS)[1],
+        "meter_line_match_threshold": defaults["meter"].line_match_threshold,
+        "meter_irregular_threshold": defaults["meter"].irregular_fit_threshold,
+        "meter_ambiguity_margin": defaults["meter"].ambiguity_margin_threshold,
+        "meter_maximum_variants": defaults["meter"].maximum_line_variants,
+        "meter_performance_candidate_limit": defaults[
+            "meter"
+        ].performance_candidate_limit,
+        "meter_realized_alternatives": defaults[
+            "meter"
+        ].retained_realized_alternatives,
+        "meter_allow_visible_elision": defaults[
+            "meter"
+        ].allow_visible_poetic_elision,
+        "meter_scholar_revisions": "",
+        "phonological_slant_threshold": defaults[
+            "phonology"
+        ].slant_rhyme_threshold,
+        "phonological_sound_repetitions": defaults[
+            "phonology"
+        ].minimum_sound_repetitions,
+        "phonological_coverage_warning": defaults[
+            "phonology"
+        ].low_ending_coverage_warning_threshold,
+        "phonological_maximum_pairs": defaults[
+            "phonology"
+        ].maximum_pair_evaluations,
+    }
+    for setting_name, default_value in configuration_defaults.items():
+        st.session_state.setdefault(key(setting_name), default_value)
     with st.expander(
         "Shared Configuration and Methodology",
         expanded=False,
@@ -2158,7 +2281,6 @@ def _render_shared_comparison_configuration(
             "Minimum evidence before a result is marked non-sparse",
             min_value=1,
             max_value=1000,
-            value=3,
             step=1,
             key=key("minimum_matches"),
         )
@@ -2169,8 +2291,7 @@ def _render_shared_comparison_configuration(
             "Highly abstract at or below",
             1.0,
             4.9,
-            defaults["concreteness"].highly_abstract_max,
-            0.1,
+            step=0.1,
             key=key("concreteness_abstract_max"),
             disabled="concreteness" not in selected,
         )
@@ -2178,8 +2299,7 @@ def _render_shared_comparison_configuration(
             "Highly concrete at or above",
             1.1,
             5.0,
-            defaults["concreteness"].highly_concrete_min,
-            0.1,
+            step=0.1,
             key=key("concreteness_concrete_min"),
             disabled="concreteness" not in selected,
         )
@@ -2187,21 +2307,18 @@ def _render_shared_comparison_configuration(
             "Coverage caution threshold",
             0.0,
             1.0,
-            defaults["concreteness"].low_coverage_warning_threshold,
-            0.05,
+            step=0.05,
             key=key("concreteness_coverage_warning"),
             disabled="concreteness" not in selected,
         )
         policies = st.columns(2)
         concrete_proper = policies[0].checkbox(
             "Exclude model-tagged proper nouns",
-            value=defaults["concreteness"].exclude_proper_nouns,
             key=key("concreteness_exclude_proper"),
             disabled="concreteness" not in selected,
         )
         concrete_phrases = policies[1].checkbox(
             "Activate exact source expressions",
-            value=defaults["concreteness"].activate_multiword_expressions,
             key=key("concreteness_phrases"),
             disabled="concreteness" not in selected,
         )
@@ -2210,13 +2327,11 @@ def _render_shared_comparison_configuration(
         columns = st.columns(3)
         sensor_proper = columns[0].checkbox(
             "Exclude proper nouns",
-            value=defaults["sensorimotor"].exclude_proper_nouns,
             key=key("sensorimotor_exclude_proper"),
             disabled="sensorimotor" not in selected,
         )
         sensor_phrases = columns[1].checkbox(
             "Activate published multiword concepts",
-            value=defaults["sensorimotor"].include_phrases,
             key=key("sensorimotor_phrases"),
             disabled="sensorimotor" not in selected,
         )
@@ -2224,8 +2339,7 @@ def _render_shared_comparison_configuration(
             "Terms retained in compact rankings",
             3,
             100,
-            defaults["sensorimotor"].top_term_count,
-            1,
+            step=1,
             key=key("sensorimotor_top_terms"),
             disabled="sensorimotor" not in selected,
         )
@@ -2233,39 +2347,39 @@ def _render_shared_comparison_configuration(
         st.markdown("##### Frequency and Rarity")
         columns = st.columns(4)
         rare_below = columns[0].number_input(
-            "Rare below", 1.0, 7.0, defaults["frequency"].rare_below, 0.1,
+            "Rare below", 1.0, 7.0, step=0.1,
             key=key("frequency_rare_below"), disabled="frequency" not in selected,
         )
         uncommon_below = columns[1].number_input(
-            "Uncommon below", 1.1, 7.2, defaults["frequency"].uncommon_below, 0.1,
+            "Uncommon below", 1.1, 7.2, step=0.1,
             key=key("frequency_uncommon_below"), disabled="frequency" not in selected,
         )
         moderate_below = columns[2].number_input(
             "Moderately common below", 1.2, 7.4,
-            defaults["frequency"].moderately_common_below, 0.1,
+            step=0.1,
             key=key("frequency_moderate_below"), disabled="frequency" not in selected,
         )
         common_min = columns[3].number_input(
             "Very common at or above", 1.3, 8.0,
-            defaults["frequency"].very_common_min, 0.1,
+            step=0.1,
             key=key("frequency_very_common_min"), disabled="frequency" not in selected,
         )
         columns = st.columns(4)
         frequency_proper = columns[0].checkbox(
-            "Exclude proper nouns", value=defaults["frequency"].exclude_proper_nouns,
+            "Exclude proper nouns",
             key=key("frequency_exclude_proper"), disabled="frequency" not in selected,
         )
         frequency_content = columns[1].checkbox(
-            "Content words only", value=defaults["frequency"].content_words_only,
+            "Content words only",
             key=key("frequency_content_words_only"), disabled="frequency" not in selected,
         )
         frequency_lemma = columns[2].checkbox(
-            "Allow lemma fallback", value=defaults["frequency"].enable_lemma_fallback,
+            "Allow lemma fallback",
             key=key("frequency_lemma_fallback"), disabled="frequency" not in selected,
         )
         frequency_coverage = columns[3].number_input(
             "Coverage caution", 0.0, 1.0,
-            defaults["frequency"].low_coverage_warning_threshold, 0.05,
+            step=0.05,
             key=key("frequency_coverage_warning"), disabled="frequency" not in selected,
         )
 
@@ -2273,50 +2387,50 @@ def _render_shared_comparison_configuration(
         columns = st.columns(3)
         aoa_early = columns[0].number_input(
             "Early acquired at or below", 0.0, 24.9,
-            defaults["aoa"].early_acquired_max, 0.5,
+            step=0.5,
             key=key("aoa_early_max"), disabled="aoa" not in selected,
         )
         aoa_late = columns[1].number_input(
             "Later acquired at or above", 0.1, 25.0,
-            defaults["aoa"].later_acquired_min, 0.5,
+            step=0.5,
             key=key("aoa_later_min"), disabled="aoa" not in selected,
         )
         aoa_coverage = columns[2].number_input(
             "Coverage caution", 0.0, 1.0,
-            defaults["aoa"].low_coverage_warning_threshold, 0.05,
+            step=0.05,
             key=key("aoa_coverage_warning"), disabled="aoa" not in selected,
         )
         columns = st.columns(3)
         aoa_proper = columns[0].checkbox(
-            "Exclude proper nouns", value=defaults["aoa"].exclude_proper_nouns,
+            "Exclude proper nouns",
             key=key("aoa_exclude_proper"), disabled="aoa" not in selected,
         )
         aoa_content = columns[1].checkbox(
-            "Content words only", value=defaults["aoa"].content_words_only,
+            "Content words only",
             key=key("aoa_content_words_only"), disabled="aoa" not in selected,
         )
         aoa_lemma = columns[2].checkbox(
-            "Allow lemma fallback", value=defaults["aoa"].enable_lemma_fallback,
+            "Allow lemma fallback",
             key=key("aoa_lemma_fallback"), disabled="aoa" not in selected,
         )
 
         st.markdown("##### Lexical Diversity and Structure")
         columns = st.columns(4)
         mattr_window = columns[0].number_input(
-            "MATTR window", 2, 1000, defaults["lexical_style"].mattr_window_size, 1,
+            "MATTR window", 2, 1000, step=1,
             key=key("lexical_style_mattr_window"), disabled="lexical_style" not in selected,
         )
         hdd_sample = columns[1].number_input(
-            "HD-D sample", 2, 1000, defaults["lexical_style"].hdd_sample_size, 1,
+            "HD-D sample", 2, 1000, step=1,
             key=key("lexical_style_hdd_sample"), disabled="lexical_style" not in selected,
         )
         mtld_threshold = columns[2].number_input(
-            "MTLD threshold", 0.01, 0.99, defaults["lexical_style"].mtld_threshold, 0.01,
+            "MTLD threshold", 0.01, 0.99, step=0.01,
             key=key("lexical_style_mtld_threshold"), disabled="lexical_style" not in selected,
         )
         short_warning = columns[3].number_input(
             "Short-text caution below", 2, 1000,
-            defaults["lexical_style"].short_text_warning_threshold, 1,
+            step=1,
             key=key("lexical_style_short_warning"), disabled="lexical_style" not in selected,
         )
 
@@ -2324,22 +2438,22 @@ def _render_shared_comparison_configuration(
         columns = st.columns(4)
         poetry_tokens = columns[0].number_input(
             "Minimum matched tokens", 1, 1000,
-            defaults["poetry_id"].minimum_matched_tokens, 1,
+            step=1,
             key=key("poetry_id_min_tokens"), disabled="poetry_id" not in selected,
         )
         poetry_types = columns[1].number_input(
             "Minimum matched types", 1, 1000,
-            defaults["poetry_id"].minimum_matched_types, 1,
+            step=1,
             key=key("poetry_id_min_types"), disabled="poetry_id" not in selected,
         )
         poetry_token_coverage = columns[2].number_input(
             "Minimum token coverage", 0.0, 1.0,
-            defaults["poetry_id"].minimum_token_coverage, 0.05,
+            step=0.05,
             key=key("poetry_id_min_token_coverage"), disabled="poetry_id" not in selected,
         )
         poetry_type_coverage = columns[3].number_input(
             "Minimum type coverage", 0.0, 1.0,
-            defaults["poetry_id"].minimum_type_coverage, 0.05,
+            step=0.05,
             key=key("poetry_id_min_type_coverage"), disabled="poetry_id" not in selected,
         )
 
@@ -2350,22 +2464,21 @@ def _render_shared_comparison_configuration(
         columns = st.columns(3)
         pronunciation_coverage = columns[0].number_input(
             "Pronunciation coverage caution", 0.0, 1.0,
-            defaults["pronunciation"].low_coverage_warning_threshold, 0.05,
+            step=0.05,
             key=key("pronunciation_coverage_warning"), disabled=not sound_enabled,
         )
         pronunciation_lines = columns[1].number_input(
             "Minimum complete lines", 1, 1000,
-            defaults["pronunciation"].minimum_complete_lines, 1,
+            step=1,
             key=key("pronunciation_minimum_complete_lines"), disabled=not sound_enabled,
         )
         pronunciation_tokens = columns[2].number_input(
             "Minimum resolved tokens", 1, 1000,
-            defaults["pronunciation"].minimum_resolved_tokens, 1,
+            step=1,
             key=key("pronunciation_minimum_resolved_tokens"), disabled=not sound_enabled,
         )
         pronunciation_overrides = st.text_area(
             "Shared poem-specific pronunciation overrides",
-            value="",
             key=key("pronunciation_overrides"),
             disabled=not sound_enabled,
             placeholder="learned = L ER1 N IH0 D | optional note",
@@ -2376,13 +2489,6 @@ def _render_shared_comparison_configuration(
         meter_mode_label = meter_interpretation[0].selectbox(
             "Meter analysis level",
             options=list(METER_MODE_LABELS),
-            index=(
-                0
-                if key("meter_analysis_mode") in st.session_state
-                else list(METER_MODE_LABELS).index(
-                    "Compare candidate and performance-aware readings"
-                )
-            ),
             key=key("meter_analysis_mode"),
             disabled=not meter_enabled,
             help=(
@@ -2404,7 +2510,6 @@ def _render_shared_comparison_configuration(
         meter_depth_label = meter_interpretation[2].selectbox(
             "Interpretation detail",
             options=list(METER_DEPTH_LABELS),
-            index=1,
             key=key("meter_interpretation_depth"),
             disabled=(
                 not meter_enabled
@@ -2414,40 +2519,39 @@ def _render_shared_comparison_configuration(
         columns = st.columns(4)
         meter_line = columns[0].number_input(
             "Meter line-fit threshold", 0.0, 1.0,
-            defaults["meter"].line_match_threshold, 0.05,
+            step=0.05,
             key=key("meter_line_match_threshold"), disabled=not meter_enabled,
         )
         meter_poem = columns[1].number_input(
             "Poem candidate-fit threshold", 0.0, 1.0,
-            defaults["meter"].irregular_fit_threshold, 0.05,
+            step=0.05,
             key=key("meter_irregular_threshold"), disabled=not meter_enabled,
         )
         meter_margin = columns[2].number_input(
             "Candidate margin", 0.0, 1.0,
-            defaults["meter"].ambiguity_margin_threshold, 0.01,
+            step=0.01,
             key=key("meter_ambiguity_margin"), disabled=not meter_enabled,
         )
         meter_variants = columns[3].number_input(
             "Maximum stress paths", 1, 4096,
-            defaults["meter"].maximum_line_variants, 1,
+            step=1,
             key=key("meter_maximum_variants"), disabled=not meter_enabled,
         )
         meter_realization = st.columns(3)
         meter_performance_candidate_limit = meter_realization[0].number_input(
             "Realization candidates per line", 2, 40,
-            defaults["meter"].performance_candidate_limit, 1,
+            step=1,
             key=key("meter_performance_candidate_limit"),
             disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
         )
         meter_realized_alternatives = meter_realization[1].number_input(
             "Retained realized alternatives", 1, 8,
-            defaults["meter"].retained_realized_alternatives, 1,
+            step=1,
             key=key("meter_realized_alternatives"),
             disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
         )
         meter_allow_visible_elision = meter_realization[2].checkbox(
             "Recognize visibly marked contractions",
-            value=defaults["meter"].allow_visible_poetic_elision,
             key=key("meter_allow_visible_elision"),
             disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
             help=(
@@ -2457,7 +2561,6 @@ def _render_shared_comparison_configuration(
         )
         meter_scholar_revisions = st.text_area(
             "Shared scholar scansion revisions",
-            value="",
             key=key("meter_scholar_revisions"),
             height=100,
             disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
@@ -2473,22 +2576,22 @@ def _render_shared_comparison_configuration(
         columns = st.columns(4)
         slant_threshold = columns[0].number_input(
             "Slant-rhyme threshold", 0.0, 1.0,
-            defaults["phonology"].slant_rhyme_threshold, 0.01,
+            step=0.01,
             key=key("phonological_slant_threshold"), disabled="phonology" not in selected and "inherited_form" not in selected,
         )
         sound_repetitions = columns[1].number_input(
             "Minimum repeated sounds", 2, 20,
-            defaults["phonology"].minimum_sound_repetitions, 1,
+            step=1,
             key=key("phonological_sound_repetitions"), disabled="phonology" not in selected and "inherited_form" not in selected,
         )
         ending_coverage = columns[2].number_input(
             "Ending coverage caution", 0.0, 1.0,
-            defaults["phonology"].low_ending_coverage_warning_threshold, 0.05,
+            step=0.05,
             key=key("phonological_coverage_warning"), disabled="phonology" not in selected and "inherited_form" not in selected,
         )
         maximum_pairs = columns[3].number_input(
             "Maximum ending pairs", 1, 100000,
-            defaults["phonology"].maximum_pair_evaluations, 100,
+            step=100,
             key=key("phonological_maximum_pairs"), disabled="phonology" not in selected and "inherited_form" not in selected,
         )
 
@@ -2730,18 +2833,13 @@ def render_compare_poems_workspace(
 
     with st.container(border=True):
         st.subheader("2. Choose One Shared Analysis Profile")
-        custom_names = set(load_custom_profiles())
-        custom_names.update(
-            name
-            for name in st.session_state.get(
-                "_session_custom_profiles",
-                {},
-            )
-            if isinstance(name, str)
+        builtin_profile_names = list(MODULE_PRESETS)
+        profile_options = analysis_profile_options(builtin_profile_names)
+        consume_pending_profile_selection(
+            scope_key="compare_poems",
+            selection_state_key="compare_analysis_profile",
+            options=profile_options,
         )
-        profile_options = [
-            name for name in MODULE_PRESETS if name != "Custom"
-        ] + [f"Custom · {name}" for name in sorted(custom_names)] + ["Custom"]
         if st.session_state.get("compare_analysis_profile") not in profile_options:
             st.session_state["compare_analysis_profile"] = "Custom"
         profile_columns = st.columns([3, 1], vertical_alignment="bottom")
@@ -2762,6 +2860,11 @@ def render_compare_poems_workspace(
         )
         if selected_profile in MODULE_PRESETS:
             st.caption(MODULE_PRESETS[selected_profile].description)
+        elif selected_custom_profile_name(selected_profile) is not None:
+            st.caption(
+                "A saved custom configuration shared with every analytical "
+                "workspace. Apply it, then continue customizing if needed."
+            )
         if apply_profile:
             selected_lexicons, selected_modules, profile_settings = (
                 _comparison_profile_state(
@@ -2772,17 +2875,9 @@ def render_compare_poems_workspace(
             )
             st.session_state["compare_lexicons"] = selected_lexicons
             st.session_state["compare_modules"] = selected_modules
-            stopword_key_map = {
-                "single_stopword_mode": "compare_stopword_mode",
-                "single_protected_stopwords": "compare_protected_stopwords",
-                "single_custom_stopword_additions": (
-                    "compare_custom_stopword_additions"
-                ),
-                "single_custom_stopword_removals": (
-                    "compare_custom_stopword_removals"
-                ),
-            }
-            for source_key, target_key in stopword_key_map.items():
+            for source_key, target_key in (
+                _PROFILE_TO_COMPARE_STOPWORD_KEYS.items()
+            ):
                 if source_key in profile_settings:
                     st.session_state[target_key] = profile_settings[source_key]
             for source_key, target_key in (
@@ -2792,6 +2887,14 @@ def render_compare_poems_workspace(
                     st.session_state[target_key] = profile_settings[source_key]
             st.session_state.pop("poem_comparison_set", None)
             st.rerun()
+
+        render_custom_profile_manager(
+            scope_key="compare_poems",
+            selected_profile=selected_profile,
+            selection_state_key="compare_analysis_profile",
+            current_settings=_comparison_profile_snapshot(),
+            builtin_profile_names=builtin_profile_names,
+        )
 
         selected_lexicons = st.multiselect(
             "Affective lexicons",

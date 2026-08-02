@@ -39,7 +39,21 @@ def render_stopword_settings(key_prefix: str) -> StopwordUiSettings:
     protected_key = f"{key_prefix}_protected_stopwords"
     additions_key = f"{key_prefix}_custom_stopword_additions"
     removals_key = f"{key_prefix}_custom_stopword_removals"
+    mode_labels = {
+        "Include all matched words": StopwordMode.ALL_MATCHED,
+        "Exclude standard stopwords": StopwordMode.STANDARD,
+        "Use custom stopword list": StopwordMode.CUSTOM,
+    }
     st.session_state.setdefault(mode_key, StopwordMode.STANDARD.value)
+    current_mode = StopwordMode(st.session_state[mode_key])
+    st.session_state.setdefault(
+        mode_label_key,
+        next(
+            label
+            for label, mode in mode_labels.items()
+            if mode == current_mode
+        ),
+    )
     st.session_state.setdefault(
         protected_key,
         "\n".join(DEFAULT_PROTECTED_WORDS),
@@ -58,16 +72,9 @@ def render_stopword_settings(key_prefix: str) -> StopwordUiSettings:
         st.session_state[removals_key] = ""
         st.rerun()
 
-    mode_labels = {
-        "Include all matched words": StopwordMode.ALL_MATCHED,
-        "Exclude standard stopwords": StopwordMode.STANDARD,
-        "Use custom stopword list": StopwordMode.CUSTOM,
-    }
-    current_mode = StopwordMode(st.session_state[mode_key])
     selected_label = st.selectbox(
         "Secondary-view policy",
         options=list(mode_labels),
-        index=list(mode_labels.values()).index(current_mode),
         key=mode_label_key,
         help=(
             "The complete all-matched analysis is always preserved. This setting "

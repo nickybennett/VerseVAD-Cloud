@@ -528,18 +528,24 @@ def _existing_profile_rows(source_root: Path) -> dict[tuple[str, str], dict[str,
     from versevad.versemap.model import PROFILE_FILENAME
     from versevad.versemap.profile import PROFILE_BUILD_ID, PROFILE_ID
 
-    draft = source_root / PROFILE_DRAFT_FILENAME
-    path = draft if draft.is_file() else source_root / PROFILE_FILENAME
-    if not path.is_file():
-        return {}
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        rows = tuple(csv.DictReader(handle))
-    return {
-        (row.get("poem_id", ""), row.get("source_sha256", "")): row
-        for row in rows
-        if row.get("profile_id") == PROFILE_ID
-        and row.get("profile_build_id", "") in ("", PROFILE_BUILD_ID)
-    }
+    existing: dict[tuple[str, str], dict[str, str]] = {}
+    for path in (
+        source_root / PROFILE_FILENAME,
+        source_root / PROFILE_DRAFT_FILENAME,
+    ):
+        if not path.is_file():
+            continue
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = tuple(csv.DictReader(handle))
+        existing.update(
+            {
+                (row.get("poem_id", ""), row.get("source_sha256", "")): row
+                for row in rows
+                if row.get("profile_id", "") in ("", PROFILE_ID)
+                and row.get("profile_build_id", "") in ("", PROFILE_BUILD_ID)
+            }
+        )
+    return existing
 
 
 def _raw_profile_row(manifest_row: dict[str, str], profile) -> dict[str, object]:
@@ -556,7 +562,104 @@ def _raw_profile_row(manifest_row: dict[str, str], profile) -> dict[str, object]
         )
         row[f"{observation.feature_id}__eligible"] = observation.eligible_count
         row[f"{observation.feature_id}__matched"] = observation.matched_count
+    for metric_id, value in profile.browser_diagnostics:
+        row[metric_id] = "" if value is None else f"{value:.12g}"
+    row["vad_midpoint_matched_observations"] = (
+        profile.vad_midpoint_matched_observations
+    )
     return row
+
+
+def _existing_browser_vad_rows(
+    source_root: Path,
+) -> dict[tuple[str, str], dict[str, str]]:
+    from versevad.versemap.model import BROWSER_VAD_FILENAME
+    from versevad.versemap.profile import (
+        BROWSER_VAD_DIAGNOSTIC_IDS,
+        PROFILE_BUILD_ID,
+        PROFILE_ID,
+    )
+
+    for path in (
+        source_root / BROWSER_VAD_FILENAME,
+        source_root / PROFILE_DRAFT_FILENAME,
+    ):
+        if not path.is_file():
+            continue
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle)
+                if not set(BROWSER_VAD_DIAGNOSTIC_IDS).issubset(
+                    reader.fieldnames or ()
+                ):
+                    continue
+                rows = tuple(reader)
+        except (OSError, csv.Error):
+            continue
+        return {
+            (row.get("poem_id", ""), row.get("source_sha256", "")): row
+            for row in rows
+            if row.get("profile_id", "") in ("", PROFILE_ID)
+            and row.get("profile_build_id") == PROFILE_BUILD_ID
+        }
+    return {}
+
+
+def _browser_vad_bytes(
+    rows: Sequence[dict[str, object]],
+    *,
+    release_id: str,
+) -> bytes:
+    from versevad.versemap.profile import (
+        BROWSER_VAD_DIAGNOSTIC_IDS,
+        PROFILE_BUILD_ID,
+        PROFILE_ID,
+    )
+
+    fields = (
+        "schema_version",
+        "profile_id",
+        "profile_build_id",
+        "reference_release_id",
+        "poet_id",
+        "poet_name",
+        "poem_id",
+        "title",
+        "relative_path",
+        "source_sha256",
+        "vad_midpoint_matched_observations",
+        *BROWSER_VAD_DIAGNOSTIC_IDS,
+    )
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=fields, lineterminator="\n")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(
+            {
+                **{field: row.get(field, "") for field in fields},
+                "schema_version": SCHEMA_VERSION,
+                "profile_id": PROFILE_ID,
+                "profile_build_id": PROFILE_BUILD_ID,
+                "reference_release_id": release_id,
+            }
+        )
+    return output.getvalue().encode("utf-8")
+
+
+def _browser_vad_is_current(result: BuildResult) -> bool:
+    from versevad.versemap.model import BROWSER_VAD_FILENAME
+
+    current = _existing_browser_vad_rows(result.source_root)
+    manifest = _manifest_rows(result.manifest_bytes)
+    expected = {
+        (row["poem_id"], row["source_sha256"]) for row in manifest
+    }
+    if set(current) != expected:
+        return False
+    return all(
+        row.get("reference_release_id") == result.release_id
+        for row in current.values()
+    ) and (result.source_root / BROWSER_VAD_FILENAME).is_file()
 
 
 def _write_profile_draft(
@@ -583,6 +686,7 @@ def _write_profile_draft(
 
 def _index_is_current(result: BuildResult) -> tuple[bool, str]:
     from versevad.versemap.model import (
+        BROWSER_VAD_FILENAME,
         MODEL_FILENAME,
         POET_PROFILE_FILENAME,
         PROFILE_FILENAME,
@@ -640,6 +744,7 @@ def update_reference_profiles(
     from versevad.models import PhrasePolicy, StopwordMode
     from versevad.preprocessing import SpacyEnglishPreprocessor
     from versevad.versemap.model import (
+        BROWSER_VAD_FILENAME,
         MODEL_FILENAME,
         POET_PROFILE_FILENAME,
         PROFILE_FILENAME,
@@ -655,51 +760,62 @@ def update_reference_profiles(
     )
 
     current, current_model_id = _index_is_current(result)
-    if check or current:
+    browser_vad_current = _browser_vad_is_current(result)
+    if check or (current and browser_vad_current):
         return ProfileBuildResult(
             model_id=current_model_id,
             analyzed_count=0,
-            reused_count=result.poem_count if current else 0,
+            reused_count=(
+                result.poem_count if current and browser_vad_current else 0
+            ),
             poem_count=result.poem_count,
-            current=current,
+            current=current and browser_vad_current,
         )
 
     manifest = _manifest_rows(result.manifest_bytes)
     existing = _existing_profile_rows(result.source_root)
+    existing_browser_vad = _existing_browser_vad_rows(result.source_root)
     rows: list[dict[str, object]] = []
     processor = SpacyEnglishPreprocessor()
     analyzed = reused = 0
     for position, manifest_row in enumerate(manifest, start=1):
         cache_key = (manifest_row["poem_id"], manifest_row["source_sha256"])
         cached = existing.get(cache_key)
-        if cached is not None:
+        cached_browser_vad = existing_browser_vad.get(cache_key)
+        if cached is not None and cached_browser_vad is not None:
             migrated = dict(cached)
             migrated["profile_build_id"] = PROFILE_BUILD_ID
+            migrated.update(cached_browser_vad)
             rows.append(migrated)
             reused += 1
         else:
             poem_path = result.source_root / Path(manifest_row["relative_path"])
             text = poem_path.read_text(encoding="utf-8-sig")
+            backfill_vad_only = cached is not None
             workspace = run_workspace_analysis(
                 AnalysisRequest(
                     project_name="VerseMap Reference Corpus",
                     title=manifest_row["title"],
                     original_text=text,
                     text_id=manifest_row["poem_id"],
-                    lexicon_ids=("nrc_vad_v2_1", "nrc_emotion_v0_92"),
+                    lexicon_ids=(
+                        ("nrc_vad_v2_1",)
+                        if backfill_vad_only
+                        else ("nrc_vad_v2_1", "nrc_emotion_v0_92")
+                    ),
                     phrase_policy=PhrasePolicy.PHRASE_PREFERRED,
                     minimum_match_requirement=1,
                     stopword_mode=StopwordMode.STANDARD,
                     scenario_id="versemap-reference-profile-1.0",
-                    include_concreteness=True,
+                    include_concreteness=not backfill_vad_only,
                     concreteness_configuration=(
                         standard_concreteness_configuration()
                     ),
-                    include_frequency=True,
+                    include_frequency=not backfill_vad_only,
                     frequency_configuration=standard_frequency_configuration(),
-                    include_aoa=True,
+                    include_aoa=not backfill_vad_only,
                     aoa_configuration=standard_aoa_configuration(),
-                    include_lexical_style=True,
+                    include_lexical_style=not backfill_vad_only,
                     lexical_style_configuration=(
                         standard_lexical_style_configuration()
                     ),
@@ -708,12 +824,20 @@ def update_reference_profiles(
                 ),
                 preprocessor=processor,
             )
-            rows.append(
-                _raw_profile_row(
-                    manifest_row,
-                    extract_standard_profile(workspace),
+            profile = extract_standard_profile(workspace)
+            if cached is None:
+                rows.append(_raw_profile_row(manifest_row, profile))
+            else:
+                migrated = dict(cached)
+                migrated["profile_build_id"] = PROFILE_BUILD_ID
+                for metric_id, value in profile.browser_diagnostics:
+                    migrated[metric_id] = (
+                        "" if value is None else f"{value:.12g}"
+                    )
+                migrated["vad_midpoint_matched_observations"] = (
+                    profile.vad_midpoint_matched_observations
                 )
-            )
+                rows.append(migrated)
             analyzed += 1
         if progress is not None:
             progress(position, len(manifest), manifest_row["title"])
@@ -728,6 +852,10 @@ def update_reference_profiles(
     _atomic_write(result.source_root / PROFILE_FILENAME, profile_bytes)
     _atomic_write(result.source_root / POET_PROFILE_FILENAME, poet_bytes)
     _atomic_write(result.source_root / MODEL_FILENAME, model_bytes)
+    _atomic_write(
+        result.source_root / BROWSER_VAD_FILENAME,
+        _browser_vad_bytes(rows, release_id=result.release_id),
+    )
     (result.source_root / PROFILE_DRAFT_FILENAME).unlink(missing_ok=True)
     return ProfileBuildResult(
         model_id=model_id,

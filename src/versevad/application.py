@@ -743,6 +743,7 @@ class VadContributorView:
     lexicon_id: str
     lexicon: str
     analysis_view: str
+    weighting: str
     dimension: str
     term: str
     surface_forms: str
@@ -763,11 +764,12 @@ class VadContributorView:
 
 @dataclass(frozen=True)
 class VadCumulativeView:
-    """Length-sensitive token totals on the derived 0-1 VAD scale."""
+    """Token- or type-weighted totals on the derived 0-1 VAD scale."""
 
     lexicon_id: str
     lexicon: str
     analysis_view: str
+    weighting: str
     dimension: str
     matched_observations: int
     lexical_tokens: int
@@ -777,6 +779,48 @@ class VadCumulativeView:
     below_midpoint_deviation: float
     net_midpoint_deviation: float
     absolute_midpoint_deviation: float
+    average_deviation_from_poem_mean: float
+
+    def _per_observation(self, value: float) -> float | None:
+        if self.matched_observations <= 0:
+            return None
+        return value / self.matched_observations
+
+    @property
+    def above_midpoint_deviation_per_observation(self) -> float | None:
+        return self._per_observation(self.above_midpoint_deviation)
+
+    @property
+    def below_midpoint_deviation_per_observation(self) -> float | None:
+        return self._per_observation(self.below_midpoint_deviation)
+
+    @property
+    def net_midpoint_deviation_per_observation(self) -> float | None:
+        return self._per_observation(self.net_midpoint_deviation)
+
+    @property
+    def absolute_midpoint_deviation_per_observation(self) -> float | None:
+        return self._per_observation(self.absolute_midpoint_deviation)
+
+    @property
+    def above_midpoint_deviation_per_100(self) -> float | None:
+        value = self.above_midpoint_deviation_per_observation
+        return value * 100 if value is not None else None
+
+    @property
+    def below_midpoint_deviation_per_100(self) -> float | None:
+        value = self.below_midpoint_deviation_per_observation
+        return value * 100 if value is not None else None
+
+    @property
+    def net_midpoint_deviation_per_100(self) -> float | None:
+        value = self.net_midpoint_deviation_per_observation
+        return value * 100 if value is not None else None
+
+    @property
+    def absolute_midpoint_deviation_per_100(self) -> float | None:
+        value = self.absolute_midpoint_deviation_per_observation
+        return value * 100 if value is not None else None
 
 
 @dataclass(frozen=True)
@@ -2428,6 +2472,7 @@ def vad_contributor_views(
                             lexicon_id=result.lexicon_metadata.lexicon_id,
                             lexicon=result.lexicon_metadata.display_name,
                             analysis_view=analysis_view,
+                            weighting="Token-weighted",
                             dimension=dimension,
                             term=term,
                             surface_forms=", ".join(surface_forms),
@@ -2477,7 +2522,7 @@ def vad_contributor_views(
 def vad_cumulative_views(
     workspace: WorkspaceAnalysis,
 ) -> tuple[VadCumulativeView, ...]:
-    """Return length-sensitive token totals without claiming reader response.
+    """Return token- and type-weighted totals without claiming reader response.
 
     Each included match contributes once. For an activated multiword expression,
     the phrase is one matched observation, consistent with the analysis policy.
@@ -2515,32 +2560,48 @@ def vad_cumulative_views(
                 )
             )
         for analysis_view, included, lexical_tokens, lexical_coverage in analysis_groups:
-            for dimension in ("valence", "arousal", "dominance"):
-                values = [
-                    float(getattr(match.normalized_scores, dimension))
-                    for match in included
-                    if match.normalized_scores is not None
-                ]
-                if not values:
-                    continue
-                above = sum(max(value - 0.5, 0.0) for value in values)
-                below = sum(max(0.5 - value, 0.0) for value in values)
-                rows.append(
-                    VadCumulativeView(
-                        lexicon_id=result.lexicon_metadata.lexicon_id,
-                        lexicon=result.lexicon_metadata.display_name,
-                        analysis_view=analysis_view,
-                        dimension=dimension,
-                        matched_observations=len(values),
-                        lexical_tokens=lexical_tokens,
-                        lexical_coverage=lexical_coverage,
-                        rating_total=sum(values),
-                        above_midpoint_deviation=above,
-                        below_midpoint_deviation=below,
-                        net_midpoint_deviation=above - below,
-                        absolute_midpoint_deviation=above + below,
+            unique = {}
+            for match in included:
+                if match.matched_lookup_form is not None:
+                    unique.setdefault(match.matched_lookup_form, match)
+            for weighting, weighted_matches in (
+                ("Token-weighted", included),
+                ("Type-weighted", tuple(unique.values())),
+            ):
+                for dimension in ("valence", "arousal", "dominance"):
+                    values = [
+                        float(getattr(match.normalized_scores, dimension))
+                        for match in weighted_matches
+                        if match.normalized_scores is not None
+                    ]
+                    if not values:
+                        continue
+                    above = sum(max(value - 0.5, 0.0) for value in values)
+                    below = sum(max(0.5 - value, 0.0) for value in values)
+                    poem_mean = statistics.fmean(values)
+                    average_mean_deviation = statistics.fmean(
+                        abs(value - poem_mean) for value in values
                     )
-                )
+                    rows.append(
+                        VadCumulativeView(
+                            lexicon_id=result.lexicon_metadata.lexicon_id,
+                            lexicon=result.lexicon_metadata.display_name,
+                            analysis_view=analysis_view,
+                            weighting=weighting,
+                            dimension=dimension,
+                            matched_observations=len(values),
+                            lexical_tokens=lexical_tokens,
+                            lexical_coverage=lexical_coverage,
+                            rating_total=sum(values),
+                            above_midpoint_deviation=above,
+                            below_midpoint_deviation=below,
+                            net_midpoint_deviation=above - below,
+                            absolute_midpoint_deviation=above + below,
+                            average_deviation_from_poem_mean=(
+                                average_mean_deviation
+                            ),
+                        )
+                    )
     return tuple(rows)
 
 
@@ -2916,6 +2977,7 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
         "section",
         "lexicon",
         "analysis_view",
+        "weighting",
         "metric",
         "value",
         "unit_or_scale",
@@ -3065,6 +3127,7 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                     "section": "Cumulative normative lexical load",
                     "lexicon": row.lexicon,
                     "analysis_view": row.analysis_view,
+                    "weighting": row.weighting,
                     "metric": f"{row.dimension.title()} — {label}",
                     "value": value,
                     "unit_or_scale": "length-sensitive token sum on derived 0-1 scale",
@@ -3074,6 +3137,79 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                     ),
                 }
             )
+        for label, per_observation, per_100 in (
+            (
+                "Above-midpoint deviation",
+                row.above_midpoint_deviation_per_observation,
+                row.above_midpoint_deviation_per_100,
+            ),
+            (
+                "Below-midpoint deviation",
+                row.below_midpoint_deviation_per_observation,
+                row.below_midpoint_deviation_per_100,
+            ),
+            (
+                "Net midpoint deviation",
+                row.net_midpoint_deviation_per_observation,
+                row.net_midpoint_deviation_per_100,
+            ),
+            (
+                "Absolute midpoint deviation",
+                row.absolute_midpoint_deviation_per_observation,
+                row.absolute_midpoint_deviation_per_100,
+            ),
+        ):
+            for suffix, value, scale in (
+                (
+                    "per matched observation",
+                    per_observation,
+                    "mean deviation on derived 0-1 scale",
+                ),
+                (
+                    "per 100 matched observations",
+                    per_100,
+                    "midpoint-deviation points per 100 matched observations",
+                ),
+            ):
+                rows.append(
+                    {
+                        "section": "Length-normalized normative lexical load",
+                        "lexicon": row.lexicon,
+                        "analysis_view": row.analysis_view,
+                        "weighting": row.weighting,
+                        "metric": f"{row.dimension.title()} — {label} {suffix}",
+                        "value": value if value is not None else "",
+                        "unit_or_scale": scale,
+                        "denominator": (
+                            f"{row.matched_observations} included matched observations"
+                        ),
+                        "plain_language_note": (
+                            "Length-normalized midpoint deviation; suitable for "
+                            "comparing differently sized poems under the same source, "
+                            "scope, and weighting."
+                        ),
+                    }
+                )
+        rows.append(
+            {
+                "section": "Mean-centered lexical volatility",
+                "lexicon": row.lexicon,
+                "analysis_view": row.analysis_view,
+                "weighting": row.weighting,
+                "metric": (
+                    f"{row.dimension.title()} — Average deviation from poem mean"
+                ),
+                "value": row.average_deviation_from_poem_mean,
+                "unit_or_scale": "mean absolute deviation on derived 0-1 scale",
+                "denominator": (
+                    f"{row.matched_observations} included matched observations"
+                ),
+                "plain_language_note": (
+                    "Length-normalized dispersion around this poem's own lexical "
+                    "mean. It does not preserve token or line order."
+                ),
+            }
+        )
     for row in vad_sensitivity_views(workspace):
         rows.append(
             {

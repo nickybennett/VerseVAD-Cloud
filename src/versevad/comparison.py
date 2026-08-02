@@ -342,6 +342,42 @@ def _vad_rows(
                 ("net_midpoint", "Net midpoint load"),
                 ("absolute_midpoint", "Absolute midpoint load"),
                 ("rating_total_per_100", "Rating total per 100 observations"),
+                (
+                    "above_midpoint_per_observation",
+                    "Above-midpoint deviation per matched observation",
+                ),
+                (
+                    "below_midpoint_per_observation",
+                    "Below-midpoint deviation per matched observation",
+                ),
+                (
+                    "net_midpoint_per_observation",
+                    "Net midpoint deviation per matched observation",
+                ),
+                (
+                    "absolute_midpoint_per_observation",
+                    "Absolute midpoint deviation per matched observation",
+                ),
+                (
+                    "above_midpoint_per_100",
+                    "Above-midpoint deviation per 100 matched observations",
+                ),
+                (
+                    "below_midpoint_per_100",
+                    "Below-midpoint deviation per 100 matched observations",
+                ),
+                (
+                    "net_midpoint_per_100",
+                    "Net midpoint deviation per 100 matched observations",
+                ),
+                (
+                    "absolute_midpoint_per_100",
+                    "Absolute midpoint deviation per 100 matched observations",
+                ),
+                (
+                    "average_deviation_from_poem_mean",
+                    "Average deviation from poem mean",
+                ),
             ):
                 rows.append(
                     _row(
@@ -354,17 +390,36 @@ def _vad_rows(
                         value_a=cumulative_a.get(key),
                         value_b=cumulative_b.get(key),
                         unit_or_scale=(
-                            "summed normalized ratings per 100 observations"
+                            "mean absolute deviation on derived normalized 0-1 scale"
+                            if "poem_mean" in key
+                            else "deviation points per 100 matched observations"
                             if key.endswith("per_100")
-                            else "summed normalized ratings"
+                            and "midpoint" in key
+                            else (
+                                    "mean deviation per matched observation"
+                                if key.endswith("per_observation")
+                                else (
+                                    "summed normalized ratings per 100 observations"
+                                    if key.endswith("per_100")
+                                    else "summed normalized ratings"
+                                )
+                            )
                         ),
                         denominator_a=denominator_a,
                         denominator_b=denominator_b,
                         coverage_a=coverage_a,
                         coverage_b=coverage_b,
                         note=(
-                            "Raw loads retain length and repetition in the token "
-                            "view; per-100 totals support length-normalized comparison."
+                            (
+                                "Length-normalized dispersion around each poem's "
+                                "own lexical mean; token or line order is not retained."
+                            )
+                            if "poem_mean" in key
+                            else (
+                                "Raw loads retain length and repetition in the token "
+                                "view; per-observation and per-100 deviations support "
+                                "length-normalized comparison."
+                            )
                         ),
                     )
                 )
@@ -381,17 +436,42 @@ def _cumulative_values(values: Iterable[float]) -> dict[str, float | None]:
             "net_midpoint": None,
             "absolute_midpoint": None,
             "rating_total_per_100": None,
+            "above_midpoint_per_observation": None,
+            "below_midpoint_per_observation": None,
+            "net_midpoint_per_observation": None,
+            "absolute_midpoint_per_observation": None,
+            "above_midpoint_per_100": None,
+            "below_midpoint_per_100": None,
+            "net_midpoint_per_100": None,
+            "absolute_midpoint_per_100": None,
+            "average_deviation_from_poem_mean": None,
         }
     above = sum(max(value - 0.5, 0.0) for value in numbers)
     below = sum(max(0.5 - value, 0.0) for value in numbers)
     total = sum(numbers)
+    count = len(numbers)
+    net = above - below
+    absolute = above + below
+    poem_mean = statistics.fmean(numbers)
+    average_mean_deviation = statistics.fmean(
+        abs(value - poem_mean) for value in numbers
+    )
     return {
         "rating_total": total,
         "above_midpoint": above,
         "below_midpoint": below,
-        "net_midpoint": above - below,
-        "absolute_midpoint": above + below,
-        "rating_total_per_100": total / len(numbers) * 100,
+        "net_midpoint": net,
+        "absolute_midpoint": absolute,
+        "rating_total_per_100": total / count * 100,
+        "above_midpoint_per_observation": above / count,
+        "below_midpoint_per_observation": below / count,
+        "net_midpoint_per_observation": net / count,
+        "absolute_midpoint_per_observation": absolute / count,
+        "above_midpoint_per_100": above / count * 100,
+        "below_midpoint_per_100": below / count * 100,
+        "net_midpoint_per_100": net / count * 100,
+        "absolute_midpoint_per_100": absolute / count * 100,
+        "average_deviation_from_poem_mean": average_mean_deviation,
     }
 
 

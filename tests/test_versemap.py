@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import zipfile
 from dataclasses import replace
 from io import BytesIO
@@ -34,6 +35,11 @@ from versevad.versemap.model import (
     POET_PROFILE_FILENAME,
     PROFILE_FILENAME,
 )
+from versevad.versemap.profile import BROWSER_VAD_DIAGNOSTIC_IDS
+from versevad.versemap.reference import (
+    PROFILE_DRAFT_FILENAME,
+    _existing_browser_vad_rows,
+)
 
 
 def _profile_rows() -> list[dict[str, object]]:
@@ -57,6 +63,37 @@ def _profile_rows() -> list[dict[str, object]]:
             row[f"{definition.feature_id}__matched"] = 45
         rows.append(row)
     return rows
+
+
+def test_browser_vad_diagnostics_resume_from_profile_checkpoint(tmp_path) -> None:
+    checkpoint = tmp_path / PROFILE_DRAFT_FILENAME
+    fields = (
+        "profile_build_id",
+        "poem_id",
+        "source_sha256",
+        *BROWSER_VAD_DIAGNOSTIC_IDS,
+    )
+    with checkpoint.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        writer.writerow(
+            {
+                "profile_build_id": PROFILE_BUILD_ID,
+                "poem_id": "checkpointed-poem",
+                "source_sha256": "a" * 64,
+                **{
+                    metric_id: "0.125"
+                    for metric_id in BROWSER_VAD_DIAGNOSTIC_IDS
+                },
+            }
+        )
+
+    rows = _existing_browser_vad_rows(tmp_path)
+
+    assert ("checkpointed-poem", "a" * 64) in rows
+    assert rows[("checkpointed-poem", "a" * 64)][
+        BROWSER_VAD_DIAGNOSTIC_IDS[0]
+    ] == "0.125"
 
 
 def test_standard_profile_keeps_pinned_proper_noun_exclusion() -> None:
@@ -192,5 +229,17 @@ def test_standard_profile_uses_fixed_vad_and_emotion_sources(
     assert profile.profile_id == PROFILE_ID
     assert profile.content_token_count > 0
     assert profile.values["vad_valence_mean"] is not None
+    assert (
+        profile.browser_diagnostic_map[
+            "vad_valence_absolute_midpoint_deviation_per_observation"
+        ]
+        is not None
+    )
+    assert (
+        profile.browser_diagnostic_map[
+            "vad_valence_average_deviation_from_poem_mean"
+        ]
+        is not None
+    )
     assert profile.values["emotion_fear_proportion"] is not None
     assert profile.values["concreteness_mean"] is None

@@ -4,12 +4,15 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 import versevad.application as application_services
+from versevad.comparison import PoemComparisonSet
 from versevad.corpus import CorpusAnalysisConfiguration, analyze_corpus
 from versevad.db.repository import CorpusTextImport, ProjectRepository
 from versevad.preprocessing import SpacyEnglishPreprocessor
 from versevad.research_library import ResearchLibraryRepository
 from versevad.ui.navigation import ROUTES
+from versevad.ui.profile_management import custom_profile_label
 from versevad.ui.preferences import AppearanceMode, load_preferences
+from versevad.ui.profiles import load_custom_profiles, save_custom_profile
 from versevad.ui.inherited_form import render_inherited_form
 
 
@@ -243,6 +246,26 @@ def test_saved_ui_state_rejects_action_and_upload_widget_keys() -> None:
         "compare_poem-3_text",
         "Compare Poems",
     )
+    assert _is_restorable_ui_state_key(
+        "compare_analysis_profile",
+        "Compare Poems",
+    )
+    assert _is_restorable_ui_state_key(
+        "compare_config_minimum_matches",
+        "Compare Poems",
+    )
+    assert _is_restorable_ui_state_key(
+        "compare_config_meter_analysis_mode",
+        "Compare Poems",
+    )
+    assert _is_restorable_ui_state_key(
+        "compare_config_pronunciation_overrides",
+        "Compare Poems",
+    )
+    assert _is_restorable_ui_state_key(
+        "compare_versemap_reference_corpus",
+        "Compare Poems",
+    )
     assert not _is_restorable_ui_state_key(
         "compare_poem-3_upload",
         "Compare Poems",
@@ -348,6 +371,88 @@ def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
     )
     assert "_historical_analysis" not in app.session_state
     assert len(repository.list_items()) == 1
+
+
+def test_historical_comparison_restores_custom_profile_and_configuration(
+    tmp_path,
+    monkeypatch,
+    caplog,
+) -> None:
+    library_path = tmp_path / "comparison-library.sqlite3"
+    profile_path = tmp_path / "analysis-profiles.json"
+    monkeypatch.setenv("VERSEVAD_RESEARCH_LIBRARY_PATH", str(library_path))
+    monkeypatch.setenv("VERSEVAD_ANALYSIS_PROFILES_PATH", str(profile_path))
+    profile_label = custom_profile_label("Historical Comparison")
+    save_custom_profile(
+        "Historical Comparison",
+        {"minimum_matches": 9, "include_lexical_style": True},
+        path=profile_path,
+    )
+    analyses = tuple(
+        application_services.run_workspace_analysis(
+            application_services.AnalysisRequest(
+                project_name="",
+                title=title,
+                original_text=text,
+                lexicon_ids=(),
+                minimum_match_requirement=9,
+                include_lexical_style=True,
+            ),
+            preprocessor=SpacyEnglishPreprocessor(),
+        )
+        for title, text in (
+            ("First", "Bright birds sing.\nNight falls."),
+            ("Second", "Dark winds rise.\nMorning comes."),
+        )
+    )
+    repository = ResearchLibraryRepository(library_path)
+    repository.save_revision(
+        parent_type="comparison",
+        workspace_id="Compare Poems",
+        title="Historical comparison",
+        software_version="1.0.0",
+        payload={
+            "kind": "comparison_set",
+            "workspace_id": "Compare Poems",
+            "comparison": PoemComparisonSet(
+                comparison_set_id="historical-comparison",
+                analyses=analyses,
+            ),
+            "ui_state": {
+                "compare_poem_ids": ["poem_1", "poem_2"],
+                "compare_next_poem_number": 3,
+                "compare_poem_1_title": "First",
+                "compare_poem_1_text": "Bright birds sing.\nNight falls.",
+                "compare_poem_2_title": "Second",
+                "compare_poem_2_text": "Dark winds rise.\nMorning comes.",
+                "compare_analysis_profile": profile_label,
+                "compare_lexicons": [],
+                "compare_modules": ["lexical_style"],
+                "compare_config_minimum_matches": 9,
+                "compare_config_lexical_style_mattr_window": 25,
+            },
+        },
+        profile_name=profile_label,
+        storage_mode="full",
+        status="saved",
+    )
+
+    app = AppTest.from_file(str(APP_PATH), default_timeout=75).run()
+    _open_workspace(app, "Analysis Library")
+    caplog.clear()
+    _button(app, "Open historical result").click()
+    app.run(timeout=75)
+
+    assert not app.exception
+    assert app.session_state["compare_analysis_profile"] == profile_label
+    assert app.session_state["compare_config_minimum_matches"] == 9
+    assert app.session_state["compare_config_lexical_style_mattr_window"] == 25
+    _open_workspace(app, "Compare Poems")
+    profile = next(
+        field for field in app.selectbox if field.label == "Analysis profile"
+    )
+    assert profile.value == profile_label
+    assert "created with a default value" not in caplog.text
 
 
 def test_interface_starts_with_beginner_input_workflow() -> None:
@@ -530,6 +635,7 @@ def test_interface_state_migration_and_preset_emit_no_widget_default_warning(
 def test_saving_custom_analysis_profile_defers_selectbox_state_update(
     tmp_path,
     monkeypatch,
+    caplog,
 ) -> None:
     monkeypatch.setenv(
         "VERSEVAD_ANALYSIS_PROFILES_PATH",
@@ -543,14 +649,52 @@ def test_saving_custom_analysis_profile_defers_selectbox_state_update(
     )
     profile_name.input("My Close Reading")
     app.run(timeout=30)
-    _button(app, "Save Current Settings").click()
+    _button(app, "Add as New").click()
     app.run(timeout=45)
 
     assert not app.exception
     preset = next(
         field for field in app.selectbox if field.label == "Analysis profile"
     )
-    assert preset.value == "Custom · My Close Reading"
+    saved_label = custom_profile_label("My Close Reading")
+    assert preset.value == saved_label
+    _open_workspace(app, "Other Text")
+    other_text_profile = next(
+        field for field in app.selectbox if field.label == "Analysis profile"
+    )
+    assert saved_label in other_text_profile.options
+    for label in ("Add as New", "Update Selected", "Delete Selected"):
+        assert label in [button.label for button in app.button]
+    _open_workspace(app, "Compare Poems")
+    compare_profile = next(
+        field for field in app.selectbox if field.label == "Analysis profile"
+    )
+    assert saved_label in compare_profile.options
+    for label in ("Add as New", "Update Selected", "Delete Selected"):
+        assert label in [button.label for button in app.button]
+
+    compare_profile.set_value(saved_label)
+    app.run(timeout=45)
+    _button(app, "Apply / Restore").click()
+    app.run(timeout=45)
+    minimum_matches = next(
+        field
+        for field in app.number_input
+        if field.label == "Minimum evidence before a result is marked non-sparse"
+    )
+    minimum_matches.set_value(7)
+    app.run(timeout=45)
+    _button(app, "Update Selected").click()
+    app.run(timeout=45)
+
+    stored = load_custom_profiles(tmp_path / "analysis-profiles.json")
+    assert stored["My Close Reading"].settings["minimum_matches"] == 7
+
+    _button(app, "Delete Selected").click()
+    app.run(timeout=45)
+    assert not app.exception
+    assert load_custom_profiles(tmp_path / "analysis-profiles.json") == {}
+    assert "created with a default value" not in caplog.text
 
 
 def test_interface_warns_and_filters_when_research_resources_are_absent(
@@ -608,6 +752,8 @@ def test_interface_opens_compare_poems_workspace() -> None:
     ) == 2
     assert "Analyze 2 Poems" in [button.label for button in app.button]
     assert "Add Another Poem" in [button.label for button in app.button]
+    for label in ("Add as New", "Update Selected", "Delete Selected"):
+        assert label in [button.label for button in app.button]
     assert "Phrase policy" in [field.label for field in app.selectbox]
     assert "MATTR window" in [field.label for field in app.number_input]
     assert "Meter analysis level" in [field.label for field in app.selectbox]
@@ -800,6 +946,11 @@ def test_saved_corpus_uses_scope_and_report_selectors(
     )
     assert list(scope.options) == ["Whole Corpus", "First", "Second"]
     assert "Structure" in report.options
+    assert any(
+        field.label == "Corpus analysis profile" for field in app.selectbox
+    )
+    for label in ("Add as New", "Update Selected", "Delete Selected"):
+        assert label in [button.label for button in app.button]
     assert not any(
         "Work, line, and stanza results" in block.value
         for block in app.markdown

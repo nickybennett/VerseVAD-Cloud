@@ -249,6 +249,23 @@ def test_completed_batch_persists_metrics_loads_and_unmatched_notes(
 
     metrics = repository.list_latest_metrics(project.project_id)
     assert any(row.metric == "vad_absolute_midpoint_load" for row in metrics)
+    assert any(
+        row.metric == "vad_absolute_midpoint_load_per_observation"
+        for row in metrics
+    )
+    assert any(
+        row.metric == "vad_absolute_midpoint_load_per_100_observations"
+        for row in metrics
+    )
+    assert any(
+        row.metric == "vad_average_deviation_from_poem_mean"
+        for row in metrics
+    )
+    assert {
+        row.weighting
+        for row in metrics
+        if row.metric == "vad_average_deviation_from_poem_mean"
+    } == {"token", "type"}
     valence = next(
         row
         for row in corpus_vad_profiles(metrics, total_works=2)

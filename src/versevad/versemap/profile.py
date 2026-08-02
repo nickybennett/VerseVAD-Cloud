@@ -141,6 +141,14 @@ FEATURE_DEFINITIONS = (
     ),
 )
 FEATURE_BY_ID = {item.feature_id: item for item in FEATURE_DEFINITIONS}
+BROWSER_VAD_DIAGNOSTIC_IDS = (*tuple(
+    f"vad_{dimension}_{direction}_midpoint_deviation_per_observation"
+    for dimension in ("valence", "arousal", "dominance")
+    for direction in ("above", "below", "absolute")
+), *tuple(
+    f"vad_{dimension}_average_deviation_from_poem_mean"
+    for dimension in ("valence", "arousal", "dominance")
+))
 
 
 def standard_concreteness_configuration() -> ConcretenessConfiguration:
@@ -198,6 +206,8 @@ class VerseMapProfile:
     observations: tuple[FeatureObservation, ...]
     content_token_count: int
     warnings: tuple[str, ...] = ()
+    browser_diagnostics: tuple[tuple[str, float | None], ...] = ()
+    vad_midpoint_matched_observations: int = 0
 
     @property
     def values(self) -> dict[str, float | None]:
@@ -206,6 +216,10 @@ class VerseMapProfile:
     @property
     def observation_map(self) -> dict[str, FeatureObservation]:
         return {item.feature_id: item for item in self.observations}
+
+    @property
+    def browser_diagnostic_map(self) -> dict[str, float | None]:
+        return dict(self.browser_diagnostics)
 
 
 def _mean(values: Iterable[float]) -> float | None:
@@ -283,6 +297,8 @@ def extract_standard_profile(workspace: WorkspaceAnalysis) -> VerseMapProfile:
     eligible_ids = {token.token_id for token in eligible_tokens}
     eligible_count = len(eligible_tokens)
     observations: dict[str, FeatureObservation] = {}
+    browser_diagnostics: dict[str, float | None] = {}
+    vad_midpoint_matched_observations = 0
     warnings: list[str] = []
 
     if vad is not None:
@@ -300,6 +316,7 @@ def extract_standard_profile(workspace: WorkspaceAnalysis) -> VerseMapProfile:
             if included
             else set()
         )
+        vad_midpoint_matched_observations = len(included)
         for dimension in ("valence", "arousal", "dominance"):
             values = tuple(
                 getattr(match.normalized_scores, dimension) for match in included
@@ -318,6 +335,29 @@ def extract_standard_profile(workspace: WorkspaceAnalysis) -> VerseMapProfile:
                 matched=len(matched_ids),
                 note="Population standard deviation over retained matched occurrences.",
             )
+            if values:
+                above = sum(max(float(value) - 0.5, 0.0) for value in values)
+                below = sum(max(0.5 - float(value), 0.0) for value in values)
+                count = len(values)
+                browser_diagnostics.update(
+                    {
+                        f"vad_{dimension}_above_midpoint_deviation_per_observation": (
+                            above / count
+                        ),
+                        f"vad_{dimension}_below_midpoint_deviation_per_observation": (
+                            below / count
+                        ),
+                        f"vad_{dimension}_absolute_midpoint_deviation_per_observation": (
+                            (above + below) / count
+                        ),
+                    }
+                )
+                poem_mean = statistics.fmean(float(value) for value in values)
+                browser_diagnostics[
+                    f"vad_{dimension}_average_deviation_from_poem_mean"
+                ] = statistics.fmean(
+                    abs(float(value) - poem_mean) for value in values
+                )
     else:
         warnings.append("NRC VAD v2.1 evidence was unavailable.")
 
@@ -501,6 +541,11 @@ def extract_standard_profile(workspace: WorkspaceAnalysis) -> VerseMapProfile:
         observations=tuple(observations[item.feature_id] for item in FEATURE_DEFINITIONS),
         content_token_count=eligible_count,
         warnings=tuple(warnings),
+        browser_diagnostics=tuple(
+            (metric_id, browser_diagnostics.get(metric_id))
+            for metric_id in BROWSER_VAD_DIAGNOSTIC_IDS
+        ),
+        vad_midpoint_matched_observations=vad_midpoint_matched_observations,
     )
 
 
@@ -635,6 +680,7 @@ __all__ = [
     "MODULE_NAME",
     "MODULE_VERSION",
     "PROFILE_BUILD_ID",
+    "BROWSER_VAD_DIAGNOSTIC_IDS",
     "PROFILE_ID",
     "VerseMapProfile",
     "build_module_result",

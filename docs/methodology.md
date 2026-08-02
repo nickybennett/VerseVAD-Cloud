@@ -478,6 +478,38 @@ absent and never receive zero or 0.5. These statistics are called cumulative
 normative lexical load because they grow with encountered matched vocabulary.
 They are not a direct measure of cognitive load or affective impact on a reader.
 
+For comparisons between differently sized poems, VerseVAD also divides the
+above-, below-, net-, and absolute-midpoint totals by the number of included
+matched observations. The **per matched observation** value is the resulting
+rate. **Per 100 matches** is that same rate multiplied by 100; it is a more
+readable display scale, not a different statistic. These normalized values are
+comparable only when lexicon, token scope, weighting, phrase policy, and other
+analysis settings are held constant.
+
+## Mean-centered VAD dispersion
+
+VerseVAD reports two complementary, length-neutral measures of dispersion
+around a poem's own VAD mean. If `m` is the poem mean and `N` is the number of
+included matched observations:
+
+- **population standard deviation** is
+  `sqrt(sum((x_i - m)^2) / N)`;
+- **Average Deviation from Poem Mean** is mean absolute deviation (MAD),
+  `sum(abs(x_i - m)) / N`.
+
+Population SD squares departures before averaging, so unusually distant
+ratings influence it more strongly. MAD weights every departure linearly and
+therefore describes the typical absolute distance from the poem mean more
+directly. Neither is a duplicate of midpoint load: midpoint load uses the
+fixed normalized reference point `0.5`, whereas SD and MAD use the poem's own
+mean. Both SD and MAD ignore token and line order, so they measure lexical
+dispersion rather than the sequence or timing of affective shifts.
+
+Both measures are available in token-weighted and type-weighted form. The
+token-weighted view retains repeated matched occurrences; the type-weighted
+view gives each distinct matched lexicon entry one observation. The selected
+weighting must be held constant when poems are compared.
+
 ## Corpus weighting and long works
 
 Every work is analyzed separately before collection aggregation. For a given

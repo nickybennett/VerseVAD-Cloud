@@ -1,6 +1,7 @@
 """VerseMap reference-corpus, Standard Profile, and comparison services."""
 
 from versevad.versemap.model import (
+    BROWSER_VAD_FILENAME,
     MODEL_FILENAME,
     POET_PROFILE_FILENAME,
     PROFILE_FILENAME,
@@ -15,6 +16,7 @@ from versevad.versemap.model import (
     load_reference_index,
 )
 from versevad.versemap.profile import (
+    BROWSER_VAD_DIAGNOSTIC_IDS,
     FEATURE_BY_ID,
     FEATURE_DEFINITIONS,
     PROFILE_BUILD_ID,
@@ -40,6 +42,8 @@ from versevad.versemap.reference import (
 )
 
 __all__ = [
+    "BROWSER_VAD_DIAGNOSTIC_IDS",
+    "BROWSER_VAD_FILENAME",
     "MANIFEST_FILENAME",
     "MODEL_FILENAME",
     "POET_PROFILE_FILENAME",

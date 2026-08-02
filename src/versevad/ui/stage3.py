@@ -751,6 +751,70 @@ def _corpus_browser_poem_feature_frame(index, point) -> pd.DataFrame:
     )
 
 
+def _corpus_browser_vad_diagnostic_frame(points) -> pd.DataFrame:
+    rows = []
+    for point in points:
+        values = point.browser_diagnostic_map
+        for dimension in ("valence", "arousal", "dominance"):
+            prefix = f"vad_{dimension}"
+            rows.append(
+                {
+                    "Poem": point.title,
+                    "Poet": point.poet_name,
+                    "Dimension": dimension.title(),
+                    "Above Midpoint per Match": values.get(
+                        f"{prefix}_above_midpoint_deviation_per_observation"
+                    ),
+                    "Below Midpoint per Match": values.get(
+                        f"{prefix}_below_midpoint_deviation_per_observation"
+                    ),
+                    "Total Absolute Midpoint Deviation per Match": values.get(
+                        f"{prefix}_absolute_midpoint_deviation_per_observation"
+                    ),
+                    "Above Midpoint per 100 Matches": (
+                        values.get(
+                            f"{prefix}_above_midpoint_deviation_per_observation"
+                        )
+                        * 100
+                        if values.get(
+                            f"{prefix}_above_midpoint_deviation_per_observation"
+                        )
+                        is not None
+                        else None
+                    ),
+                    "Below Midpoint per 100 Matches": (
+                        values.get(
+                            f"{prefix}_below_midpoint_deviation_per_observation"
+                        )
+                        * 100
+                        if values.get(
+                            f"{prefix}_below_midpoint_deviation_per_observation"
+                        )
+                        is not None
+                        else None
+                    ),
+                    "Total Absolute Midpoint Deviation per 100 Matches": (
+                        values.get(
+                            f"{prefix}_absolute_midpoint_deviation_per_observation"
+                        )
+                        * 100
+                        if values.get(
+                            f"{prefix}_absolute_midpoint_deviation_per_observation"
+                        )
+                        is not None
+                        else None
+                    ),
+                    "Average Deviation from Poem Mean": values.get(
+                        f"{prefix}_average_deviation_from_poem_mean"
+                    ),
+                    "Matched Observations": (
+                        point.vad_midpoint_matched_observations
+                    ),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def _render_corpus_browser_poem(index, poems_frame, point) -> None:
     point_summary = poems_frame.loc[
         poems_frame["Poem ID"] == point.point_id
@@ -792,7 +856,12 @@ def _render_corpus_browser_poem(index, poems_frame, point) -> None:
     )
     report = st.selectbox(
         "Report Section",
-        ("Profile Overview", "Metric Detail", "Source Text"),
+        (
+            "Profile Overview",
+            "Metric Detail",
+            "VAD Load & Volatility",
+            "Source Text",
+        ),
         key="corpus_browser_poem_report",
     )
     feature_frame = _corpus_browser_poem_feature_frame(index, point)
@@ -802,36 +871,109 @@ def _render_corpus_browser_poem(index, poems_frame, point) -> None:
             available = rows.dropna(subset=["Standardized Deviation"])
             if available.empty:
                 largest_dimension = "Unavailable"
-                mean_absolute = None
+                largest_deviation = None
             else:
                 largest_index = available[
                     "Standardized Deviation"
                 ].abs().idxmax()
                 largest_dimension = available.loc[largest_index, "Dimension"]
-                mean_absolute = available[
-                    "Standardized Deviation"
-                ].abs().mean()
+                largest_deviation = available.loc[
+                    largest_index, "Standardized Deviation"
+                ]
             overview_rows.append(
                 {
                     "Profile Area": group,
                     "Available Dimensions": len(available),
                     "Registered Dimensions": len(rows),
-                    "Mean Absolute Deviation": mean_absolute,
-                    "Largest Departure": largest_dimension,
+                    "Largest Corpus-Relative Departure": largest_dimension,
+                    "Departure (SD)": largest_deviation,
                 }
             )
         render_dataframe(
             pd.DataFrame(overview_rows).style.format(
-                {"Mean Absolute Deviation": "{:.3f}"},
+                {"Departure (SD)": "{:+.3f}"},
                 na_rep="—",
             ),
             hide_index=True,
             width="stretch",
         )
         st.caption(
-            "Mean Absolute Deviation summarizes how far this poem sits from its "
-            "corpus mean within each profile area, in standardized units. Use "
-            "Metric Detail to inspect direction and individual dimensions."
+            "Largest Corpus-Relative Departure identifies the available dimension "
+            "furthest from the selected corpus mean. Departure (SD) is its signed "
+            "standardized deviation: positive is above the corpus mean and negative "
+            "is below it. Use Metric Detail to inspect every dimension."
+        )
+        return
+    if report == "VAD Load & Volatility":
+        diagnostics = _corpus_browser_vad_diagnostic_frame((point,))
+        if diagnostics.empty or diagnostics[
+            "Average Deviation from Poem Mean"
+        ].isna().all():
+            st.info(
+                "This index predates Corpus Browser VAD diagnostics. Run the "
+                "VerseMap reference updater once to add them without changing "
+                "Standard Profile 1.0 or the PCA model."
+            )
+            return
+        st.markdown("#### Length-Normalized Midpoint Deviation")
+        midpoint_rows = []
+        for row in diagnostics.to_dict("records"):
+            for measure, per_match, per_100 in (
+                (
+                    "Above-midpoint deviation",
+                    row["Above Midpoint per Match"],
+                    row["Above Midpoint per 100 Matches"],
+                ),
+                (
+                    "Below-midpoint deviation",
+                    row["Below Midpoint per Match"],
+                    row["Below Midpoint per 100 Matches"],
+                ),
+                (
+                    "Total absolute deviation",
+                    row["Total Absolute Midpoint Deviation per Match"],
+                    row["Total Absolute Midpoint Deviation per 100 Matches"],
+                ),
+            ):
+                midpoint_rows.append(
+                    {
+                        "Dimension": row["Dimension"],
+                        "Measure": measure,
+                        "Per Matched Observation": per_match,
+                        "Per 100 Matches": per_100,
+                    }
+                )
+        render_dataframe(
+            pd.DataFrame(midpoint_rows).style.format(
+                {
+                    "Per Matched Observation": "{:.3f}",
+                    "Per 100 Matches": "{:.3f}",
+                },
+                na_rep="—",
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.markdown("#### Mean-Centered Lexical Volatility")
+        render_dataframe(
+            diagnostics[
+                [
+                    "Dimension",
+                    "Average Deviation from Poem Mean",
+                    "Matched Observations",
+                ]
+            ].style.format(
+                {"Average Deviation from Poem Mean": "{:.3f}"},
+                na_rep="—",
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Average deviation is mean absolute deviation from the poem's own "
+            "VAD mean. Population SD in Profile Overview squares departures and "
+            "therefore emphasizes extremes more strongly. Both are length-neutral "
+            "and do not preserve lexical order."
         )
         return
     if report == "Metric Detail":
@@ -970,6 +1112,7 @@ def render_corpus_browser_workspace() -> None:
             "VerseMap",
             "Standard Profile Table",
             "Distributions",
+            "VAD Load & Volatility",
         ),
         key="corpus_browser_section",
     )
@@ -1136,6 +1279,62 @@ def render_corpus_browser_workspace() -> None:
             "unusual). They are descriptive ranks, not probabilities, quality "
             "scores, or authorship claims. The visible table is intentionally "
             "concise; the download contains the complete profile matrix."
+        )
+        return
+
+    if section == "VAD Load & Volatility":
+        diagnostics = _corpus_browser_vad_diagnostic_frame(index.poems)
+        if diagnostics.empty or diagnostics[
+            "Average Deviation from Poem Mean"
+        ].isna().all():
+            st.info(
+                "This index predates Corpus Browser VAD diagnostics. Run the "
+                "VerseMap reference updater once to add them without changing "
+                "Standard Profile 1.0 or the PCA model."
+            )
+            return
+        dimension = st.selectbox(
+            "VAD dimension",
+            ("Valence", "Arousal", "Dominance"),
+            key="corpus_browser_vad_diagnostic_dimension",
+        )
+        selected_diagnostics = diagnostics.loc[
+            diagnostics["Dimension"] == dimension
+        ].copy()
+        sort_by = st.selectbox(
+            "Sort by",
+            (
+                "Average Deviation from Poem Mean",
+                "Total Absolute Midpoint Deviation per Match",
+                "Above Midpoint per Match",
+                "Below Midpoint per Match",
+                "Poem",
+            ),
+            key="corpus_browser_vad_diagnostic_sort",
+        )
+        selected_diagnostics = selected_diagnostics.sort_values(
+            sort_by,
+            ascending=sort_by == "Poem",
+            na_position="last",
+        )
+        render_dataframe(
+            selected_diagnostics.style.format(
+                {
+                    column: "{:.3f}"
+                    for column in selected_diagnostics.columns
+                    if column not in {"Poem", "Poet", "Dimension", "Matched Observations"}
+                },
+                na_rep="—",
+            ),
+            hide_index=True,
+            width="stretch",
+            height=620,
+        )
+        st.caption(
+            "Per-match and per-100 midpoint deviations are the same rates on "
+            "different display scales. Average deviation from poem mean is mean "
+            "absolute deviation; population SD remains available in the Standard "
+            "Profile views and emphasizes extremes more strongly."
         )
         return
     if section == "Distributions":

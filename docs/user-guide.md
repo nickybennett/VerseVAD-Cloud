@@ -44,8 +44,15 @@ navigation remain available.
 The built-in profiles are **Full Poetic Analysis**, **Computational Close
 Reading**, **Affect and Emotion**, **Sound and Prosody**, **Formal Analysis**,
 and **Teaching/Introductory**. Applying a profile establishes its defaults;
-you may continue customizing afterward. In the hosted edition, custom profiles
-store configuration only and last for the current browser session.
+you may continue customizing afterward. The same built-in and custom profile
+library appears in every analytical view. Wherever a profile can be selected,
+open **Manage Custom Analysis Profiles** to add a new profile, update or rename
+the selected custom profile, or delete it. Workspace-specific controls are
+mapped to one canonical profile schema, so a profile created in Single Poem,
+Other Text, Compare Poems, or corpus analysis can be restored and edited in
+another view without carrying widget state between workspaces. In the hosted
+edition, custom profiles store configuration only and last for the current
+browser session.
 
 Across every built-in profile, model-tagged proper nouns remain eligible for
 Concreteness, Sensorimotor, Frequency, and Age of Acquisition unless the user
@@ -61,6 +68,13 @@ thresholds and evidence policies available in Single Poem. Results place poem
 values side by side and show the observed range (maximum minus minimum) where
 meaningful. Within-poem standard deviations remain separate metric rows. The
 long-form export retains complete audit statistics beyond the concise report.
+
+A full saved Compare Poems analysis retains the selected built-in or custom
+profile label and the exact shared settings used by the comparison. Reopening
+the historical result restores both without silently recalculating it. If a
+referenced custom profile has since been deleted or is unavailable in a hosted
+session, VerseVAD restores the saved settings under **Custom** and explains why;
+it does not replace them with unrelated defaults.
 
 Single Poem, Compare Poems, and Project/Corpus expose the same meter and
 rhythmic-regularity controls. Compare Poems applies them to every poem in the
@@ -315,6 +329,25 @@ column.
 Raw cumulative lexical load preserves repetition and length under token
 weighting. Its per-100-observation counterpart is the appropriate
 length-normalized comparison prompt.
+
+For VAD, **Length-Normalized Midpoint Deviation** reports above-, below-, and
+total absolute distance from `0.5` per included matched observation and per
+100 matches. Those two columns are the same rate on different display scales.
+Use them—not raw cumulative totals—when comparing poems of very different
+lengths, and hold the lexicon, token scope, weighting, and matching policy
+constant.
+
+**Mean-Centered Lexical Volatility** reports **Average Deviation from Poem
+Mean**, the mean absolute deviation (MAD) for valence, arousal, and dominance.
+MAD describes the typical distance of a matched rating from that poem's own
+mean. The existing population SD answers a related but distinct question: its
+squared departures give unusually distant ratings more influence. Both are
+length-neutral and both ignore word order; use the lexical trajectory when the
+location or sequence of shifts matters.
+
+Choose token weighting when repetition is part of the evidence and type
+weighting when the distinct matched vocabulary should count once per entry.
+Compare poems under one shared weighting rather than mixing the two views.
 
 VerseVAD rounds interface-only numerical displays to at most three decimal
 places throughout all workspaces. This includes tables and chart tooltips.

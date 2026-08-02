@@ -6,6 +6,13 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Unified custom analysis profiles across every analytical profile selector;
+  profiles can now be added, updated or renamed, and deleted from Single Poem,
+  Other Text, Compare Poems, and corpus analysis during the hosted session.
+- Added length-normalized VAD midpoint-deviation rates and one nonredundant
+  mean-centered volatility measure—mean absolute deviation—for valence,
+  arousal, and dominance across poem, comparison, project, and Corpus Browser
+  reports. Population SD remains the complementary extreme-sensitive measure.
 - Made hosted theme persistence deterministic across browser refreshes by
   recording an explicitly selected appearance in the URL while retaining the
   existing browser cookie as a fallback; local preference-file behavior is
@@ -821,6 +828,10 @@ All notable VerseVAD changes will be recorded here.
 
 ### Fixed
 
+- Saved Compare Poems analyses now restore their selected built-in or custom
+  profile together with the exact advanced shared configuration used at save
+  time; missing custom-profile definitions fall back explicitly to Custom
+  without discarding the saved settings.
 - Historical-result actions now preserve data deliberately: continuing keeps
   the restored immutable result visible, while preparing reanalysis clears
   only computed output and retains text, metadata, settings, and the saved
@@ -829,6 +840,8 @@ All notable VerseVAD changes will be recorded here.
   one shared server-side preference for every visitor.
 - Restored analytical settings no longer duplicate widget defaults or emit
   Streamlit warnings such as the `minimum_matches` warning.
+- Eliminated the equivalent default-plus-session-state warning from stopword
+  policy selectors restored from saved analyses or shared profiles.
 - Replaced historical-save widget-key heuristics with an allowlist of durable
   analytical state. Legacy action, upload, download, audio, and future
   unregistered widget values are ignored instead of being assigned through

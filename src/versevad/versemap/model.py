@@ -14,6 +14,7 @@ import numpy as np
 
 from versevad.core.modules import ModuleInput, ModuleMetric, ModuleResult, ResultLayer
 from versevad.versemap.profile import (
+    BROWSER_VAD_DIAGNOSTIC_IDS,
     FEATURE_BY_ID,
     FEATURE_DEFINITIONS,
     PROFILE_BUILD_ID,
@@ -26,6 +27,7 @@ from versevad.versemap.profile import (
 PROFILE_FILENAME = "_versemap_profiles.csv"
 POET_PROFILE_FILENAME = "_versemap_poet_profiles.csv"
 MODEL_FILENAME = "_versemap_model.csv"
+BROWSER_VAD_FILENAME = "_versemap_browser_vad.csv"
 PROFILE_SCHEMA_VERSION = "1.0"
 MINIMUM_SHARED_WEIGHT = 0.60
 DEFAULT_NEIGHBOR_COUNT = 10
@@ -81,10 +83,16 @@ class ReferencePoint:
     coordinate_2: float
     values: tuple[tuple[str, float | None], ...]
     poem_count: int = 1
+    browser_diagnostics: tuple[tuple[str, float | None], ...] = ()
+    vad_midpoint_matched_observations: int = 0
 
     @property
     def value_map(self) -> dict[str, float | None]:
         return dict(self.values)
+
+    @property
+    def browser_diagnostic_map(self) -> dict[str, float | None]:
+        return dict(self.browser_diagnostics)
 
 
 @dataclass(frozen=True)
@@ -387,6 +395,13 @@ def load_reference_index(source_root: Path | str) -> VerseMapReferenceIndex:
     model_rows = _read_csv(root / MODEL_FILENAME)
     profile_rows = _read_csv(root / PROFILE_FILENAME)
     poet_rows = _read_csv(root / POET_PROFILE_FILENAME)
+    browser_vad_path = root / BROWSER_VAD_FILENAME
+    browser_vad_rows = (
+        _read_csv(browser_vad_path) if browser_vad_path.is_file() else ()
+    )
+    browser_vad_by_poem = {
+        row.get("poem_id", ""): row for row in browser_vad_rows
+    }
     if not model_rows:
         raise ValueError("VerseMap's reference model is empty. Run the reference updater.")
     header = model_rows[0]
@@ -415,6 +430,11 @@ def load_reference_index(source_root: Path | str) -> VerseMapReferenceIndex:
     )
 
     def point(row: Mapping[str, str], kind: str) -> ReferencePoint:
+        browser_row = (
+            browser_vad_by_poem.get(row.get("poem_id", ""), {})
+            if kind == "reference_poem"
+            else {}
+        )
         return ReferencePoint(
             point_id=(
                 row["poem_id"] if kind == "reference_poem" else row["poet_id"]
@@ -439,6 +459,20 @@ def load_reference_index(source_root: Path | str) -> VerseMapReferenceIndex:
                 for definition in FEATURE_DEFINITIONS
             ),
             poem_count=int(row.get("poem_count", "1")),
+            browser_diagnostics=tuple(
+                (
+                    metric_id,
+                    (
+                        float(browser_row[metric_id])
+                        if browser_row.get(metric_id, "") != ""
+                        else None
+                    ),
+                )
+                for metric_id in BROWSER_VAD_DIAGNOSTIC_IDS
+            ),
+            vad_midpoint_matched_observations=int(
+                browser_row.get("vad_midpoint_matched_observations", "0") or 0
+            ),
         )
 
     return VerseMapReferenceIndex(
@@ -644,6 +678,7 @@ __all__ = [
     "ModelFeature",
     "POET_PROFILE_FILENAME",
     "PROFILE_FILENAME",
+    "BROWSER_VAD_FILENAME",
     "PROFILE_SCHEMA_VERSION",
     "ReferencePoint",
     "VerseMapAnalysisResult",

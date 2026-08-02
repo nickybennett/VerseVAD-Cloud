@@ -225,10 +225,14 @@ from versevad.ui.vad_overview import preferred_overview_vad_lexicon_id
 from versevad.ui.profiles import (
     PROFILE_WIDGET_KEYS,
     apply_profile_settings,
-    delete_custom_profile,
-    load_custom_profiles,
-    save_custom_profile,
     snapshot_profile_settings,
+)
+from versevad.ui.profile_management import (
+    analysis_profile_options,
+    consume_pending_profile_selection,
+    custom_profile_settings,
+    render_custom_profile_manager,
+    selected_custom_profile_name,
 )
 from versevad.ui.design import (
     METER_DEPTH_LABELS,
@@ -1279,42 +1283,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     selected_available_lexicons
                 )
 
-        cloud_profile_session = (
-            os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT") == "1"
+        available_custom_profiles = custom_profile_settings()
+        builtin_profile_names = list(MODULE_PRESETS)
+        profile_options = analysis_profile_options(builtin_profile_names)
+        consume_pending_profile_selection(
+            scope_key="single_poem",
+            selection_state_key="module_preset",
+            options=profile_options,
         )
-        if cloud_profile_session:
-            st.session_state.setdefault("_session_custom_profiles", {})
-            custom_profile_settings = {
-                name: dict(settings)
-                for name, settings in st.session_state[
-                    "_session_custom_profiles"
-                ].items()
-                if isinstance(name, str) and isinstance(settings, dict)
-            }
-        else:
-            custom_profile_settings = {
-                name: dict(profile.settings)
-                for name, profile in load_custom_profiles().items()
-            }
-        builtin_profile_names = [
-            name for name in MODULE_PRESETS if name != "Custom"
-        ]
-        custom_profile_labels = [
-            f"Custom · {name}" for name in custom_profile_settings
-        ]
-        profile_options = builtin_profile_names + custom_profile_labels + [
-            "Custom"
-        ]
-        pending_profile = st.session_state.pop(
-            "_pending_module_preset",
-            None,
-        )
-        profile_notice = st.session_state.pop(
-            "_analysis_profile_notice",
-            None,
-        )
-        if pending_profile in profile_options:
-            st.session_state["module_preset"] = pending_profile
         legacy_profile_names = {
             "Essential": "Affect and Emotion",
             "Literary": "Computational Close Reading",
@@ -1353,7 +1329,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
         if selected_preset in MODULE_PRESETS:
             st.caption(MODULE_PRESETS[selected_preset].description)
-        elif selected_preset.startswith("Custom · "):
+        elif selected_custom_profile_name(selected_preset) is not None:
             st.caption(
                 "A saved custom configuration. Applying it restores its "
                 "recorded module, filtering, threshold, and methodology settings."
@@ -1363,19 +1339,17 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Keep configuring manually, or save the current settings as a "
                 "named custom profile."
             )
-        if profile_notice:
-            st.success(profile_notice)
         if apply_preset:
             if selected_preset == "Custom":
                 st.info("Custom keeps the current manual selections unchanged.")
             else:
                 for profile_key in PROFILE_WIDGET_KEYS:
                     st.session_state.pop(profile_key, None)
-                if selected_preset.startswith("Custom · "):
-                    custom_name = selected_preset.removeprefix("Custom · ")
+                custom_name = selected_custom_profile_name(selected_preset)
+                if custom_name is not None:
                     apply_profile_settings(
                         st.session_state,
-                        custom_profile_settings[custom_name],
+                        available_custom_profiles[custom_name],
                     )
                 else:
                     preset_state = preset_widget_state(
@@ -1389,104 +1363,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.session_state["_applied_analysis_profile"] = selected_preset
                 st.rerun()
 
-        with st.expander("Manage Custom Analysis Profiles", expanded=False):
-            st.caption(
-                "Custom profiles never contain the poem, author, source notes, "
-                "pronunciation overrides, analyses, or exports."
-            )
-            custom_profile_name = st.text_input(
-                "Custom profile name",
-                key="custom_analysis_profile_name",
-            )
-            custom_profile_description = st.text_input(
-                "Description (optional)",
-                key="custom_analysis_profile_description",
-            )
-            save_profile_column, delete_profile_column = st.columns(2)
-            if save_profile_column.button(
-                "Save Current Settings",
-                key="save_custom_analysis_profile",
-                width="stretch",
-            ):
-                if custom_profile_name in MODULE_PRESETS:
-                    st.error(
-                        "Choose a name that is not one of the built-in profiles."
-                    )
-                else:
-                    try:
-                        snapshot = snapshot_profile_settings(st.session_state)
-                        if cloud_profile_session:
-                            clean_name = " ".join(
-                                custom_profile_name.split()
-                            )
-                            if not clean_name:
-                                raise ValueError(
-                                    "Enter a name for the custom analysis profile."
-                                )
-                            if len(clean_name) > 80:
-                                raise ValueError(
-                                    "Custom analysis profile names must be 80 "
-                                    "characters or fewer."
-                                )
-                            st.session_state["_session_custom_profiles"][
-                                clean_name
-                            ] = snapshot
-                            saved_name = clean_name
-                        else:
-                            saved_profile = save_custom_profile(
-                                custom_profile_name,
-                                snapshot,
-                                description=custom_profile_description,
-                                base_profile=str(
-                                    st.session_state.get(
-                                        "_applied_analysis_profile",
-                                        "Custom",
-                                    )
-                                ),
-                            )
-                            saved_name = saved_profile.name
-                        st.session_state["_pending_module_preset"] = (
-                            f"Custom · {saved_name}"
-                        )
-                        st.session_state["_analysis_profile_notice"] = (
-                            "Custom analysis profile saved"
-                            + (
-                                " for this hosted session."
-                                if cloud_profile_session
-                                else " locally."
-                            )
-                        )
-                        st.rerun()
-                    except (OSError, TypeError, ValueError) as error:
-                        st.error(str(error))
-            selected_custom_name = (
-                selected_preset.removeprefix("Custom · ")
-                if selected_preset.startswith("Custom · ")
-                else ""
-            )
-            if delete_profile_column.button(
-                "Delete Selected Custom Profile",
-                key="delete_custom_analysis_profile",
-                width="stretch",
-                disabled=not selected_custom_name,
-            ):
-                if cloud_profile_session:
-                    st.session_state["_session_custom_profiles"].pop(
-                        selected_custom_name,
-                        None,
-                    )
-                else:
-                    delete_custom_profile(selected_custom_name)
-                st.session_state["_pending_module_preset"] = "Custom"
-                st.session_state["_analysis_profile_notice"] = (
-                    "Custom analysis profile deleted."
-                )
-                st.rerun()
-            st.caption(
-                "Hosted custom profiles last only for the current session."
-                if cloud_profile_session
-                else "Custom profiles persist locally between VerseVAD sessions."
-            )
+        render_custom_profile_manager(
+            scope_key="single_poem",
+            selected_profile=selected_preset,
+            selection_state_key="module_preset",
+            current_settings=snapshot_profile_settings(st.session_state),
+            builtin_profile_names=builtin_profile_names,
+        )
 
         st.markdown("#### Core Analysis")
         st.caption(
@@ -6736,6 +6619,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 {
                     "lexicon": "Lexicon",
                     "analysis_view": "Analysis view",
+                    "weighting": "Weighting",
                     "dimension": "Dimension",
                     "matched_observations": "Matched observations",
                     "lexical_coverage": "Coverage",
@@ -6752,6 +6636,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     [
                         "Lexicon",
                         "Analysis view",
+                        "Weighting",
                         "Dimension",
                         "Matched observations",
                         "Coverage",
@@ -6773,6 +6658,105 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 ),
                 hide_index=True,
                 width="stretch",
+            )
+
+            st.subheader("Length-Normalized Midpoint Deviation")
+            st.write(
+                "These values divide the directional midpoint loads by the number "
+                "of included matched observations. They support comparisons between "
+                "poems of different lengths when the lexicon, token scope, and "
+                "weighting are held constant. The per-100 columns are the same rates "
+                "on a more readable scale."
+            )
+            normalized_rows = []
+            for row in cumulative:
+                for measure, per_observation, per_100 in (
+                    (
+                        "Above-midpoint deviation",
+                        row.above_midpoint_deviation_per_observation,
+                        row.above_midpoint_deviation_per_100,
+                    ),
+                    (
+                        "Below-midpoint deviation",
+                        row.below_midpoint_deviation_per_observation,
+                        row.below_midpoint_deviation_per_100,
+                    ),
+                    (
+                        "Total absolute deviation",
+                        row.absolute_midpoint_deviation_per_observation,
+                        row.absolute_midpoint_deviation_per_100,
+                    ),
+                ):
+                    normalized_rows.append(
+                        {
+                            "Lexicon": row.lexicon,
+                            "Analysis view": row.analysis_view,
+                            "Weighting": row.weighting,
+                            "Dimension": row.dimension.title(),
+                            "Measure": measure,
+                            "Per matched observation": per_observation,
+                            "Per 100 matches": per_100,
+                            "Matched observations": row.matched_observations,
+                            "Coverage": row.lexical_coverage,
+                        }
+                    )
+            normalized_frame = pd.DataFrame(normalized_rows)
+            render_dataframe(
+                normalized_frame.style.format(
+                    {
+                        "Per matched observation": "{:.3f}",
+                        "Per 100 matches": "{:.3f}",
+                        "Coverage": lambda value: _percentage(value),
+                    },
+                    na_rep="—",
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+            st.caption(
+                "A high total absolute deviation means the selected VAD ratings "
+                "sit farther from 0.5 on average. Above and below deviations show "
+                "which side supplies that distance; they do not preserve word order."
+            )
+
+            st.subheader("Mean-Centered Lexical Volatility")
+            st.write(
+                "These rates measure how far matched ratings spread from this "
+                "poem's own mean rather than from the fixed 0.5 midpoint. Mean "
+                "absolute deviation is the clearest length-neutral volatility value; "
+                "population standard deviation above is its squared-distance counterpart."
+            )
+            volatility_rows = []
+            for row in cumulative:
+                volatility_rows.append(
+                    {
+                        "Lexicon": row.lexicon,
+                        "Analysis view": row.analysis_view,
+                        "Weighting": row.weighting,
+                        "Dimension": row.dimension.title(),
+                        "Average deviation from poem mean": (
+                            row.average_deviation_from_poem_mean
+                        ),
+                        "Matched observations": row.matched_observations,
+                        "Coverage": row.lexical_coverage,
+                    }
+                )
+            volatility_frame = pd.DataFrame(volatility_rows)
+            render_dataframe(
+                volatility_frame.style.format(
+                    {
+                        "Average deviation from poem mean": "{:.3f}",
+                        "Coverage": lambda value: _percentage(value),
+                    },
+                    na_rep="—",
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+            st.caption(
+                "This mean absolute deviation weights departures linearly; "
+                "population SD weights extreme departures more strongly. Neither "
+                "measure preserves the order or timing of swings."
             )
 
             st.subheader("Top Contributors to Each Mean")

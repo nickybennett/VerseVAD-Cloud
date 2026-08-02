@@ -913,6 +913,37 @@ Use cumulative loads when length and repetition are part of the research questio
 - consider a per-token statistic if the question requires length adjustment;
 - compare the same lexicon, dimension, view, and matching policy.
 
+## Length-Normalized Midpoint Deviation
+
+VerseVAD divides the directional midpoint loads by the included matched
+observation count when the research question requires comparison across
+differently sized poems:
+
+`midpoint_deviation_per_match = midpoint_load / N`
+
+The **per 100 matches** value is exactly `100 * midpoint_deviation_per_match`.
+It is the same rate on a more readable scale. It does not add information and
+should not be interpreted as a separate measure.
+
+## Average Deviation from Poem Mean
+
+**Average Deviation from Poem Mean** is the mean absolute deviation (MAD) of
+the included ratings around that poem's own mean:
+
+`MAD = sum(abs(x_i - mean)) / N`
+
+MAD and population standard deviation are both length-neutral measures of
+within-poem lexical dispersion, but they are not duplicates. MAD weights every
+departure linearly and gives the typical absolute distance from the poem mean.
+Population SD squares departures and is therefore more sensitive to unusually
+distant ratings. Midpoint-deviation rates answer a different question again:
+they measure distance from the fixed normalized midpoint `0.5`, not from the
+poem's own center.
+
+Neither MAD nor population SD preserves token or line order. A poem can have
+high dispersion without alternating between high and low ratings in sequence.
+Use Lexical Trajectory to inspect where shifts occur.
+
 # 13. Top Contributors
 
 Top contributors identify distinct matched entries that pull a token-weighted mean above or below the normalized midpoint.

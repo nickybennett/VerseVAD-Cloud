@@ -675,6 +675,15 @@ VerseVAD reports population standard deviation for the complete selected matched
 
 Warriner's source-provided rating standard deviations in Lexicon Explorer are different: they describe participant variation for one lexical entry.
 
+## Average deviation from poem mean
+
+For valence, arousal, and dominance, **Average Deviation from Poem Mean** is
+the mean absolute deviation (MAD) of the included matched ratings around the
+poem's own mean. It weights departures linearly and describes their typical
+absolute size. Population standard deviation squares departures and therefore
+responds more strongly to unusually distant ratings. Both measures are
+length-neutral and order-insensitive; neither identifies when a shift occurs.
+
 ## Stopword sensitivity
 
 Stopword sensitivity is:
@@ -694,6 +703,12 @@ Cumulative totals are intentionally sensitive to text length and repetition. Ver
 - absolute midpoint load.
 
 These quantities summarize encountered matched lexical ratings. They are not direct measurements of cognitive load or affective impact on a reader.
+
+VerseVAD also reports above-, below-, net-, and absolute-midpoint deviation per
+matched observation. The per-100 values are those same rates multiplied by
+100. Use a normalized rate rather than a raw cumulative total when comparing
+texts of substantially different lengths, while keeping source, scope,
+weighting, and matching policy constant.
 
 ## Top contributors
 

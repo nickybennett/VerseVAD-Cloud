@@ -11,6 +11,57 @@ from typing import Any, Mapping, MutableMapping
 
 
 CUSTOM_PROFILE_VERSION = 1
+COMPARISON_PROFILE_SETTING_KEYS = (
+    "phrase_policy_label",
+    "minimum_matches",
+    "concreteness_abstract_max",
+    "concreteness_concrete_min",
+    "concreteness_exclude_proper",
+    "concreteness_phrases",
+    "concreteness_coverage_warning",
+    "sensorimotor_exclude_proper",
+    "sensorimotor_phrases",
+    "sensorimotor_top_terms",
+    "frequency_rare_below",
+    "frequency_uncommon_below",
+    "frequency_moderate_below",
+    "frequency_very_common_min",
+    "frequency_exclude_proper",
+    "frequency_content_words_only",
+    "frequency_lemma_fallback",
+    "frequency_coverage_warning",
+    "aoa_early_max",
+    "aoa_later_min",
+    "aoa_exclude_proper",
+    "aoa_content_words_only",
+    "aoa_lemma_fallback",
+    "aoa_coverage_warning",
+    "lexical_style_mattr_window",
+    "lexical_style_hdd_sample",
+    "lexical_style_mtld_threshold",
+    "lexical_style_short_warning",
+    "poetry_id_min_tokens",
+    "poetry_id_min_types",
+    "poetry_id_min_token_coverage",
+    "poetry_id_min_type_coverage",
+    "pronunciation_coverage_warning",
+    "pronunciation_minimum_complete_lines",
+    "pronunciation_minimum_resolved_tokens",
+    "meter_line_match_threshold",
+    "meter_irregular_threshold",
+    "meter_ambiguity_margin",
+    "meter_maximum_variants",
+    "meter_analysis_mode",
+    "meter_style_profile",
+    "meter_interpretation_depth",
+    "meter_performance_candidate_limit",
+    "meter_realized_alternatives",
+    "meter_allow_visible_elision",
+    "phonological_slant_threshold",
+    "phonological_sound_repetitions",
+    "phonological_coverage_warning",
+    "phonological_maximum_pairs",
+)
 _PROFILE_VALUE_MIGRATIONS = {
     (
         "meter_analysis_mode",
@@ -281,6 +332,47 @@ def save_custom_profile(
     return profile
 
 
+def update_custom_profile(
+    existing_name: str,
+    name: str,
+    settings: Mapping[str, Any],
+    *,
+    description: str = "",
+    base_profile: str = "Custom",
+    path: Path | str | None = None,
+) -> CustomAnalysisProfile:
+    """Update or rename one saved profile while preserving its creation time."""
+
+    clean_existing_name = " ".join(existing_name.split())
+    clean_name = " ".join(name.split())
+    if not clean_name:
+        raise ValueError("Enter a name for the custom analysis profile.")
+    if len(clean_name) > 80:
+        raise ValueError("Custom analysis profile names must be 80 characters or fewer.")
+    profile_path = Path(path) if path is not None else default_custom_profiles_path()
+    profiles = load_custom_profiles(profile_path)
+    existing = profiles.get(clean_existing_name)
+    if existing is None:
+        raise ValueError("The selected custom analysis profile no longer exists.")
+    if clean_name != clean_existing_name and clean_name in profiles:
+        raise ValueError(
+            "Another custom analysis profile already uses that name."
+        )
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    updated = CustomAnalysisProfile(
+        name=clean_name,
+        description=description.strip(),
+        base_profile=base_profile,
+        settings=snapshot_profile_settings(settings),
+        created_at=existing.created_at,
+        updated_at=now,
+    )
+    del profiles[clean_existing_name]
+    profiles[clean_name] = updated
+    _write_profiles(profiles, profile_path)
+    return updated
+
+
 def delete_custom_profile(
     name: str,
     *,
@@ -296,6 +388,7 @@ def delete_custom_profile(
 
 
 __all__ = [
+    "COMPARISON_PROFILE_SETTING_KEYS",
     "CUSTOM_PROFILE_VERSION",
     "PROFILE_WIDGET_KEYS",
     "CustomAnalysisProfile",
@@ -306,4 +399,5 @@ __all__ = [
     "normalize_profile_settings",
     "save_custom_profile",
     "snapshot_profile_settings",
+    "update_custom_profile",
 ]

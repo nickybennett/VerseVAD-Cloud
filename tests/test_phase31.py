@@ -63,6 +63,7 @@ def test_vad_contributors_use_midpoint_centered_weighted_deviation(
         for row in rows
         if row.dimension == "valence"
         and row.analysis_view == "All matched tokens"
+        and row.weighting == "Token-weighted"
     ]
     bright = next(row for row in valence if row.term == "bright")
     dark = next(row for row in valence if row.term == "dark")
@@ -92,3 +93,22 @@ def test_cumulative_vad_keeps_length_sensitive_token_totals(
     assert valence.below_midpoint_deviation == pytest.approx(0.25)
     assert valence.net_midpoint_deviation == pytest.approx(0.5)
     assert valence.absolute_midpoint_deviation == pytest.approx(1.0)
+    assert valence.above_midpoint_deviation_per_observation == pytest.approx(0.25)
+    assert valence.below_midpoint_deviation_per_observation == pytest.approx(1 / 12)
+    assert valence.absolute_midpoint_deviation_per_observation == pytest.approx(1 / 3)
+    assert valence.above_midpoint_deviation_per_100 == pytest.approx(25.0)
+    assert valence.below_midpoint_deviation_per_100 == pytest.approx(25 / 3)
+    assert valence.absolute_midpoint_deviation_per_100 == pytest.approx(100 / 3)
+    assert valence.average_deviation_from_poem_mean == pytest.approx(5 / 18)
+
+    type_valence = next(
+        row
+        for row in rows
+        if row.dimension == "valence"
+        and row.analysis_view == "All matched tokens"
+        and row.weighting == "Type-weighted"
+    )
+    assert type_valence.matched_observations == 2
+    assert type_valence.rating_total == pytest.approx(1.125)
+    assert type_valence.absolute_midpoint_deviation == pytest.approx(0.625)
+    assert type_valence.average_deviation_from_poem_mean == pytest.approx(0.3125)

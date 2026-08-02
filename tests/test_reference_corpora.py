@@ -22,7 +22,10 @@ from versevad.versemap.model import (
     ReferencePoint,
     VerseMapReferenceIndex,
 )
-from versevad.ui.stage3 import _corpus_profile_frames
+from versevad.ui.stage3 import (
+    _corpus_browser_vad_diagnostic_frame,
+    _corpus_profile_frames,
+)
 
 
 def test_corpus_browser_characteristicity_uses_full_space_centroid_distance() -> None:
@@ -49,6 +52,17 @@ def test_corpus_browser_characteristicity_uses_full_space_centroid_distance() ->
             coordinate_1=value,
             coordinate_2=0.0,
             values=(("vad_valence_mean", value),),
+            browser_diagnostics=(
+                (
+                    "vad_valence_absolute_midpoint_deviation_per_observation",
+                    value / 10,
+                ),
+                (
+                    "vad_valence_average_deviation_from_poem_mean",
+                    value / 20,
+                ),
+            ),
+            vad_midpoint_matched_observations=10,
         )
         for index, (title, value) in enumerate(
             (("Centroid", 0.5), ("Nearby", 0.6), ("Distant", 0.9)),
@@ -70,8 +84,16 @@ def test_corpus_browser_characteristicity_uses_full_space_centroid_distance() ->
     )
 
     summary, poems = _corpus_profile_frames(index)
+    diagnostics = _corpus_browser_vad_diagnostic_frame(index.poems)
 
     assert summary.iloc[0]["Corpus Mean"] == pytest.approx(2 / 3)
+    valence_diagnostics = diagnostics.loc[
+        diagnostics["Dimension"] == "Valence"
+    ]
+    assert len(valence_diagnostics) == 3
+    assert valence_diagnostics[
+        "Average Deviation from Poem Mean"
+    ].notna().all()
     by_title = poems.set_index("Poem")
     assert by_title.loc["Centroid", "Centroid Distance"] == pytest.approx(0.0)
     assert (

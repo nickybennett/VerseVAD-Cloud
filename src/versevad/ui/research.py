@@ -43,7 +43,14 @@ from versevad.ui.design import (
     render_empty_state,
     render_workspace_header,
 )
-from versevad.ui.profiles import PROFILE_WIDGET_KEYS
+from versevad.ui.profile_management import (
+    custom_profile_settings,
+    selected_custom_profile_name,
+)
+from versevad.ui.profiles import (
+    COMPARISON_PROFILE_SETTING_KEYS,
+    PROFILE_WIDGET_KEYS,
+)
 
 
 _RESEARCHABLE_WORKSPACES = {
@@ -85,6 +92,10 @@ _COMPARE_STATE_KEYS = frozenset(
         "compare_protected_stopwords",
         "compare_custom_stopword_additions",
         "compare_custom_stopword_removals",
+        "compare_versemap_reference_corpus",
+        "compare_config_pronunciation_overrides",
+        "compare_config_meter_scholar_revisions",
+        *(f"compare_config_{key}" for key in COMPARISON_PROFILE_SETTING_KEYS),
     }
 )
 _EXPLORER_STATE_KEYS = frozenset({"explorer_value_display"})
@@ -781,7 +792,25 @@ def restore_library_revision(
         raise ResearchLibraryError("This saved analysis has an unknown payload.")
     kind = payload.get("kind")
     workspace = str(payload.get("workspace_id") or item.workspace_id)
-    _apply_ui_state(payload.get("ui_state"), workspace=workspace)
+    restored_ui_state = payload.get("ui_state")
+    _apply_ui_state(restored_ui_state, workspace=workspace)
+    if workspace == "Compare Poems" and isinstance(restored_ui_state, dict):
+        restored_profile = str(
+            restored_ui_state.get("compare_analysis_profile", "")
+        )
+        custom_name = selected_custom_profile_name(restored_profile)
+        if (
+            custom_name is not None
+            and custom_name not in custom_profile_settings()
+        ):
+            st.session_state["compare_analysis_profile"] = "Custom"
+            st.session_state[
+                "_analysis_profile_notice__compare_poems"
+            ] = (
+                f'The saved custom profile "{custom_name}" is not available '
+                "in this installation or hosted session. Its exact saved "
+                "comparison settings were restored as Custom."
+            )
     if kind == "workspace_analysis":
         analysis = payload.get("analysis")
         if not isinstance(analysis, WorkspaceAnalysis):

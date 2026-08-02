@@ -1078,6 +1078,19 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       border: 1px solid var(--color-border);
       border-radius: var(--radius-small);
       max-width: 100%;
+    }}
+    /*
+     * Streamlit's interactive dataframe already contains its own
+     * horizontally and vertically scrollable Glide grid. Making the outer
+     * wrapper scrollable creates a second, visually plausible scrollbar that
+     * does not move the grid. Leave that wrapper visible so pointer dragging
+     * reaches the real grid scrollbars. Ordinary static tables still need a
+     * conventional overflow container.
+     */
+    [data-testid="stDataFrame"] {{
+      overflow: visible;
+    }}
+    [data-testid="stTable"] {{
       overflow: auto;
       -webkit-overflow-scrolling: touch;
     }}

@@ -158,6 +158,9 @@ def test_comparison_reports_like_for_like_means_dispersion_and_loads(
     mean = by_id[f"{prefix}.mean"]
     dispersion = by_id[f"{prefix}.population_sd"]
     cumulative = by_id[f"{prefix}.rating_total"]
+    normalized = by_id[f"{prefix}.absolute_midpoint_per_observation"]
+    normalized_per_100 = by_id[f"{prefix}.absolute_midpoint_per_100"]
+    mean_centered = by_id[f"{prefix}.average_deviation_from_poem_mean"]
 
     assert mean.value_a is not None
     assert mean.value_b is not None
@@ -168,6 +171,12 @@ def test_comparison_reports_like_for_like_means_dispersion_and_loads(
     assert dispersion.note.startswith("Within-poem lexical dispersion")
     assert cumulative.value_a is not None
     assert cumulative.denominator_a.endswith("token-weighted observations")
+    assert normalized.value_a is not None
+    assert normalized_per_100.value_a == pytest.approx(
+        float(normalized.value_a) * 100
+    )
+    assert mean_centered.value_a is not None
+    assert "own lexical mean" in mean_centered.note
 
 
 def test_comparison_type_view_changes_repetition_sensitive_denominator(
@@ -373,6 +382,16 @@ def test_comparison_metric_families_separate_means_loads_and_dispersion() -> Non
         "Valence — Net midpoint load",
         "VAD Profile",
     ) == "Cumulative Lexical Load"
+    assert _comparison_metric_family(
+        "vad.source.valence.absolute_midpoint_per_observation",
+        "Valence — Absolute midpoint deviation per matched observation",
+        "VAD Profile",
+    ) == "Length-Normalized Midpoint Deviation"
+    assert _comparison_metric_family(
+        "vad.source.valence.average_deviation_from_poem_mean",
+        "Valence — Average deviation from poem mean",
+        "VAD Profile",
+    ) == "Mean-Centered Lexical Volatility"
     assert _report_location("meter.whole_poem_mean_fit") == (
         "Sound & Form",
         "Candidate Meter & Rhythmic Regularity",
@@ -383,9 +402,11 @@ def test_reader_facing_family_order_places_means_before_loads_and_dispersion() -
     rows = pd.DataFrame(
         {
             "Metric Family": [
-                "Within-Poem Dispersion",
-                "Cumulative Lexical Load",
-                "VAD Means",
+            "Within-Poem Dispersion",
+            "Length-Normalized Midpoint Deviation",
+            "Mean-Centered Lexical Volatility",
+            "Cumulative Lexical Load",
+            "VAD Means",
             ]
         }
     )
@@ -393,6 +414,8 @@ def test_reader_facing_family_order_places_means_before_loads_and_dispersion() -
     assert _ordered_metric_families(rows, "VAD Profile") == (
         "VAD Means",
         "Cumulative Lexical Load",
+        "Length-Normalized Midpoint Deviation",
+        "Mean-Centered Lexical Volatility",
         "Within-Poem Dispersion",
     )
 

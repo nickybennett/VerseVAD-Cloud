@@ -75,7 +75,17 @@ from versevad.ui.design import (
     render_stateful_section_navigation,
     render_workspace_header,
 )
-from versevad.ui.profiles import load_custom_profiles, normalize_profile_settings
+from versevad.ui.profile_management import (
+    analysis_profile_options,
+    consume_pending_profile_selection,
+    custom_profile_settings,
+    render_custom_profile_manager,
+    selected_custom_profile_name,
+)
+from versevad.ui.profiles import (
+    normalize_profile_settings,
+    snapshot_profile_settings,
+)
 from versevad.ui.stopwords import render_stopword_settings
 from versevad.versemap import (
     MODEL_FILENAME,
@@ -84,6 +94,120 @@ from versevad.versemap import (
     VerseMapConfiguration,
     load_reference_index,
 )
+
+
+_CORPUS_PROFILE_INCLUDE_TO_MODULE = {
+    "include_concreteness": "concreteness",
+    "include_frequency": "frequency",
+    "include_aoa": "aoa",
+    "include_sensorimotor": "sensorimotor",
+    "include_pronunciation": "pronunciation",
+    "include_meter": "meter",
+    "include_phonology": "phonology",
+    "include_lexical_style": "lexical_style",
+    "include_poetry_id": "poetry_id",
+    "include_inherited_form": "inherited_form",
+    "include_versemap": "versemap",
+}
+
+_VAD_LOAD_METRICS = {
+    "vad_rating_total",
+    "vad_above_midpoint_load",
+    "vad_below_midpoint_load",
+    "vad_net_midpoint_load",
+    "vad_absolute_midpoint_load",
+    "vad_above_midpoint_load_per_observation",
+    "vad_below_midpoint_load_per_observation",
+    "vad_net_midpoint_load_per_observation",
+    "vad_absolute_midpoint_load_per_observation",
+    "vad_above_midpoint_load_per_100_observations",
+    "vad_below_midpoint_load_per_100_observations",
+    "vad_net_midpoint_load_per_100_observations",
+    "vad_absolute_midpoint_load_per_100_observations",
+}
+_VAD_VOLATILITY_METRICS = {"vad_average_deviation_from_poem_mean"}
+
+
+def _corpus_profile_setting_keys(project_id: str) -> dict[str, str]:
+    prefix = f"corpus_{project_id}"
+    return {
+        "phrase_policy_label": f"corpus_policy_{project_id}",
+        "minimum_matches": f"corpus_minimum_{project_id}",
+        "concreteness_exclude_proper": (
+            f"corpus_concreteness_exclude_proper_{project_id}"
+        ),
+        "sensorimotor_exclude_proper": (
+            f"corpus_sensorimotor_exclude_proper_{project_id}"
+        ),
+        "frequency_exclude_proper": (
+            f"corpus_frequency_exclude_proper_{project_id}"
+        ),
+        "frequency_content_words_only": (
+            f"corpus_frequency_content_only_{project_id}"
+        ),
+        "aoa_exclude_proper": f"corpus_aoa_exclude_proper_{project_id}",
+        "aoa_content_words_only": f"corpus_aoa_content_only_{project_id}",
+        "poetry_id_sources": f"corpus_poetry_id_sources_{project_id}",
+        "poetry_id_weightings": f"corpus_poetry_id_weightings_{project_id}",
+        "poetry_id_views": f"corpus_poetry_id_views_{project_id}",
+        "poetry_id_lexical_dimensions": (
+            f"corpus_poetry_id_character_{project_id}"
+        ),
+        "poetry_id_custom_thresholds": (
+            f"corpus_poetry_id_custom_{project_id}"
+        ),
+        "poetry_id_valence_low": f"corpus_poetry_id_valence_low_{project_id}",
+        "poetry_id_valence_high": f"corpus_poetry_id_valence_high_{project_id}",
+        "poetry_id_arousal_low": f"corpus_poetry_id_arousal_low_{project_id}",
+        "poetry_id_arousal_high": f"corpus_poetry_id_arousal_high_{project_id}",
+        "poetry_id_dominance_low": f"corpus_poetry_id_dominance_low_{project_id}",
+        "poetry_id_dominance_high": (
+            f"corpus_poetry_id_dominance_high_{project_id}"
+        ),
+        "meter_analysis_mode": f"corpus_meter_mode_{project_id}",
+        "meter_style_profile": f"corpus_meter_style_{project_id}",
+        "meter_interpretation_depth": f"corpus_meter_depth_{project_id}",
+        "meter_line_match_threshold": (
+            f"corpus_meter_line_threshold_{project_id}"
+        ),
+        "meter_irregular_threshold": f"corpus_meter_poem_threshold_{project_id}",
+        "meter_ambiguity_margin": f"corpus_meter_margin_{project_id}",
+        "meter_maximum_variants": f"corpus_meter_variants_{project_id}",
+        "meter_performance_candidate_limit": (
+            f"corpus_meter_candidate_limit_{project_id}"
+        ),
+        "meter_realized_alternatives": (
+            f"corpus_meter_alternatives_{project_id}"
+        ),
+        "meter_allow_visible_elision": f"corpus_meter_elision_{project_id}",
+        "single_stopword_mode": f"{prefix}_stopword_mode",
+        "single_protected_stopwords": f"{prefix}_protected_stopwords",
+        "single_custom_stopword_additions": (
+            f"{prefix}_custom_stopword_additions"
+        ),
+        "single_custom_stopword_removals": (
+            f"{prefix}_custom_stopword_removals"
+        ),
+    }
+
+
+def _corpus_profile_snapshot(project_id: str) -> dict[str, object]:
+    settings: dict[str, object] = {
+        "selected_lexicons": list(
+            st.session_state.get(f"analysis_lexicons_{project_id}", [])
+        )
+    }
+    selected_modules = set(
+        st.session_state.get(f"analysis_modules_{project_id}", [])
+    )
+    for include_key, module_id in _CORPUS_PROFILE_INCLUDE_TO_MODULE.items():
+        settings[include_key] = module_id in selected_modules
+    for profile_key, corpus_key in _corpus_profile_setting_keys(
+        project_id
+    ).items():
+        if corpus_key in st.session_state:
+            settings[profile_key] = st.session_state[corpus_key]
+    return snapshot_profile_settings(settings)
 
 
 def _safe_filename(value: str) -> str:
@@ -1246,24 +1370,17 @@ def _render_corpus_affective_report(
         "is not uncertainty or variation among poems."
     )
 
-    load_metric_names = {
-        "vad_rating_total",
-        "vad_above_midpoint_load",
-        "vad_below_midpoint_load",
-        "vad_net_midpoint_load",
-        "vad_absolute_midpoint_load",
-    }
     loads = tuple(
         row
         for row in selected_metrics
-        if row.metric in load_metric_names
+        if row.metric in _VAD_LOAD_METRICS
         and row.lexicon == lexicon
         and row.analysis_view == analysis_view
         and row.weighting == weighting
     )
     if loads:
         with bottom_collapsible_expander(
-            "Cumulative Lexical Load",
+            "Cumulative and Length-Normalized Lexical Load",
             control_id=f"{state_prefix}-cumulative-load",
             expanded=False,
         ):
@@ -1304,8 +1421,60 @@ def _render_corpus_affective_report(
                 height=min(360, 76 + len(load_frame) * 35),
             )
             st.caption(
-                "Cumulative load remains length- and repetition-sensitive. The "
-                "complete set of load measures remains available in the export."
+                "Raw cumulative loads remain length- and repetition-sensitive. "
+                "Per-observation and per-100 midpoint deviations are normalized "
+                "for comparison across differently sized poems. The complete set "
+                "of measures remains available in the export."
+            )
+
+    volatility = tuple(
+        row
+        for row in selected_metrics
+        if row.metric in _VAD_VOLATILITY_METRICS
+        and row.lexicon == lexicon
+        and row.analysis_view == analysis_view
+        and row.weighting == weighting
+    )
+    if volatility:
+        with bottom_collapsible_expander(
+            "Mean-Centered Lexical Volatility",
+            control_id=f"{state_prefix}-mean-centered-volatility",
+            expanded=False,
+        ):
+            dimensions = sorted({row.dimension.title() for row in volatility})
+            dimension = st.selectbox(
+                "Dimension",
+                options=dimensions,
+                key=f"{state_prefix}_volatility_dimension",
+            )
+            volatility_frame = pd.DataFrame(
+                [
+                    {
+                        "Poem": row.title,
+                        "Average Deviation from Poem Mean": row.value,
+                        "Matched Observations": row.observations,
+                        "Coverage": row.coverage,
+                    }
+                    for row in volatility
+                    if row.dimension.title() == dimension
+                ]
+            )
+            render_dataframe(
+                volatility_frame.style.format(
+                    {
+                        "Average Deviation from Poem Mean": "{:.3f}",
+                        "Coverage": "{:.1%}",
+                    },
+                    na_rep="—",
+                ),
+                hide_index=True,
+                width="stretch",
+                height=min(360, 76 + len(volatility_frame) * 35),
+            )
+            st.caption(
+                "This is mean absolute deviation from each poem's own VAD mean. "
+                "Unlike population SD, it weights departures linearly rather than "
+                "squaring them. Both are length-neutral and order-insensitive."
             )
 
 
@@ -2239,32 +2408,23 @@ def _render_analysis_tab(
                 "See docs/resource-installation.md for official download pages, "
                 "exact filenames, and supported checksums."
             )
-    custom_profile_settings = {
-        name: dict(profile.settings)
-        for name, profile in load_custom_profiles().items()
-    }
-    custom_profile_settings.update(
-        {
-            name: dict(settings)
-            for name, settings in st.session_state.get(
-                "_session_custom_profiles",
-                {},
-            ).items()
-            if isinstance(name, str) and isinstance(settings, dict)
-        }
+    available_custom_profiles = custom_profile_settings()
+    builtin_profile_names = list(MODULE_PRESETS)
+    profile_options = analysis_profile_options(builtin_profile_names)
+    corpus_profile_state_key = f"corpus_preset_{project_id}"
+    consume_pending_profile_selection(
+        scope_key=f"corpus_{project_id}",
+        selection_state_key=corpus_profile_state_key,
+        options=profile_options,
     )
-    profile_options = [
-        name for name in MODULE_PRESETS if name != "Custom"
-    ] + [
-        f"Custom · {name}" for name in sorted(custom_profile_settings)
-    ] + ["Custom"]
+    if st.session_state.get(corpus_profile_state_key) not in profile_options:
+        st.session_state[corpus_profile_state_key] = "Custom"
     preset_choice, preset_action = st.columns([3, 1], vertical_alignment="bottom")
     with preset_choice:
         selected_preset = st.selectbox(
             "Corpus analysis profile",
             options=profile_options,
-            index=profile_options.index("Custom"),
-            key=f"corpus_preset_{project_id}",
+            key=corpus_profile_state_key,
             help=(
                 "Built-in and saved custom profiles update shared evidence "
                 "selections after Apply / Restore."
@@ -2278,15 +2438,15 @@ def _render_analysis_tab(
         )
     if selected_preset in MODULE_PRESETS:
         st.caption(MODULE_PRESETS[selected_preset].description)
-    elif selected_preset.startswith("Custom · "):
+    elif selected_custom_profile_name(selected_preset) is not None:
         st.caption(
             "A saved custom configuration. Unsupported or unavailable corpus "
             "modules remain disabled."
         )
     if apply_preset:
-        if selected_preset.startswith("Custom · "):
-            custom_name = selected_preset.removeprefix("Custom · ")
-            preset_state = custom_profile_settings.get(custom_name, {})
+        custom_name = selected_custom_profile_name(selected_preset)
+        if custom_name is not None:
+            preset_state = available_custom_profiles.get(custom_name, {})
         else:
             preset_state = preset_widget_state(
                 selected_preset,
@@ -2297,53 +2457,33 @@ def _render_analysis_tab(
             preset_state = None
         elif preset_state is not None:
             preset_state = normalize_profile_settings(preset_state)
-        module_key_lookup = {
-            "include_concreteness": "concreteness",
-            "include_frequency": "frequency",
-            "include_aoa": "aoa",
-            "include_sensorimotor": "sensorimotor",
-            "include_pronunciation": "pronunciation",
-            "include_meter": "meter",
-            "include_phonology": "phonology",
-            "include_lexical_style": "lexical_style",
-            "include_poetry_id": "poetry_id",
-            "include_inherited_form": "inherited_form",
-            "include_versemap": "versemap",
-        }
         if preset_state is not None:
             st.session_state[f"analysis_lexicons_{project_id}"] = (
                 preset_state.get("selected_lexicons", [])
             )
             st.session_state[f"analysis_modules_{project_id}"] = [
                 module_name
-                for state_key, module_name in module_key_lookup.items()
+                for state_key, module_name in (
+                    _CORPUS_PROFILE_INCLUDE_TO_MODULE.items()
+                )
                 if (
                     preset_state.get(state_key) is True
                     and module_name in module_labels
                 )
             ]
-            corpus_setting_keys = {
-                "concreteness_exclude_proper": f"corpus_concreteness_exclude_proper_{project_id}",
-                "sensorimotor_exclude_proper": f"corpus_sensorimotor_exclude_proper_{project_id}",
-                "frequency_exclude_proper": f"corpus_frequency_exclude_proper_{project_id}",
-                "frequency_content_words_only": f"corpus_frequency_content_only_{project_id}",
-                "aoa_exclude_proper": f"corpus_aoa_exclude_proper_{project_id}",
-                "aoa_content_words_only": f"corpus_aoa_content_only_{project_id}",
-                "meter_analysis_mode": f"corpus_meter_mode_{project_id}",
-                "meter_style_profile": f"corpus_meter_style_{project_id}",
-                "meter_interpretation_depth": f"corpus_meter_depth_{project_id}",
-                "meter_line_match_threshold": f"corpus_meter_line_threshold_{project_id}",
-                "meter_irregular_threshold": f"corpus_meter_poem_threshold_{project_id}",
-                "meter_ambiguity_margin": f"corpus_meter_margin_{project_id}",
-                "meter_maximum_variants": f"corpus_meter_variants_{project_id}",
-                "meter_performance_candidate_limit": f"corpus_meter_candidate_limit_{project_id}",
-                "meter_realized_alternatives": f"corpus_meter_alternatives_{project_id}",
-                "meter_allow_visible_elision": f"corpus_meter_elision_{project_id}",
-            }
-            for source_key, target_key in corpus_setting_keys.items():
+            for source_key, target_key in _corpus_profile_setting_keys(
+                project_id
+            ).items():
                 if source_key in preset_state:
                     st.session_state[target_key] = preset_state[source_key]
             st.rerun()
+    render_custom_profile_manager(
+        scope_key=f"corpus_{project_id}",
+        selected_profile=selected_preset,
+        selection_state_key=corpus_profile_state_key,
+        current_settings=_corpus_profile_snapshot(project_id),
+        builtin_profile_names=builtin_profile_names,
+    )
     lexicon_state_key = f"analysis_lexicons_{project_id}"
     module_state_key = f"analysis_modules_{project_id}"
     if lexicon_state_key not in st.session_state:
@@ -3110,19 +3250,13 @@ def _render_analysis_tab(
                     width="stretch",
                 )
 
-    st.subheader("Length-Sensitive Cumulative Load by Work")
+    st.subheader("Cumulative and Length-Normalized Load by Work")
     st.write(
-        "These sums answer a different question from means. They grow with included "
-        "matched vocabulary and repetition; they are not estimates of a reader's psychological response."
+        "Raw sums grow with included matched vocabulary and repetition. "
+        "Per-observation and per-100 rows provide length-normalized comparisons; "
+        "none estimates a reader's psychological response."
     )
-    cumulative_metric_names = {
-        "vad_rating_total",
-        "vad_above_midpoint_load",
-        "vad_below_midpoint_load",
-        "vad_net_midpoint_load",
-        "vad_absolute_midpoint_load",
-    }
-    load_rows = [row for row in metrics if row.metric in cumulative_metric_names]
+    load_rows = [row for row in metrics if row.metric in _VAD_LOAD_METRICS]
     if load_rows:
         load_frame = pd.DataFrame(
             [
@@ -3145,6 +3279,42 @@ def _render_analysis_tab(
             hide_index=True,
             width="stretch",
             height=380,
+        )
+    volatility_rows = [
+        row for row in metrics if row.metric in _VAD_VOLATILITY_METRICS
+    ]
+    if volatility_rows:
+        st.subheader("Mean-Centered Lexical Volatility by Work")
+        volatility_frame = pd.DataFrame(
+            [
+                {
+                    "Work": row.title,
+                    "Collection": row.collection,
+                    "Lexicon": row.lexicon,
+                    "Analysis view": view_labels[row.analysis_view],
+                    "Dimension": row.dimension.title(),
+                    "Average Deviation from Poem Mean": row.value,
+                    "Matched observations": row.observations,
+                    "Coverage": row.coverage,
+                }
+                for row in volatility_rows
+            ]
+        )
+        render_dataframe(
+            volatility_frame.style.format(
+                {
+                    "Average Deviation from Poem Mean": "{:.3f}",
+                    "Coverage": "{:.1%}",
+                },
+                na_rep="—",
+            ),
+            hide_index=True,
+            width="stretch",
+            height=380,
+        )
+        st.caption(
+            "Mean absolute deviation weights departures from each poem's own VAD "
+            "mean linearly. Population SD emphasizes unusually large departures."
         )
     _render_batch_comparison(repository, project_id)
 

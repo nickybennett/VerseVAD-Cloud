@@ -105,6 +105,7 @@ resources/VerseMap_Reference_Corpus/_versemap_release.txt
 resources/VerseMap_Reference_Corpus/_versemap_profiles.csv
 resources/VerseMap_Reference_Corpus/_versemap_poet_profiles.csv
 resources/VerseMap_Reference_Corpus/_versemap_model.csv
+resources/VerseMap_Reference_Corpus/_versemap_browser_vad.csv
 ```
 
 The updater never edits or renames a source poem. It normalizes only line-ending
@@ -154,6 +155,13 @@ table; corpus means, population standard deviations, medians, ranges, and
 coverage; per-dimension distributions and poem-level standardized deviations;
 and corpus-relative centroid distance, characteristicity percentile, and
 distinctiveness percentile.
+
+The updater also writes `_versemap_browser_vad.csv`, an auxiliary Corpus
+Browser diagnostics table containing fixed-profile, length-normalized VAD
+midpoint-deviation rates and mean absolute deviation from each poem's own VAD
+mean. This file does not add PCA features, change Standard Profile 1.0, or move
+any poem or poet centroid in VerseMap. Older indexes remain loadable; rerun the
+updater to make the additional diagnostic report available.
 
 Characteristicity is the reverse rank of a poem's coverage-renormalized,
 profile-weighted RMS z-distance from the selected corpus centroid.

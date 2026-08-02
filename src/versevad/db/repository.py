@@ -1989,7 +1989,12 @@ class ProjectRepository:
             "Stopwords excluded": "stopwords_excluded",
         }
         cumulative = {
-            (row.lexicon_id, view_key[row.analysis_view], row.dimension): row
+            (
+                row.lexicon_id,
+                view_key[row.analysis_view],
+                row.weighting,
+                row.dimension,
+            ): row
             for row in vad_cumulative_views(workspace)
         }
         for result in workspace.results:
@@ -2167,13 +2172,22 @@ class ProjectRepository:
                             )
                         )
                 for analysis_view in ("all_matched", "stopwords_excluded"):
-                    for dimension in ("valence", "arousal", "dominance"):
-                        totals = cumulative.get(
-                            (metadata.lexicon_id, analysis_view, dimension)
-                        )
-                        if totals is None:
-                            continue
-                        cumulative_values = (
+                    for weighting_label, weighting in (
+                        ("Token-weighted", "token"),
+                        ("Type-weighted", "type"),
+                    ):
+                        for dimension in ("valence", "arousal", "dominance"):
+                            totals = cumulative.get(
+                                (
+                                    metadata.lexicon_id,
+                                    analysis_view,
+                                    weighting_label,
+                                    dimension,
+                                )
+                            )
+                            if totals is None:
+                                continue
+                            cumulative_values = (
                             ("vad_rating_total", "normalized_0_1_sum", totals.rating_total),
                             (
                                 "vad_above_midpoint_load",
@@ -2195,33 +2209,78 @@ class ProjectRepository:
                                 "midpoint_deviation_sum",
                                 totals.absolute_midpoint_deviation,
                             ),
-                        )
-                        matched_tokens = (
-                            result.coverage.matched_token_count
-                            if analysis_view == "all_matched"
-                            else result.stopword_coverage.matched_token_count
-                        )
-                        for metric, scale, value in cumulative_values:
-                            rows.append(
-                                (
-                                    *common,
-                                    analysis_view,
-                                    metric,
-                                    dimension,
-                                    "",
-                                    "token",
-                                    scale,
-                                    (
-                                        f"{totals.matched_observations} included "
-                                        "matched observations"
-                                    ),
-                                    value,
-                                    totals.matched_observations,
-                                    matched_tokens,
-                                    totals.lexical_tokens,
-                                    totals.lexical_coverage,
-                                )
+                            (
+                                "vad_above_midpoint_load_per_observation",
+                                "mean_midpoint_deviation",
+                                totals.above_midpoint_deviation_per_observation,
+                            ),
+                            (
+                                "vad_below_midpoint_load_per_observation",
+                                "mean_midpoint_deviation",
+                                totals.below_midpoint_deviation_per_observation,
+                            ),
+                            (
+                                "vad_net_midpoint_load_per_observation",
+                                "mean_midpoint_deviation",
+                                totals.net_midpoint_deviation_per_observation,
+                            ),
+                            (
+                                "vad_absolute_midpoint_load_per_observation",
+                                "mean_midpoint_deviation",
+                                totals.absolute_midpoint_deviation_per_observation,
+                            ),
+                            (
+                                "vad_above_midpoint_load_per_100_observations",
+                                "midpoint_deviation_per_100_observations",
+                                totals.above_midpoint_deviation_per_100,
+                            ),
+                            (
+                                "vad_below_midpoint_load_per_100_observations",
+                                "midpoint_deviation_per_100_observations",
+                                totals.below_midpoint_deviation_per_100,
+                            ),
+                            (
+                                "vad_net_midpoint_load_per_100_observations",
+                                "midpoint_deviation_per_100_observations",
+                                totals.net_midpoint_deviation_per_100,
+                            ),
+                            (
+                                "vad_absolute_midpoint_load_per_100_observations",
+                                "midpoint_deviation_per_100_observations",
+                                totals.absolute_midpoint_deviation_per_100,
+                            ),
+                            (
+                                "vad_average_deviation_from_poem_mean",
+                                "mean_absolute_deviation",
+                                totals.average_deviation_from_poem_mean,
+                            ),
                             )
+                            matched_tokens = (
+                                result.coverage.matched_token_count
+                                if analysis_view == "all_matched"
+                                else result.stopword_coverage.matched_token_count
+                            )
+                            for metric, scale, value in cumulative_values:
+                                rows.append(
+                                    (
+                                        *common,
+                                        analysis_view,
+                                        metric,
+                                        dimension,
+                                        "",
+                                        weighting,
+                                        scale,
+                                        (
+                                            f"{totals.matched_observations} included "
+                                            "matched observations"
+                                        ),
+                                        value,
+                                        totals.matched_observations,
+                                        matched_tokens,
+                                        totals.lexical_tokens,
+                                        totals.lexical_coverage,
+                                    )
+                                )
             for statistics in result.category_statistics:
                 rows.append(
                     (
