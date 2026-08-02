@@ -6,6 +6,10 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Made hosted theme persistence deterministic across browser refreshes by
+  recording an explicitly selected appearance in the URL while retaining the
+  existing browser cookie as a fallback; local preference-file behavior is
+  unchanged.
 - Replaced the pronunciation dashboard's median syllables-per-line card with
   mean syllables per complete physical line; detailed exports retain both.
 - Recovered safely from stale saved-analysis identifiers after a hosted

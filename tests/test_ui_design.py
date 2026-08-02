@@ -14,6 +14,8 @@ from versevad.ui.design import (
     THEME_TOKENS,
     WORKSPACES,
     _appearance_cookie_html,
+    _cloud_browser_appearance,
+    _persist_appearance,
     collapse_control_html,
     preset_widget_state,
     render_dataframe,
@@ -76,6 +78,47 @@ def test_hosted_appearance_cookie_is_strict_and_refresh_persistent() -> None:
     assert "Path=/" in markup
     assert "Max-Age=31536000" in markup
     assert "SameSite=Lax" in markup
+
+
+def test_hosted_appearance_query_parameter_survives_refresh(monkeypatch) -> None:
+    query_parameters: dict[str, str] = {}
+    monkeypatch.setattr(
+        design_services,
+        "cloud_deployment_enabled",
+        lambda: True,
+    )
+    monkeypatch.setattr(design_services.st, "query_params", query_parameters)
+    monkeypatch.setattr(
+        design_services.st,
+        "session_state",
+        {"appearance_mode": AppearanceMode.LAVENDER.value},
+    )
+
+    _persist_appearance()
+
+    assert query_parameters == {"appearance": "Lavender"}
+    assert _cloud_browser_appearance() is AppearanceMode.LAVENDER
+
+
+def test_hosted_appearance_uses_cookie_when_query_parameter_is_invalid(
+    monkeypatch,
+) -> None:
+    class BrowserContext:
+        cookies = {"versevad_appearance": "Forest"}
+
+    monkeypatch.setattr(
+        design_services,
+        "cloud_deployment_enabled",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        design_services.st,
+        "query_params",
+        {"appearance": "<invalid>"},
+    )
+    monkeypatch.setattr(design_services.st, "context", BrowserContext())
+
+    assert _cloud_browser_appearance() is AppearanceMode.FOREST
 
 
 def test_dataframe_renderer_pins_leftmost_data_column(monkeypatch) -> None:

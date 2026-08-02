@@ -32,6 +32,7 @@ from versevad.ui.preferences import (
 from versevad.ui.sidebar import render_context_sidebar
 
 _APPEARANCE_COOKIE_NAME = "versevad_appearance"
+_APPEARANCE_QUERY_PARAMETER_NAME = "appearance"
 
 CLASSIC_TOKENS = {
     "background": "#f6f3ed",
@@ -1494,6 +1495,12 @@ def bottom_collapsible_expander(
 
 def _persist_appearance() -> None:
     if cloud_deployment_enabled():
+        # Community Cloud browser sessions can be replaced during a hard
+        # refresh. Keep the harmless appearance preference in the URL as a
+        # deterministic, server-readable fallback to the browser cookie.
+        st.query_params[_APPEARANCE_QUERY_PARAMETER_NAME] = normalize_appearance(
+            st.session_state["appearance_mode"]
+        ).value
         return
     save_appearance(st.session_state["appearance_mode"])
 
@@ -1501,6 +1508,14 @@ def _persist_appearance() -> None:
 def _cloud_browser_appearance() -> AppearanceMode | None:
     if not cloud_deployment_enabled():
         return None
+    try:
+        query_appearance = appearance_from_browser_cookie(
+            st.query_params.get(_APPEARANCE_QUERY_PARAMETER_NAME)
+        )
+    except (AttributeError, KeyError, RuntimeError):
+        query_appearance = None
+    if query_appearance is not None:
+        return query_appearance
     try:
         return appearance_from_browser_cookie(
             st.context.cookies.get(_APPEARANCE_COOKIE_NAME)

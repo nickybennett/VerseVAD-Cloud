@@ -8,7 +8,8 @@
   retaining restored text, metadata, settings, and the saved revision.
 - [x] Restore analytical widget settings without duplicate-default warnings.
 - [x] Persist hosted appearance per browser across refreshes without a shared
-  server-side theme preference.
+  server-side theme preference, using a refresh-stable URL value with the
+  browser cookie retained as a fallback.
 - [x] Cover both historical actions, warning-free restoration, cookie safety,
   documentation, and hosted/public parity with automated tests.
 
