@@ -524,6 +524,12 @@ Named-entity recognition is disabled by default. The installed small English mod
 
 An exact surface match is never silently replaced by a lemma match. Lemma matching is explicitly labeled because model-proposed lemmas can be wrong for poetic, historical, or unusual language.
 
+Default preprocessing recipe v2 also separates alphabetic words joined by a
+run of two or more non-apostrophe punctuation marks. For example,
+`morrow;—vainly` yields separate `morrow`, `;`, `—`, and `vainly` analysis
+tokens while the supplied text and exact character offsets remain unchanged.
+The rule does not split contractions, apostrophe forms, or abbreviations.
+
 The optional concreteness module has its own recorded sequence over the same tokens: longest exact source-supplied two-word expression within one physical line, exact normalized surface, lemma, then a documented conservative apostrophe or possessive fallback. Model-tagged proper nouns remain eligible by default and can be excluded explicitly. Unmatched and ineligible tokens retain missing ratings.
 
 The optional frequency module likewise uses exact normalized observed word form before an enabled lemma fallback, followed only by documented conservative apostrophe or possessive fallbacks. This order preserves SUBTLEX-US word-form evidence. Model-tagged proper nouns remain eligible by default and can be excluded explicitly; unmatched or ineligible tokens retain missing Zipf values.

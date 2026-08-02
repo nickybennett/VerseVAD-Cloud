@@ -23,7 +23,7 @@ DEFAULT_FUNCTION_POS_TAGS = (
     "PRON",
     "SCONJ",
 )
-DEFAULT_SHARED_RECIPE_ID = "versevad-default-preprocessing-v1"
+DEFAULT_SHARED_RECIPE_ID = "versevad-default-preprocessing-v2"
 
 
 class StructuralUnitKind(StrEnum):

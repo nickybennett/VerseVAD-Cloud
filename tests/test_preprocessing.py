@@ -63,6 +63,56 @@ def test_same_surface_form_retains_different_pos_and_lemma_analyses(preprocessor
     )
 
 
+def test_punctuation_joined_words_are_separate_without_changing_source(
+    preprocessor,
+) -> None:
+    original = "Eagerly I wished the morrow;—vainly I had sought to borrow."
+    document = create_text_document(
+        "joined-punctuation",
+        "Joined punctuation fixture",
+        original,
+    )
+
+    poem = preprocessor.process_document(document)
+    surfaces = [token.surface_form for token in poem.tokens]
+    start = surfaces.index("morrow")
+    joined = poem.tokens[start : start + 4]
+
+    assert [token.surface_form for token in joined] == [
+        "morrow",
+        ";",
+        "—",
+        "vainly",
+    ]
+    assert [token.is_punctuation for token in joined] == [False, True, True, False]
+    assert joined[0].normalized_form == "morrow"
+    assert joined[0].part_of_speech == "NOUN"
+    assert joined[3].normalized_form == "vainly"
+    assert joined[3].part_of_speech == "ADV"
+    assert [
+        original[token.character_start : token.character_end]
+        for token in joined
+    ] == ["morrow", ";", "—", "vainly"]
+    assert poem.source.original_text == original
+    assert poem.source.text_sha256 == document.text_sha256
+    assert poem.preprocessing.recipe_id == "versevad-default-preprocessing-v2"
+
+
+def test_joined_punctuation_rule_does_not_split_apostrophes_or_abbreviations(
+    preprocessor,
+) -> None:
+    document = create_text_document(
+        "joined-punctuation-boundary",
+        "Joined punctuation boundary fixture",
+        "I've heard o’er U.S.A. references.",
+    )
+    surfaces = [token.surface_form for token in preprocessor.process(document)]
+
+    assert surfaces[:2] == ["I", "'ve"]
+    assert "o’er" in surfaces
+    assert "U.S.A." in surfaces
+
+
 def test_line_edge_unicode_whitespace_is_analytically_inert(preprocessor) -> None:
     clean = "Stone turns.\n\nNight falls.\n"
     indented = (

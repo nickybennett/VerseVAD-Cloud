@@ -1,5 +1,14 @@
 # VerseVAD Implementation Plan
 
+## Completed stacked-punctuation tokenization correction
+
+- [x] Split alphabetic words joined by two or more non-apostrophe punctuation
+  marks while retaining each exact punctuation character and source offset.
+- [x] Preserve contraction, apostrophe-form, abbreviation, lineation, and
+  original-text behavior.
+- [x] Version the shared default processing recipe as v2 and validate every
+  downstream analytical workspace in public and hosted repositories.
+
 ## Completed offline dictionary and annotation-panel refinement
 
 - [x] Package the checksum-pinned Open English WordNet 2025+ database with

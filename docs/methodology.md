@@ -69,6 +69,13 @@ sentence boundaries, dependencies, and optional named entities remain
 model-generated proposals that can be uncertain for poetic, historical,
 dialectal, fragmented, or ambiguous language.
 
+Default preprocessing recipe v2 separates alphabetic words joined by a run of
+two or more non-apostrophe punctuation marks. For example,
+`morrow;—vainly` becomes the analysis tokens `morrow`, `;`, `—`, and `vainly`,
+with exact source offsets retained. This prevents stacked punctuation from
+creating a false lexical token while leaving contractions, apostrophe forms,
+ordinary hyphenation, and abbreviations unchanged.
+
 Leading and trailing whitespace on every physical line is analytically inert.
 This includes ordinary spaces, tabs, non-breaking spaces, and other Unicode
 whitespace, including mixed indentation. VerseVAD removes those characters

@@ -33,6 +33,15 @@ from versevad.normalization import normalize_lookup, strip_edge_punctuation
 DEFAULT_RECIPE_ID = DEFAULT_SHARED_RECIPE_ID
 APOSTROPHE_CHARACTERS = frozenset({"'", "\u2018", "\u2019", "\u02bc", "\uff07"})
 HYPHEN_CHARACTERS = frozenset({"-", "\u2010", "\u2011"})
+# A zero-width tokenizer boundary around and within a run of at least two
+# non-apostrophe punctuation marks joining alphabetic text.  This handles
+# typography such as ``morrow;—vainly`` without changing contractions,
+# apostrophe forms, abbreviations, or the preserved source text.
+JOINED_PUNCTUATION_INFIX = (
+    r"(?<=[^\W\d_])(?=[^\w\s'\u2019]{2})"
+    r"|(?<=[^\w\s'\u2019])(?=[^\w\s'\u2019])"
+    r"|(?<=[^\w\s'\u2019]{2})(?=[^\W\d_])"
+)
 
 
 class PreprocessingError(RuntimeError):
@@ -253,8 +262,15 @@ class SpacyEnglishPreprocessor:
         excluded = [] if self._configuration.enable_ner else ["ner"]
         try:
             import spacy
+            from spacy.util import compile_infix_regex
 
             self._nlp = spacy.load(model_name, exclude=excluded)
+            infixes = (JOINED_PUNCTUATION_INFIX,) + tuple(
+                self._nlp.Defaults.infixes
+            )
+            self._nlp.tokenizer.infix_finditer = compile_infix_regex(
+                infixes
+            ).finditer
         except (ImportError, OSError) as error:
             raise PreprocessingError(
                 "VerseVAD could not load its English linguistic model. "

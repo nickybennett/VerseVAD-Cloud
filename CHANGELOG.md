@@ -6,6 +6,10 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Split punctuation-stacked word joins such as Poe's `morrow;—vainly` into
+  separate lexical and punctuation tokens without changing the source text,
+  contractions, apostrophe forms, abbreviations, or character offsets. The
+  auditable default preprocessing recipe is now version 2.
 - Added offline Open English WordNet 2025+ definitions, examples, synonyms,
   antonyms, and semantic relations near the top of Lexicon Explorer; complete
   source senses remain available in narrative exports.

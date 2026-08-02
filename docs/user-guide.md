@@ -533,6 +533,13 @@ lines, and line endings remain preserved. Normalized forms, lemmas, POS,
 morphology, sentences, dependencies, and optional named entities are separate
 model-assisted fields and may be uncertain for poetic or historical language.
 
+When two alphabetic words touch a run of two or more punctuation marks, the
+shared processing record separates the words and preserves each punctuation
+mark as its own audit token. Thus `morrow;—vainly` is analyzed as `morrow` and
+`vainly`, while the original spelling, punctuation, and character positions
+remain unchanged. Apostrophe forms, contractions, and abbreviations are not
+split by this rule.
+
 The Language Profile counts all eligible lexical token occurrences by the
 installed model's universal part-of-speech tag and divides each count by the
 text's full lexical-token count. It also reports unique normalized types and
