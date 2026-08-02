@@ -368,9 +368,24 @@ analyses, library items, and project data remain temporary unless downloaded.
 10. In **Lexical Character**, inspect Concreteness, Frequency & Rarity, and Age of Acquisition when selected.
 11. In **Sound & Form**, inspect Pronunciation, Meter & Rhythm, Rhyme & Sound, and Inherited Form Analysis when selected.
 12. In **Structure**, inspect the language profile and lexical/structural measures.
-13. In **Evidence & Diagnostics**, inspect exactly which surface forms, lemmas, or phrases matched.
-14. In **Export & Help**, save the readable summary or full audit bundle.
+13. In **Interactive Annotation**, inspect completed evidence directly on the exact poem text.
+14. In **Evidence & Diagnostics**, inspect exactly which surface forms, lemmas, or phrases matched.
+15. In **Export & Help**, save the readable summary or full audit bundle.
     Notes remain excluded unless explicitly selected.
+
+## Interactive Annotation
+
+This Single Poem report preserves the exact source display and attaches the
+completed analysis evidence by stable token ID and character offset. It never
+retokenizes, rematches, or recalculates the poem. Select one continuous color
+lens, optionally enable categorical sensorimotor or emotion markers, and use
+hover for a temporary summary or click for persistent details. The VAD source
+defaults to NRC v2.1, NRC v1, then Warriner and remains selectable. Unmatched
+underlining is relative to the active continuous lens. Phrase matches are
+explicitly identified as expression-level evidence, and Lancaster markers use
+the existing dominant perceptual/action domains while retaining the full
+dimensional vector in details. Full saved analyses restore these display
+choices without changing the stored analytical result.
 
 > SAFE PRACTICE: A high or low mean is not self-interpreting. Always read it with the lexicon name, analysis view, weighting, matched count, coverage, and evidence table.
 

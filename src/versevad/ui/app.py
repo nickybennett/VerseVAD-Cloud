@@ -216,6 +216,7 @@ from versevad.poetry_id import (
 )
 from versevad.ui.poetry_id import render_poetry_id
 from versevad.ui.inherited_form import render_inherited_form
+from versevad.ui.interactive_annotation import render_interactive_annotation
 from versevad.ui.versemap import render_versemap
 from versevad.ui.sensorimotor import render_sensorimotor
 from versevad.ui.dataframes import rounded_display_data
@@ -240,6 +241,7 @@ from versevad.ui.design import (
     METER_STYLE_LABELS,
     MODULE_PRESETS,
     PUBLICATION_CHART_COLORS,
+    THEME_TOKENS,
     collapse_control_html,
     publication_chart,
     preset_widget_state,
@@ -2831,6 +2833,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
         "Sound & Form",
         "Structure",
         "VerseMap",
+        *(("Interactive Annotation",) if not is_other_text else ()),
         "Evidence & Diagnostics",
         "Export & Help",
     )
@@ -2845,7 +2848,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             False,
         )
     )
-    _, report_containers = render_stateful_section_navigation(
+    active_report_section, report_containers = render_stateful_section_navigation(
         "Report section",
         report_sections,
         state_key=report_state_key,
@@ -2865,8 +2868,25 @@ if workspace_page in {"Single Poem", "Other Text"}:
     sound_tab = report_containers["Sound & Form"]
     structure_tab = report_containers["Structure"]
     versemap_report_tab = report_containers["VerseMap"]
+    annotation_tab = report_containers.get("Interactive Annotation")
     evidence_diagnostics_tab = report_containers["Evidence & Diagnostics"]
     export_help_tab = report_containers["Export & Help"]
+
+    if (
+        annotation_tab is not None
+        and active_report_section == "Interactive Annotation"
+    ):
+        with annotation_tab:
+            render_section_intro(
+                "Interactive Annotation",
+                "Read the poem in its exact source layout while inspecting the "
+                "token-level evidence already produced by this completed analysis. "
+                "Changing display layers never recalculates the poem.",
+            )
+            render_interactive_annotation(
+                workspace,
+                theme_tokens=THEME_TOKENS[_appearance_mode],
+            )
 
     def _section_label(label: str, available: bool) -> str:
         return f"{label} · {'Complete' if available else 'Not selected'}"

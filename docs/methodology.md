@@ -985,6 +985,41 @@ the application appearance. Interface charts use the same underlying data in
 all appearance modes. The lexical-evidence language, missing-value rules,
 coverage cautions, and per-module methodology remain unchanged.
 
+### Interactive Annotation presentation contract
+
+Interactive Annotation is a client-side inspection layer over an immutable
+completed Single Poem analysis. Its payload is assembled by joining existing
+module audit records to the shared preprocessing tokens by stable token ID.
+The displayed poem is reconstructed only from the preserved original string
+and those tokens' recorded character offsets. No client or interface code
+retokenizes the string, repeats a lexicon lookup, substitutes a missing value,
+or changes a score, denominator, coverage value, result ID, or export.
+
+Only one continuous variable controls token color at a time. Colors use the
+documented absolute source direction and a fixed midpoint; they are not
+rescaled to the poem's observed minimum and maximum. VAD colors use normalized
+0–1 values while the detail panel retains the source value and native scale.
+The fixed VAD source priority is NRC VAD v2.1, NRC VAD v1, and Warriner, and a
+user may select another enabled source. Unmatched status is evaluated against
+the active continuous lens. Valence, arousal, and dominance therefore share
+the selected VAD lexicon's token match status, while concreteness, frequency,
+and AoA each retain their own source-relative status. Excluded, unavailable,
+and unmatched remain distinct states.
+
+Expression evidence retains its original match ID, lookup form, source rows,
+and complete participating-token list. Attaching the evidence to each
+participating token is a navigation convenience and never converts it into
+separate unigram observations. Lancaster annotation uses the module's recorded
+dominant perceptual and action domains as compact markers and exposes the
+complete existing dimensional vector in details; it does not invent a new
+domain threshold. POS is contextual metadata rather than a competing default
+visual encoding.
+
+Layer choices, active lens, selected VAD source, and unmatched-underlining
+choice are presentation state. Full saved analyses may restore them, but they
+remain outside analytical configuration and have no effect on historical
+result identity or recalculation.
+
 ## Stage 15 inherited-form candidate ranking
 
 Inherited Form Analysis is a rule-based candidate-ranking system over 169

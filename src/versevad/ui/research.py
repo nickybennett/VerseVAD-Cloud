@@ -77,6 +77,7 @@ _SINGLE_TEXT_STATE_KEYS = frozenset(
         "one_poem_protected_stopwords",
         "one_poem_custom_stopword_additions",
         "one_poem_custom_stopword_removals",
+        "interactive_annotation_settings",
         *PROFILE_WIDGET_KEYS,
     }
 )

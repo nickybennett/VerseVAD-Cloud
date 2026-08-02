@@ -373,10 +373,13 @@ Use this order:
 5. **Structure** — inspect the shared language profile plus lexical diversity,
    word length, the structural count summary, physical-line word counts, and
    stanza word counts.
-6. **Evidence & Diagnostics** — inspect surface forms, phrases, lemmas,
+6. **Interactive Annotation** — read the exact poem with completed token-level
+   evidence attached to its words. This single-poem view is available after
+   analysis and does not run or alter any metric.
+7. **Evidence & Diagnostics** — inspect surface forms, phrases, lemmas,
    exclusions, approved mappings, coverage, unmatched vocabulary,
    normalization, versions, and warnings.
-7. **Export & Help** — download the readable summary, tables, module exports,
+8. **Export & Help** — download the readable summary, tables, module exports,
    or full audit ZIP, then open the methodology/how-to-read section as needed.
 
 In Compare Poems, **Evidence & Diagnostics** is the audit layer for the visible
@@ -392,6 +395,38 @@ selected. The same stateful behavior applies to the six **Project / Corpus**
 sections. A long section may shift slightly as its contents change, but the
 interface no longer returns to **Overview** or **Works & Metadata** merely
 because a control reran the page.
+
+### Interactive Annotation
+
+After completing a Single Poem analysis, choose **Interactive Annotation** in
+the Report section dropdown. The display preserves the supplied spelling,
+punctuation, whitespace, indentation, lineation, and stanza breaks. It joins
+the already-computed evidence to stable token IDs and character offsets; it
+does not tokenize, match, score, or analyze the poem again.
+
+Choose one active continuous color lens: valence, arousal, dominance,
+concreteness, SUBTLEX frequency, or AoA, as available. You may leave additional
+continuous layers enabled so their values appear in hover and click details,
+but only the active lens colors the text. VAD defaults to **NRC VAD v2.1**, then
+**NRC VAD v1**, then **Warriner**, while the source selector permits a deliberate
+change. The selected VAD source governs valence, arousal, dominance, and their
+shared matched/unmatched status.
+
+Sensorimotor and emotion evidence use compact categorical markers. Lancaster
+markers show its recorded dominant perceptual and action domains; the click
+panel retains the full dimensional-strength evidence. Part of speech is
+available in hover and click details without adding another default text mark.
+Enable **Underline unmatched** only when needed. Here, unmatched always means
+unmatched for the active continuous lens—not unmatched everywhere in VerseVAD.
+
+Hover a word for a temporary summary. Moving away, scrolling, changing a
+layer, pressing Escape, or opening the click panel dismisses that summary
+immediately without rerunning Streamlit. Click a word to pin its full evidence
+panel; close it with the X or Escape. If a multiword expression supplied the
+evidence, every participating token can open it, and the interface explicitly
+labels the evidence as an expression match rather than an independent unigram
+rating. Annotation display choices are stored with a full saved analysis and
+restored when that historical result is reopened.
 
 Choose a one-text **Report section** from the dropdown. All large vertical
 sections begin collapsed and can be opened independently, so several may remain

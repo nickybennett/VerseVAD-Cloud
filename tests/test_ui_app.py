@@ -25,6 +25,7 @@ REPORT_SECTIONS = [
     "Sound & Form",
     "Structure",
     "VerseMap",
+    "Interactive Annotation",
     "Evidence & Diagnostics",
     "Export & Help",
 ]
@@ -265,6 +266,10 @@ def test_saved_ui_state_rejects_action_and_upload_widget_keys() -> None:
     assert _is_restorable_ui_state_key(
         "compare_versemap_reference_corpus",
         "Compare Poems",
+    )
+    assert _is_restorable_ui_state_key(
+        "interactive_annotation_settings",
+        "Single Poem",
     )
     assert not _is_restorable_ui_state_key(
         "compare_poem-3_upload",
@@ -1274,6 +1279,11 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
     report_navigation = _section_navigation(app, "Report section")
     assert report_navigation.options == REPORT_SECTIONS
     assert report_navigation.value == "Overview"
+    report_navigation.set_value("Interactive Annotation")
+    app.run(timeout=60)
+    assert not app.exception
+    assert len(app.get("bidi_component")) == 1
+    report_navigation = _section_navigation(app, "Report section")
     assert not app.tabs
     collapsible_report_sections = {
         "VAD · Complete",
