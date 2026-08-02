@@ -615,6 +615,31 @@ def test_pronunciation_fragment_approval_requests_full_app_rerun() -> None:
     )
 
 
+def test_single_text_completion_renders_before_sidebar_refresh_rerun() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    status_complete = source.index(
+        'analysis_status.update(\n                    label="Analysis complete"'
+    )
+    render_complete = source.index(
+        "st.success(completion_notice)",
+        status_complete,
+    )
+    queue_refresh = source.index(
+        '"_single_text_post_analysis_refresh_pending"',
+        render_complete,
+    )
+    report_rendering = source.index(
+        'workspace = st.session_state.get("workspace")',
+        queue_refresh,
+    )
+    deferred_refresh = source.rindex(
+        '"_single_text_post_analysis_refresh_pending"'
+    )
+
+    assert status_complete < render_complete < queue_refresh < report_rendering
+    assert report_rendering < deferred_refresh
+
+
 def test_interface_state_migration_and_preset_emit_no_widget_default_warning(
     caplog,
 ) -> None:

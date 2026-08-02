@@ -2703,10 +2703,15 @@ if workspace_page in {"Single Poem", "Other Text"}:
             st.session_state[
                 "_single_text_analysis_completion_notice"
             ] = completion_notice
-            # The shared sidebar is rendered before the workspace body. Run
-            # once more after storing the result so Analysis Management sees
-            # the completed context immediately.
-            st.rerun()
+            # Render the completed report in this run before asking Streamlit
+            # to refresh the sidebar.  An immediate rerun here can leave a
+            # long analysis visually stranded at its status panel if the
+            # browser misses that rerun request, even though the completed
+            # workspace is already stored in session state.
+            st.success(completion_notice)
+            st.session_state[
+                "_single_text_post_analysis_refresh_pending"
+            ] = True
         except (TextImportError, WorkspaceAnalysisError, ValueError) as error:
             st.error(str(error))
         except Exception as error:  # pragma: no cover - defensive UI boundary
@@ -7538,3 +7543,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "Lexicon matching does not resolve negation, irony, metaphor, voice, "
             "historical sense, authorial intention, or reader response."
         )
+
+    # The shared sidebar is rendered before this workspace body, so it needs
+    # one post-analysis refresh to expose save/management controls.  Deferring
+    # that rerun until after the completed report has rendered means a missed
+    # or delayed browser rerun can no longer hide an already-finished result.
+    if st.session_state.pop(
+        "_single_text_post_analysis_refresh_pending",
+        False,
+    ):
+        st.rerun()

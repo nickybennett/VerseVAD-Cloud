@@ -6,6 +6,9 @@ All notable VerseVAD changes will be recorded here.
 
 ### Changed
 
+- Render completed Single Poem and Other Text results before the automatic
+  Analysis Management sidebar refresh, preventing long analyses from appearing
+  indefinitely stuck at “Analyzing…” until the user clicks again.
 - Split punctuation-stacked word joins such as Poe's `morrow;—vainly` into
   separate lexical and punctuation tokens without changing the source text,
   contractions, apostrophe forms, abbreviations, or character offsets. The
