@@ -167,6 +167,7 @@ button, select, input { font: inherit; }
 .vv-token[data-unmatched="true"] { outline: 1.5px dotted #d07b00; outline-offset: 1px; }
 
 .vv-panel { padding: 1.1rem; background: color-mix(in srgb, var(--vv-surface) 76%, var(--vv-bg)); min-width: 0; }
+.vv-panel-empty[hidden], .vv-panel-content[hidden] { display: none !important; }
 .vv-panel-empty { min-height: 21rem; display: grid; place-content: center; text-align: center; color: var(--vv-muted); }
 .vv-panel-empty h4 { margin-top: .55rem; }
 .vv-panel-empty p { max-width: 22rem; margin: .5rem auto 0; }

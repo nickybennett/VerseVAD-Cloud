@@ -216,5 +216,7 @@ def test_client_component_uses_streamlit_theme_tokens_and_responsive_layout() ->
     assert "--st-text-color" in css
     assert "--st-primary-color" in css
     assert "--vv-theme-background" in css
+    assert ".vv-panel-empty[hidden], .vv-panel-content[hidden]" in css
+    assert "display: none !important" in css
     assert "@media (max-width: 860px)" in css
     assert "@media (prefers-reduced-motion: reduce)" in css
