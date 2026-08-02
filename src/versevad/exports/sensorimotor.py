@@ -354,6 +354,7 @@ def export_sensorimotor_observations_csv(
         "percent_known_perceptual",
         "percent_known_action",
         "context",
+        "eligibility_note",
     ]
     rows = []
     for observation in result.observations:

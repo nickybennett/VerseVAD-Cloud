@@ -208,7 +208,22 @@ def test_exact_precedes_lemma_and_unavailable_and_unmatched_stay_missing(
     assert by_surface["wickiup"].matched_source_term == "wickiup"
     assert by_surface["quorvax"].match_method is AoAMatchMethod.UNMATCHED
     assert by_surface["quorvax"].mean_age is None
-    assert result.summary.token_coverage == pytest.approx(0.5)
+
+
+def test_alphabetic_number_word_matches_but_numeric_literal_is_ineligible(
+    tmp_path: Path,
+    preprocessor,
+) -> None:
+    result = _analyze(_module(tmp_path, [_row("one", 3.5)]), preprocessor, "one 27")
+    by_surface = {row.surface_form: row for row in result.token_audit}
+
+    assert by_surface["one"].included is True
+    assert by_surface["one"].mean_age == pytest.approx(3.5)
+    assert "alphabetically spelled" in by_surface["one"].reason
+    assert by_surface["27"].eligible is False
+    assert "pure numeric literal" in by_surface["27"].reason
+    assert result.summary.eligible_token_count == 1
+    assert result.summary.token_coverage == pytest.approx(1.0)
 
 
 def test_optional_contextual_content_scope_is_not_redundant(

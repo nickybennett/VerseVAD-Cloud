@@ -95,6 +95,10 @@ from versevad.lexical_style import (
     LexicalStyleModule,
     LexicalStyleModuleError,
 )
+from versevad.lexical_eligibility import (
+    LEXICON_ELIGIBILITY_POLICY_ID,
+    is_lexicon_eligible,
+)
 from versevad.inherited_form import (
     InheritedFormAnalysisResult,
     InheritedFormConfiguration,
@@ -423,7 +427,7 @@ class AnalysisRequest:
     protected_stopwords: tuple[str, ...] = DEFAULT_PROTECTED_WORDS
     custom_stopword_additions: tuple[str, ...] = ()
     custom_stopword_removals: tuple[str, ...] = ()
-    scenario_id: str = "phase2-multi-lexicon-v1"
+    scenario_id: str = "phase2-multi-lexicon-v2"
     scenario_version_id: str = ""
     review_rules: tuple[ReviewRule, ...] = ()
     include_concreteness: bool = False
@@ -1129,6 +1133,7 @@ def run_workspace_analysis(
                     "source_sha256": spec.expected_sha256,
                     "source_root": source_root.resolve(),
                     "phrase_policy": request.phrase_policy,
+                    "lexicon_eligibility_policy": LEXICON_ELIGIBILITY_POLICY_ID,
                     "minimum_match_requirement": (
                         request.minimum_match_requirement
                     ),
@@ -1183,6 +1188,7 @@ def run_workspace_analysis(
                         "source_sha256": spec.expected_sha256,
                         "source_root": source_root.resolve(),
                         "phrase_policy": PhrasePolicy.PHRASE_PREFERRED,
+                        "lexicon_eligibility_policy": LEXICON_ELIGIBILITY_POLICY_ID,
                         "minimum_match_requirement": 1,
                         "stopword_policy": fixed_stopword_policy,
                         "scenario_id": "versemap-standard-profile-1.0",
@@ -2116,7 +2122,7 @@ def _match_part_of_speech_tag(
     tags = {
         _broad_part_of_speech_tag(token_by_id[token_id].part_of_speech)
         for token_id in match.token_ids
-        if token_id in token_by_id and token_by_id[token_id].is_lexical
+        if token_id in token_by_id and is_lexicon_eligible(token_by_id[token_id])
     }
     if len(tags) == 1:
         return next(iter(tags))
@@ -2143,7 +2149,7 @@ def vad_part_of_speech_views(
         lexical_by_id = {
             token.token_id: token
             for token in result.tokens
-            if token.is_lexical
+            if is_lexicon_eligible(token)
         }
         all_eligible_ids = set(lexical_by_id)
         view_groups = [
@@ -2731,7 +2737,7 @@ def unmatched_views(workspace: WorkspaceAnalysis) -> tuple[UnmatchedView, ...]:
             if match.selection != MatchSelection.UNMATCHED or len(match.token_ids) != 1:
                 continue
             token = token_map[match.token_ids[0]]
-            if not token.is_lexical:
+            if not is_lexicon_eligible(token):
                 continue
             key = (
                 match.lexicon_id,

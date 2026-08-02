@@ -182,6 +182,24 @@ def test_exact_precedes_lemma_and_unmatched_values_stay_missing(
     assert any(warning.code == "low_coverage" for warning in result.module_result.warnings)
 
 
+def test_alphabetic_number_word_matches_but_numeric_literal_is_ineligible(
+    tmp_path: Path,
+    preprocessor,
+) -> None:
+    result = _analyze(
+        _module(tmp_path, [("one", 0, 2.5, 0.5, 0, 30, 1.0, 100)]),
+        preprocessor,
+        "one 27",
+    )
+    by_surface = {row.surface_form: row for row in result.token_audit}
+
+    assert by_surface["one"].included is True
+    assert by_surface["one"].rating == pytest.approx(2.5)
+    assert "alphabetically spelled" in by_surface["one"].reason
+    assert by_surface["27"].eligible is False
+    assert "pure numeric literal" in by_surface["27"].reason
+
+
 def test_exact_source_form_is_not_replaced_by_a_different_lemma_entry(
     tmp_path: Path,
     preprocessor,

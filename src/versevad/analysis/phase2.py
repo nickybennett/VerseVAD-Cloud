@@ -36,12 +36,18 @@ from versevad.models import (
     VadLexicon,
     VadSummary,
 )
+from versevad.lexical_eligibility import (
+    LEXICON_ELIGIBILITY_POLICY_ID,
+    append_lexicon_eligibility_note,
+    is_lexicon_eligible,
+    lexicon_ineligibility_reason,
+)
 from versevad.normalization import normalize_lookup, possessive_surface_base
 from versevad.preprocessing import TextPreprocessor
 from versevad.stopwords import build_stopword_policy, classify_match_stopword
 
 
-PHASE2_SCENARIO_ID = "phase2-multi-lexicon-v1"
+PHASE2_SCENARIO_ID = "phase2-multi-lexicon-v2"
 SupportedLexicon = VadLexicon | EmotionAssociationLexicon | EmotionIntensityLexicon
 SupportedEntry = VadEntry | EmotionAssociationEntry | EmotionIntensityEntry
 
@@ -127,18 +133,26 @@ def _record(
 def _resolve_unigram(
     token: TokenRecord, lexicon: SupportedLexicon
 ) -> tuple[SupportedEntry | None, MatchMethod, str]:
-    if not token.is_lexical:
-        reason = "Punctuation is not eligible." if token.is_punctuation else "Numeric token is not eligible."
-        return None, MatchMethod.NOT_ELIGIBLE, reason
+    if not is_lexicon_eligible(token):
+        return None, MatchMethod.NOT_ELIGIBLE, lexicon_ineligibility_reason(token)
     entry, conflict = lexicon.resolve(token.normalized_form, token.surface_form)
     if conflict:
         return (
             None,
             MatchMethod.UNMATCHED,
-            "Case-insensitive source collision requires review; no entry was guessed.",
+            append_lexicon_eligibility_note(
+                "Case-insensitive source collision requires review; no entry was guessed.",
+                token,
+            ),
         )
     if entry is not None:
-        return entry, MatchMethod.EXACT, "Exact normalized surface-form match."
+        return (
+            entry,
+            MatchMethod.EXACT,
+            append_lexicon_eligibility_note(
+                "Exact normalized surface-form match.", token
+            ),
+        )
 
     possessive = possessive_surface_base(token.surface_form)
     if possessive is not None:
@@ -147,13 +161,18 @@ def _resolve_unigram(
             return (
                 None,
                 MatchMethod.UNMATCHED,
-                "Possessive normalization reached a source collision requiring review.",
+                append_lexicon_eligibility_note(
+                    "Possessive normalization reached a source collision requiring review.",
+                    token,
+                ),
             )
         if entry is not None:
             return (
                 entry,
                 MatchMethod.POSSESSIVE,
-                "Matched after conservative possessive normalization.",
+                append_lexicon_eligibility_note(
+                    "Matched after conservative possessive normalization.", token
+                ),
             )
 
     if token.normalized_lemma != token.normalized_form:
@@ -162,15 +181,27 @@ def _resolve_unigram(
             return (
                 None,
                 MatchMethod.UNMATCHED,
-                "Lemma fallback reached a source collision requiring review.",
+                append_lexicon_eligibility_note(
+                    "Lemma fallback reached a source collision requiring review.",
+                    token,
+                ),
             )
         if entry is not None:
             return (
                 entry,
                 MatchMethod.LEMMA,
-                "Matched by POS-sensitive lemma after exact candidates failed.",
+                append_lexicon_eligibility_note(
+                    "Matched by POS-sensitive lemma after exact candidates failed.",
+                    token,
+                ),
             )
-    return None, MatchMethod.UNMATCHED, "No entry matched under the Phase 2 policy."
+    return (
+        None,
+        MatchMethod.UNMATCHED,
+        append_lexicon_eligibility_note(
+            "No entry matched under the Phase 2 policy.", token
+        ),
+    )
 
 
 _REVIEW_SCOPE_PRIORITY = {
@@ -258,14 +289,14 @@ def _phrase_candidates(
 
     candidates: list[tuple[tuple[TokenRecord, ...], SupportedEntry]] = []
     for start, token in enumerate(tokens):
-        if not token.is_lexical:
+        if not is_lexicon_eligible(token):
             continue
         for parts, entry in phrase_index.get(token.normalized_form, ()):
             end = start + len(parts)
             if end > len(tokens):
                 continue
             span = tokens[start:end]
-            if any(not item.is_lexical for item in span):
+            if any(not is_lexicon_eligible(item) for item in span):
                 continue
             if any(item.line_number != token.line_number for item in span):
                 continue
@@ -331,9 +362,10 @@ def _build_matches(
             entry=entry,
             included=True,
             stopword_policy=stopword_policy,
-            reason=(
+            reason=append_lexicon_eligibility_note(
                 "Selected as the deterministic longest non-overlapping exact "
-                "phrase candidate."
+                "phrase candidate.",
+                span,
             ),
         )
         exclusion_revisions = _review_exclusion_revisions(review_rules, span)
@@ -402,10 +434,11 @@ def _build_matches(
                 else:
                     entry = mapped_entry
                     method = MatchMethod.USER_MAPPING
-                    reason = (
+                    reason = append_lexicon_eligibility_note(
                         f"Matched only through approved review mapping "
                         f"{mapping_rule.decision_revision_id}: "
-                        f"{token.surface_form} → {mapped_entry.source_term}."
+                        f"{token.surface_form} → {mapped_entry.source_term}.",
+                        token,
                     )
         if method == MatchMethod.NOT_ELIGIBLE:
             selection = MatchSelection.NOT_ELIGIBLE
@@ -463,7 +496,7 @@ def _build_matches(
 def _coverage(
     tokens: tuple[TokenRecord, ...], matches: tuple[AffectMatchRecord, ...]
 ) -> CoverageStatistics:
-    lexical = tuple(token for token in tokens if token.is_lexical)
+    lexical = tuple(token for token in tokens if is_lexicon_eligible(token))
     lexical_by_id = {token.token_id: token for token in lexical}
     included = tuple(match for match in matches if match.included)
     excluded = tuple(
@@ -526,7 +559,7 @@ def stopword_eligible_token_ids(
 ) -> frozenset[str]:
     """Return the exact token denominator for the recorded secondary view."""
 
-    lexical = tuple(token for token in tokens if token.is_lexical)
+    lexical = tuple(token for token in tokens if is_lexicon_eligible(token))
     lexical_by_id = {token.token_id: token for token in lexical}
     retained_phrase_token_ids = {
         token_id
@@ -566,7 +599,7 @@ def _stopword_coverage(
 ) -> StopwordCoverageStatistics:
     """Calculate content-focused coverage without penalizing intentional removals."""
 
-    lexical = tuple(token for token in tokens if token.is_lexical)
+    lexical = tuple(token for token in tokens if is_lexicon_eligible(token))
     lexical_by_id = {token.token_id: token for token in lexical}
     eligible_ids = stopword_eligible_token_ids(tokens, matches, policy)
     filtered_matches = tuple(
@@ -683,7 +716,7 @@ def _category_statistics(
     matches: tuple[AffectMatchRecord, ...],
     categories: tuple[str, ...],
 ) -> tuple[EmotionCategoryStatistics, ...]:
-    lexical = tuple(token for token in tokens if token.is_lexical)
+    lexical = tuple(token for token in tokens if is_lexicon_eligible(token))
     lexical_types = {token.normalized_form for token in lexical}
     included = tuple(match for match in matches if match.included and match.associations)
     emotion_token_ids = {token_id for match in included for token_id in match.token_ids}
@@ -717,7 +750,7 @@ def _intensity_statistics(
     matches: tuple[AffectMatchRecord, ...],
     categories: tuple[str, ...],
 ) -> tuple[EmotionIntensityStatistics, ...]:
-    lexical = tuple(token for token in tokens if token.is_lexical)
+    lexical = tuple(token for token in tokens if is_lexicon_eligible(token))
     included = tuple(match for match in matches if match.included and match.intensities)
     intensity_token_ids = {token_id for match in included for token_id in match.token_ids}
     summaries = []
@@ -848,6 +881,7 @@ def analyze_lexicon(
             preprocessor.metadata.recipe_id,
             preprocessor.metadata.pipeline_name,
             preprocessor.metadata.pipeline_version,
+            LEXICON_ELIGIBILITY_POLICY_ID,
             scenario_id,
             phrase_policy.value,
             str(minimum_match_requirement),

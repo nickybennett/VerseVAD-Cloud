@@ -198,6 +198,20 @@ def test_exact_precedes_lemma_and_unmatched_remains_missing(
     assert result.summary.token_coverage == pytest.approx(2 / 3)
 
 
+def test_alphabetic_number_word_matches_but_numeric_literal_is_ineligible(
+    tmp_path: Path,
+    preprocessor,
+) -> None:
+    result = _analyze(_module(tmp_path, [_row("one", 6.0)]), preprocessor, "one 27")
+    by_surface = {row.surface_form: row for row in result.token_audit}
+
+    assert by_surface["one"].included is True
+    assert by_surface["one"].zipf_value == pytest.approx(6.0)
+    assert "alphabetically spelled" in by_surface["one"].reason
+    assert by_surface["27"].eligible is False
+    assert "pure numeric literal" in by_surface["27"].reason
+
+
 def test_optional_content_word_scope_uses_only_requested_pos_tags(
     tmp_path: Path,
     preprocessor,

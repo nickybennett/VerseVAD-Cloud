@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from versevad.lexical_eligibility import is_lexicon_eligible
 
-ANNOTATION_PAYLOAD_VERSION = "1.0"
+
+ANNOTATION_PAYLOAD_VERSION = "1.1"
 VAD_SOURCE_PRIORITY = (
     "nrc_vad_v2_1",
     "nrc_vad_v1",
@@ -245,6 +247,7 @@ def _sensorimotor_observation(observation: object) -> dict[str, object]:
         "sensorimotor_strength": float(
             getattr(observation, "minkowski3_sensorimotor_strength", 0.0)
         ),
+        "reason": str(getattr(observation, "eligibility_note", "")),
         "context": str(getattr(observation, "context", "")),
     }
 
@@ -586,6 +589,7 @@ def build_interactive_annotation_payload(
                 "stanza_number": int(token.stanza_number),
                 "token_position": int(token.token_position),
                 "is_lexical": bool(token.is_lexical),
+                "lexicon_eligible": bool(is_lexicon_eligible(token)),
                 "is_punctuation": bool(token.is_punctuation),
                 "is_stopword": bool(token.is_stopword),
                 "context": str(token.context),

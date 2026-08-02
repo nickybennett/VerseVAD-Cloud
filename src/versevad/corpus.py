@@ -1100,7 +1100,7 @@ def analyze_corpus(
                     scenario_id=(
                         scenario.scenario_id
                         if scenario is not None
-                        else "phase2-multi-lexicon-v1"
+                        else "phase2-multi-lexicon-v2"
                     ),
                     scenario_version_id=scenario_version_id,
                     review_rules=review_rules,

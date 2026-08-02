@@ -41,6 +41,12 @@ from versevad.core.resources import (
     ResourceStatus,
 )
 from versevad.models import DescriptiveStatistics, TokenRecord
+from versevad.lexical_eligibility import (
+    LEXICON_ELIGIBILITY_POLICY_ID,
+    append_lexicon_eligibility_note,
+    is_lexicon_eligible,
+    lexicon_ineligibility_reason,
+)
 from versevad.normalization import (
     canonicalize_apostrophes,
     normalize_lookup,
@@ -107,7 +113,7 @@ class AoAConfiguration:
     minimum_relationship_types: int = 3
     low_coverage_warning_threshold: float = 0.6
     top_term_count: int = 10
-    scenario_id: str = "kuperman-aoa-v1"
+    scenario_id: str = "kuperman-aoa-v2"
 
     def __post_init__(self) -> None:
         if not 0 <= self.early_acquired_max <= 25:
@@ -141,14 +147,14 @@ class AoAConfiguration:
             separators=(",", ":"),
         )
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
-        return f"aoa-config-v1:{digest}"
+        return f"aoa-config-v2:{digest}"
 
     @property
     def scope_label(self) -> str:
         return (
             "Content words only (NOUN, VERB, ADJ, ADV)"
             if self.content_words_only
-            else "All lexical tokens"
+            else "All lexicon-eligible word tokens"
         )
 
 
@@ -347,7 +353,7 @@ def _matched_token(
         source_numeric_response_proportion=entry.numeric_response_proportion,
         source_dunno_value=entry.source_dunno_value,
         source_frequency_per_million=entry.frequency_per_million,
-        reason=reason,
+        reason=append_lexicon_eligibility_note(reason, token),
     )
 
 
@@ -372,10 +378,11 @@ def _source_unrated_token(
         source_numeric_response_proportion=entry.numeric_response_proportion,
         source_dunno_value=entry.source_dunno_value,
         source_frequency_per_million=entry.frequency_per_million,
-        reason=(
+        reason=append_lexicon_eligibility_note(
             f"A source entry was found by {matched_by.value}, but Rating.Mean is "
             "unavailable. The observation remains missing rather than receiving "
-            "an invented age."
+            "an invented age.",
+            token,
         ),
     )
 
@@ -403,7 +410,11 @@ def _unmatched_token(
         source_numeric_response_proportion=None,
         source_dunno_value=None,
         source_frequency_per_million=None,
-        reason=reason,
+        reason=(
+            append_lexicon_eligibility_note(reason, token)
+            if eligible
+            else reason
+        ),
     )
 
 
@@ -411,9 +422,8 @@ def _ineligible_reason(
     token: TokenRecord,
     configuration: AoAConfiguration,
 ) -> str | None:
-    if not token.is_lexical:
-        kind = "numeric" if token.is_numeric else "punctuation or non-lexical"
-        return f"Excluded from the lexical denominator as {kind}."
+    if not is_lexicon_eligible(token):
+        return lexicon_ineligibility_reason(token)
     if configuration.exclude_proper_nouns and token.is_proper_noun:
         return (
             "Excluded by the configured proper-name policy because a source "
@@ -1253,7 +1263,7 @@ class AoAModule:
     """Framework-independent optional Stage 4 module backed by Kuperman data."""
 
     name = "age_of_acquisition"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def __init__(
         self,
@@ -1347,14 +1357,15 @@ class AoAModule:
         )
         if config.content_words_only:
             inclusion_policy = (
-                "Only model-tagged NOUN, VERB, ADJ, and ADV lexical tokens; "
-                "function words, auxiliaries, punctuation, and numeric tokens "
-                "excluded; model-tagged PROPN tokens are outside this explicit "
+                "Only model-tagged NOUN, VERB, ADJ, and ADV word tokens; "
+                "function words, auxiliaries, punctuation, pure numeric literals, "
+                "and alphabetically spelled NUM tokens are outside this explicit "
                 "content-word scope."
             )
         else:
             inclusion_policy = (
-                "All lexical tokens except punctuation and numeric tokens; "
+                "All ordinary lexical tokens plus alphabetically spelled "
+                "number-like tokens; punctuation and pure numeric literals excluded; "
                 + (
                     "model-tagged proper nouns excluded by explicit configuration."
                     if config.exclude_proper_nouns
@@ -1377,6 +1388,7 @@ class AoAModule:
             (
                 self.name,
                 self.version,
+                LEXICON_ELIGIBILITY_POLICY_ID,
                 module_input.document.text_version_id,
                 config.configuration_id,
                 status.source_sha256,

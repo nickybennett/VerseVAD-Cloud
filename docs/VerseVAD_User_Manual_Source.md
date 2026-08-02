@@ -387,6 +387,13 @@ the existing dominant perceptual/action domains while retaining the full
 dimensional vector in details. Full saved analyses restore these display
 choices without changing the stored analytical result.
 
+Matching policy `versevad-lexicon-eligibility-v2` keeps model classification
+separate from lexical-resource eligibility. Alphabetically spelled number-like
+words such as `one` may participate in exact lookup while retaining `POS=NUM`;
+pure numeric literals remain excluded. The active completed lens determines
+whether a published phrase such as `some one` appears as one expression or as
+separately matched word forms.
+
 > SAFE PRACTICE: A high or low mean is not self-interpreting. Always read it with the lexicon name, analysis view, weighting, matched count, coverage, and evidence table.
 
 # 4. The installed lexicons

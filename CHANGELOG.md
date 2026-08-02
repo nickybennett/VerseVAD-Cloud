@@ -19,8 +19,18 @@ All notable VerseVAD changes will be recorded here.
 - Kept the Interactive Annotation evidence panel beside the poem while a user
   scrolls, with an internal panel scrollbar for long evidence and a stacked
   non-sticky layout on narrow screens.
+- Versioned broad lexical eligibility as `versevad-lexicon-eligibility-v2`:
+  alphabetically spelled number-like words can participate in VAD, emotion,
+  concreteness, SUBTLEX, AoA, sensorimotor, and phrase lookup while retaining
+  their original `NUM` and number-like annotations; pure numeric literals
+  remain excluded. Narrow content-POS sensitivity views remain unchanged.
+- Pinned VerseMap build 1.1.0 to the new eligibility policy and rebuilt its
+  reference profiles so submitted and reference poems use the same rules.
 - Fixed Interactive Annotation evidence disappearing above the viewport when
   selecting words late in a long poem.
+- Fixed Interactive Annotation active-lens match granularity for alphabetically
+  spelled number words, including shared NRC v2.1 expression evidence such as
+  `some one` and separate SUBTLEX unigram evidence.
 - Retained the bundled Open English WordNet resource under CC BY 4.0 and the
   Princeton WordNet license, with both license texts and full attribution in
   the packaged resource and `THIRD_PARTY_NOTICES.md`.

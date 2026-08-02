@@ -509,7 +509,7 @@ function applyTokenStyles(root, payload, settings) {
     const evidence = settings.active_lens ? evidenceFor(token, settings.active_lens, settings) : null;
     const value = settings.active_lens ? valueFor(token, settings.active_lens, settings) : null;
     node.style.backgroundColor = activeLayer && evidence?.status === "matched" ? fillFor(value, activeLayer) : "transparent";
-    node.dataset.unmatched = String(Boolean(settings.underline_unmatched && settings.active_lens && token.is_lexical && evidence?.status === "unmatched"));
+    node.dataset.unmatched = String(Boolean(settings.underline_unmatched && settings.active_lens && token.lexicon_eligible && evidence?.status === "unmatched"));
     node.dataset.sensorimotor = String(Boolean(enabled(settings, "sensorimotor") && token.evidence?.sensorimotor?.status === "matched"));
     node.dataset.emotion = String(Boolean(enabled(settings, "emotion") && token.evidence?.emotion?.categories?.length));
   });
@@ -551,10 +551,10 @@ function renderPoem(root, payload, settings) {
     span.className = "vv-token";
     span.dataset.tokenIndex = String(index);
     span.dataset.tokenId = token.token_id;
-    span.dataset.lexical = String(Boolean(token.is_lexical));
+    span.dataset.lexical = String(Boolean(token.lexicon_eligible));
     span.dataset.selected = String(selectedByAnalysis.get(payload.analysis_id) === token.token_id);
-    span.tabIndex = token.is_lexical ? 0 : -1;
-    span.setAttribute("role", token.is_lexical ? "button" : "text");
+    span.tabIndex = token.lexicon_eligible ? 0 : -1;
+    span.setAttribute("role", token.lexicon_eligible ? "button" : "text");
     span.setAttribute("aria-label", `${token.surface}, ${token.part_of_speech_label}, line ${token.line_number}`);
     text(span, source.slice(start, end));
     poem.appendChild(span);
@@ -565,7 +565,7 @@ function renderPoem(root, payload, settings) {
 
   poem.querySelectorAll(".vv-token").forEach(node => {
     const token = payload.tokens[Number(node.dataset.tokenIndex)];
-    if (!token.is_lexical) return;
+    if (!token.lexicon_eligible) return;
     node.addEventListener("pointerenter", () => showTooltip(root, payload, token, node, settings));
     node.addEventListener("pointerleave", () => hideTooltip(root));
     node.addEventListener("focus", () => showTooltip(root, payload, token, node, settings));

@@ -23,6 +23,10 @@ from versevad.core.modules import (
 )
 from versevad.core.resources import ResourceProvenance
 from versevad.lexical_style import calculate_hdd, calculate_mattr, calculate_mtld
+from versevad.lexical_eligibility import (
+    LEXICON_ELIGIBILITY_POLICY_ID,
+    is_lexicon_eligible,
+)
 from versevad.lexical_semantic.aoa import AoAConfiguration
 from versevad.lexical_semantic.concreteness import ConcretenessConfiguration
 from versevad.lexical_semantic.frequency import FrequencyConfiguration
@@ -33,9 +37,9 @@ if TYPE_CHECKING:
 
 
 PROFILE_ID = "versemap-standard-profile-1.0"
-PROFILE_BUILD_ID = "versemap-profile-build-1.0.0"
+PROFILE_BUILD_ID = "versemap-profile-build-1.1.0"
 MODULE_NAME = "versemap"
-MODULE_VERSION = "1.0.0"
+MODULE_VERSION = "1.1.0"
 CONTENT_POS_TAGS = frozenset({"NOUN", "VERB", "ADJ", "ADV"})
 EMOTION_CATEGORIES = (
     "anger",
@@ -154,7 +158,7 @@ BROWSER_VAD_DIAGNOSTIC_IDS = (*tuple(
 def standard_concreteness_configuration() -> ConcretenessConfiguration:
     return ConcretenessConfiguration(
         exclude_proper_nouns=True,
-        scenario_id="versemap-concreteness-1.0",
+        scenario_id="versemap-concreteness-1.1",
     )
 
 
@@ -163,7 +167,7 @@ def standard_frequency_configuration() -> FrequencyConfiguration:
         exclude_proper_nouns=True,
         content_words_only=True,
         minimum_matched_tokens=1,
-        scenario_id="versemap-frequency-1.0",
+        scenario_id="versemap-frequency-1.1",
     )
 
 
@@ -172,7 +176,7 @@ def standard_aoa_configuration() -> AoAConfiguration:
         exclude_proper_nouns=True,
         content_words_only=True,
         minimum_matched_tokens=1,
-        scenario_id="versemap-aoa-1.0",
+        scenario_id="versemap-aoa-1.1",
     )
 
 
@@ -284,13 +288,13 @@ def extract_standard_profile(workspace: WorkspaceAnalysis) -> VerseMapProfile:
         else frozenset(
             token.token_id
             for token in tokens
-            if token.is_lexical and not token.is_stopword
+            if is_lexicon_eligible(token) and not token.is_stopword
         )
     )
     eligible_tokens = tuple(
         token
         for token in tokens
-        if token.is_lexical
+        if is_lexicon_eligible(token)
         and token.part_of_speech in CONTENT_POS_TAGS
         and token.token_id in policy_eligible_ids
     )
@@ -619,6 +623,8 @@ def build_module_result(
         {
             "text_version_id": module_input.document.text_version_id,
             "profile_id": PROFILE_ID,
+            "profile_build_id": PROFILE_BUILD_ID,
+            "lexicon_eligibility_policy": LEXICON_ELIGIBILITY_POLICY_ID,
             "reference_release_id": reference_release_id,
             "model_id": model_id,
             "values": profile.values,
@@ -651,7 +657,8 @@ def build_module_result(
             inclusion_policy=(
                 "Token-weighted; repeated words retained; stopwords removed; "
                 "NOUN, VERB, ADJ, and ADV used for lexical metrics; count-based "
-                "formal measures normalized by their documented structural unit."
+                "formal measures normalized by their documented structural unit; "
+                f"lexical eligibility policy {LEXICON_ELIGIBILITY_POLICY_ID}."
             ),
             resources=(
                 ResourceProvenance(

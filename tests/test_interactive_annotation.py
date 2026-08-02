@@ -111,6 +111,48 @@ def test_phrase_match_is_attached_to_each_member_without_becoming_unigram_data(
         assert evidence["primary"]["values"]["valence"] == 0.125
 
 
+def test_number_word_phrase_uses_completed_evidence_and_stays_interactive(
+    preprocessor,
+) -> None:
+    document = create_text_document(
+        "interactive-number-word",
+        "Interactive number word",
+        "As of some one gently rapping, 27 times.",
+    )
+    poem_document = preprocessor.process_document(document)
+    prepared = PreparedPoemPreprocessor(poem_document)
+    result = analyze_lexicon(
+        document,
+        phase2_synthetic_vad_lexicon(),
+        prepared,
+        phrase_policy=PhrasePolicy.PHRASE_PREFERRED,
+    )
+    workspace = SimpleNamespace(
+        document=document,
+        poem_document=poem_document,
+        results=(result,),
+        concreteness=None,
+        frequency=None,
+        aoa=None,
+        sensorimotor=None,
+    )
+
+    payload = build_interactive_annotation_payload(workspace)
+    source = payload["settings"]["vad_source"]
+    some = next(token for token in payload["tokens"] if token["surface"] == "some")
+    one = next(token for token in payload["tokens"] if token["surface"] == "one")
+    numeric = next(token for token in payload["tokens"] if token["surface"] == "27")
+
+    assert one["is_lexical"] is False
+    assert one["lexicon_eligible"] is True
+    assert numeric["lexicon_eligible"] is False
+    for token in (some, one):
+        evidence = token["evidence"]["vad"][source]
+        assert evidence["status"] == "matched"
+        assert evidence["primary"]["matched_term"] == "some one"
+        assert len(evidence["primary"]["token_ids"]) == 2
+
+
 def test_vad_unmatched_state_is_shared_by_dimensions_within_active_source(
     preprocessor,
 ) -> None:
@@ -205,6 +247,7 @@ def test_client_component_keeps_hover_and_selection_in_the_browser() -> None:
     assert "sourceMeta = sourceFor(payload, layer.id, settings)" in javascript
     assert "current.vadSource" not in javascript
     assert "source.slice(start, end)" in javascript
+    assert "token.lexicon_eligible" in javascript
     assert "innerHTML" not in javascript
 
 

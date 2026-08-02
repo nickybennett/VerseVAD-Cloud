@@ -42,6 +42,9 @@ def phase2_synthetic_vad_lexicon() -> VadLexicon:
     values = (
         ("very dark night", 1.0, 8.0, 2.0),
         ("dark night", 2.0, 7.0, 3.0),
+        ("some one", 5.0, 5.0, 5.0),
+        ("some", 4.0, 4.0, 4.0),
+        ("one", 6.0, 6.0, 6.0),
         ("dark", 3.0, 6.0, 4.0),
         ("night", 4.0, 5.0, 6.0),
         ("glow", 7.0, 4.0, 6.0),
@@ -83,7 +86,7 @@ def phase2_synthetic_vad_lexicon() -> VadLexicon:
     return VadLexicon.create(
         metadata,
         entries,
-        _validation(metadata.lexicon_id, lines, len(entries), phrases=2),
+        _validation(metadata.lexicon_id, lines, len(entries), phrases=3),
     )
 
 

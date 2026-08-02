@@ -5,6 +5,12 @@ from __future__ import annotations
 import hashlib
 
 from versevad.analysis.statistics import weighted_vad_statistics
+from versevad.lexical_eligibility import (
+    LEXICON_ELIGIBILITY_POLICY_ID,
+    append_lexicon_eligibility_note,
+    is_lexicon_eligible,
+    lexicon_ineligibility_reason,
+)
 from versevad.models import (
     AnalysisResult,
     CoverageStatistics,
@@ -18,7 +24,7 @@ from versevad.normalization import normalize_lookup, possessive_surface_base
 from versevad.preprocessing import TextPreprocessor
 
 
-DEFAULT_SCENARIO_ID = "phase1-default-v1"
+DEFAULT_SCENARIO_ID = "phase1-default-v2"
 
 
 def _safe_rate(numerator: int, denominator: int) -> float | None:
@@ -26,8 +32,7 @@ def _safe_rate(numerator: int, denominator: int) -> float | None:
 
 
 def _resolve_token(token: object, lexicon: VadLexicon) -> TokenMatch:
-    if not token.is_lexical:
-        reason = "punctuation" if token.is_punctuation else "numeric token"
+    if not is_lexicon_eligible(token):
         return TokenMatch(
             token_id=token.token_id,
             lexicon_id=lexicon.metadata.lexicon_id,
@@ -38,14 +43,16 @@ def _resolve_token(token: object, lexicon: VadLexicon) -> TokenMatch:
             original_scores=None,
             normalized_scores=None,
             included=False,
-            reason=reason,
+            reason=lexicon_ineligibility_reason(token),
         )
 
     entry, unresolved_conflict = lexicon.resolve(
         token.normalized_form, token.surface_form
     )
     method = MatchMethod.EXACT
-    reason = "Exact normalized surface-form match."
+    reason = append_lexicon_eligibility_note(
+        "Exact normalized surface-form match.", token
+    )
 
     if unresolved_conflict:
         return TokenMatch(
@@ -88,7 +95,9 @@ def _resolve_token(token: object, lexicon: VadLexicon) -> TokenMatch:
                 )
             if entry is not None:
                 method = MatchMethod.POSSESSIVE
-                reason = "Matched after conservative possessive normalization."
+                reason = append_lexicon_eligibility_note(
+                    "Matched after conservative possessive normalization.", token
+                )
 
     if entry is None and token.normalized_lemma != token.normalized_form:
         entry, unresolved_conflict = lexicon.resolve(
@@ -112,7 +121,10 @@ def _resolve_token(token: object, lexicon: VadLexicon) -> TokenMatch:
             )
         if entry is not None:
             method = MatchMethod.LEMMA
-            reason = "Matched by POS-sensitive lemma after exact candidates failed."
+            reason = append_lexicon_eligibility_note(
+                "Matched by POS-sensitive lemma after exact candidates failed.",
+                token,
+            )
 
     if entry is None:
         return TokenMatch(
@@ -125,7 +137,9 @@ def _resolve_token(token: object, lexicon: VadLexicon) -> TokenMatch:
             original_scores=None,
             normalized_scores=None,
             included=False,
-            reason="No lexicon entry matched under the Phase 1 policy.",
+            reason=append_lexicon_eligibility_note(
+                "No lexicon entry matched under the Phase 1 policy.", token
+            ),
         )
 
     return TokenMatch(
@@ -159,7 +173,7 @@ def analyze_vad(
 
     tokens = preprocessor.process(document)
     matches = tuple(_resolve_token(token, lexicon) for token in tokens)
-    lexical_tokens = tuple(token for token in tokens if token.is_lexical)
+    lexical_tokens = tuple(token for token in tokens if is_lexicon_eligible(token))
     token_by_id = {token.token_id: token for token in tokens}
     included = tuple(match for match in matches if match.included)
 
@@ -250,6 +264,7 @@ def analyze_vad(
             preprocessor.metadata.recipe_id,
             preprocessor.metadata.pipeline_name,
             preprocessor.metadata.pipeline_version,
+            LEXICON_ELIGIBILITY_POLICY_ID,
             scenario_id,
             str(minimum_match_requirement),
         )

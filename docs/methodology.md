@@ -98,6 +98,26 @@ tokens neutral and does not say whether they match a lexicon or the planned
 local SUBTLEX-US frequency resource. Dependency confidence also remains
 missing because the pipeline does not provide a calibrated per-edge value.
 
+### Lexicon eligibility policy
+
+VerseVAD keeps linguistic classification separate from downstream lexical-
+resource eligibility. Under `versevad-lexicon-eligibility-v2`, a token whose
+observed surface contains a Unicode alphabetic character may participate in
+exact VAD, emotion, concreteness, SUBTLEX, AoA, and sensorimotor lookup even
+when the language model marks it `NUM` and number-like. Thus `one` retains
+`POS=NUM` and `is_numeric=true` but may match a published `one` entry or the
+published expression `some one`. Pure numeric literals such as `1`, `27`, and
+`3.5` remain in the token audit but outside lexicon denominators.
+
+This is a matching-policy decision, not retokenization or preprocessing.
+Original spelling, offsets, lineation, POS, lemma, and number-like status are
+unchanged. Audit reasons identify alphabetically spelled number-like tokens
+admitted to broad lexical lookup. A module's narrower declared scope still
+applies afterward: the optional content-word-only Frequency and AoA views use
+only `NOUN`, `VERB`, `ADJ`, and `ADV`, so a `NUM` token remains outside those
+four-tag sensitivity views. Interactive Annotation displays only the evidence
+recorded by the completed active module and never performs its own lookup.
+
 ## VAD summaries
 
 Token-weighted summaries count every included occurrence. Type-weighted
@@ -246,8 +266,10 @@ No `wordfreq` or alternate corpus value is substituted.
 
 By default, model-tagged proper nouns remain eligible alongside other lexical
 tokens. The recorded exclusion option can remove them explicitly.
-Punctuation, numbers, and other non-lexical tokens remain in the audit but
-outside the denominator. The optional, non-default **Content words only**
+Punctuation, pure numeric literals, and other non-lexical tokens remain in the
+audit but outside the denominator. Alphabetically spelled number-like word
+forms remain eligible under the shared broad lexical policy. The optional,
+non-default **Content words only**
 scope restricts eligibility to exact model tags `NOUN`, `VERB`, `ADJ`, and
 `ADV`. It excludes determiners (`DET`), adpositions/prepositions (`ADP`),
 coordinating and subordinating conjunctions (`CCONJ`, `SCONJ`), pronouns
@@ -452,6 +474,8 @@ NRC VAD v2.1 explicitly supplies unigrams and multiword expressions. Phase 2
 normalizes exact surface tokens, constructs candidates within a single poetic
 line without crossing punctuation, orders candidates by descending token length
 and then textual position, and greedily selects non-overlapping spans.
+Alphabetically spelled number-like words may participate in those exact spans;
+pure numeric literals may not.
 
 The three policies are:
 
@@ -1016,6 +1040,12 @@ the active continuous lens. Valence, arousal, and dominance therefore share
 the selected VAD lexicon's token match status, while concreteness, frequency,
 and AoA each retain their own source-relative status. Excluded, unavailable,
 and unmatched remain distinct states.
+
+Alphabetically spelled number-like words remain selectable when the completed
+active analysis recorded them as lexicon-eligible. Consequently, the two tokens
+in an NRC v2.1 `some one` phrase expose the shared expression evidence, while a
+SUBTLEX lens may expose separate `some` and `one` unigram evidence. The client
+does not infer either representation.
 
 Expression evidence retains its original match ID, lookup form, source rows,
 and complete participating-token list. Attaching the evidence to each

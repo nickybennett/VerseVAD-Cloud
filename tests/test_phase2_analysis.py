@@ -47,6 +47,47 @@ def test_phrase_preferred_is_longest_first_and_suppresses_components(preprocesso
     assert result.vad_summary.token_weighted_original.valence.mean == pytest.approx(27 / 5)
 
 
+def test_number_word_can_complete_phrase_while_numeric_literal_stays_excluded(
+    preprocessor,
+) -> None:
+    document = create_text_document(
+        "p2-number-word",
+        "Number-word phrase",
+        "As of some one gently rapping, 27 times.",
+    )
+    result = analyze_lexicon(
+        document,
+        phase2_synthetic_vad_lexicon(),
+        preprocessor,
+        phrase_policy=PhrasePolicy.PHRASE_PREFERRED,
+    )
+    token_by_id = {token.token_id: token for token in result.tokens}
+    phrase = next(
+        match
+        for match in result.matches
+        if match.included and match.matched_term == "some one"
+    )
+
+    assert [token_by_id[token_id].surface_form for token_id in phrase.token_ids] == [
+        "some",
+        "one",
+    ]
+    assert "alphabetically spelled" in phrase.reason
+    one = next(token for token in result.tokens if token.surface_form == "one")
+    assert one.part_of_speech == "NUM"
+    assert one.is_numeric is True
+    assert one.is_lexical is False
+    assert result.coverage.matched_token_count >= 2
+    numeric = next(token for token in result.tokens if token.surface_form == "27")
+    numeric_audit = next(
+        match
+        for match in result.matches
+        if match.token_ids == (numeric.token_id,)
+    )
+    assert numeric_audit.selection is MatchSelection.NOT_ELIGIBLE
+    assert "pure numeric literal" in numeric_audit.reason
+
+
 def test_unigram_only_and_exploratory_policies_are_distinct(preprocessor) -> None:
     document = create_text_document("p2-policies", "Policy fixture", PHASE2_PHRASE_TEXT)
     lexicon = phase2_synthetic_vad_lexicon()

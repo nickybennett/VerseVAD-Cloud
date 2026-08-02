@@ -94,6 +94,7 @@ def _module(tmp_path: Path) -> SensorimotorModule:
             _row("the", auditory=0.0),
             _row("not", auditory=0.5),
             _row("idea", auditory=1.0),
+            _row("one", auditory=2.0),
         ],
     )
     return SensorimotorModule(
@@ -230,6 +231,19 @@ def test_phrase_matching_profiles_coverage_and_missing_values(
         warning.code == "context_free_norms"
         for warning in result.module_result.warnings
     )
+
+
+def test_alphabetic_number_word_matches_without_admitting_numeric_literal(
+    tmp_path: Path,
+    preprocessor,
+) -> None:
+    result = _analyze(_module(tmp_path), preprocessor, "one 27")
+
+    assert len(result.observations) == 1
+    assert result.observations[0].surface_form == "one"
+    assert "alphabetically spelled" in result.observations[0].eligibility_note
+    assert result.profile("All matched tokens", "token").eligible_token_count == 1
+    assert not any(item.surface_form == "27" for item in result.unmatched_tokens)
 
 
 def test_empty_and_unmatched_inputs_do_not_invent_zero_ratings(

@@ -39,6 +39,12 @@ from versevad.core.resources import (
     ResourceStatus,
 )
 from versevad.models import DescriptiveStatistics, TokenRecord
+from versevad.lexical_eligibility import (
+    LEXICON_ELIGIBILITY_POLICY_ID,
+    append_lexicon_eligibility_note,
+    is_lexicon_eligible,
+    lexicon_ineligibility_reason,
+)
 from versevad.normalization import (
     canonicalize_apostrophes,
     normalize_lookup,
@@ -99,7 +105,7 @@ class ConcretenessConfiguration:
     minimum_rated_tokens: int = 3
     low_coverage_warning_threshold: float = 0.6
     top_term_count: int = 10
-    scenario_id: str = "concreteness-baseline-v1"
+    scenario_id: str = "concreteness-baseline-v2"
 
     def __post_init__(self) -> None:
         if not 1 <= self.highly_abstract_max <= 5:
@@ -133,7 +139,7 @@ class ConcretenessConfiguration:
             separators=(",", ":"),
         )
         digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
-        return f"concreteness-config-v1:{digest}"
+        return f"concreteness-config-v2:{digest}"
 
 
 @dataclass(frozen=True)
@@ -331,7 +337,7 @@ def _entry_rating(
         source_rater_count=entry.rater_count,
         source_percent_known=entry.percent_known,
         source_subtlex_count=entry.subtlex_count,
-        reason=reason,
+        reason=append_lexicon_eligibility_note(reason, token),
     )
 
 
@@ -370,7 +376,11 @@ def _unrated_token(
         source_rater_count=None,
         source_percent_known=None,
         source_subtlex_count=None,
-        reason=reason,
+        reason=(
+            append_lexicon_eligibility_note(reason, token)
+            if eligible
+            else reason
+        ),
     )
 
 
@@ -378,7 +388,7 @@ def _is_eligible(
     token: TokenRecord,
     configuration: ConcretenessConfiguration,
 ) -> bool:
-    return token.is_lexical and not (
+    return is_lexicon_eligible(token) and not (
         configuration.exclude_proper_nouns and token.is_proper_noun
     )
 
@@ -442,14 +452,13 @@ def _token_audit(
         if phrase_row is not None:
             rows.append(phrase_row)
             continue
-        if not token.is_lexical:
-            kind = "numeric" if token.is_numeric else "punctuation or non-lexical"
+        if not is_lexicon_eligible(token):
             rows.append(
                 _unrated_token(
                     token,
                     method=ConcretenessMatchMethod.NOT_ELIGIBLE,
                     eligible=False,
-                    reason=f"Excluded from the lexical denominator as {kind}.",
+                    reason=lexicon_ineligibility_reason(token),
                 )
             )
             continue
@@ -935,7 +944,7 @@ class ConcretenessModule:
     """Framework-independent Stage 2 module backed by a named local resource."""
 
     name = "concreteness"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def __init__(
         self,
@@ -1037,7 +1046,8 @@ class ConcretenessModule:
             adapter_version=BrysbaertConcretenessAdapter.adapter_version,
         )
         inclusion_policy = (
-            "All lexical tokens except punctuation and numeric tokens; "
+            "All ordinary lexical tokens plus alphabetically spelled "
+            "number-like tokens; punctuation and pure numeric literals excluded; "
             + (
                 "model-tagged proper nouns excluded by explicit configuration."
                 if config.exclude_proper_nouns
@@ -1053,6 +1063,7 @@ class ConcretenessModule:
             (
                 self.name,
                 self.version,
+                LEXICON_ELIGIBILITY_POLICY_ID,
                 module_input.document.text_version_id,
                 config.configuration_id,
                 status.source_sha256,

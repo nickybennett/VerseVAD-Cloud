@@ -1,5 +1,18 @@
 # VerseVAD Implementation Plan
 
+## Completed alphabetic-number lexicon eligibility policy
+
+- [x] Separate linguistic `NUM` tagging from downstream lexicon eligibility so
+  alphabetically spelled number words can participate in exact lookup while
+  pure numeric literals remain excluded.
+- [x] Apply one versioned eligibility predicate across VAD, phrase matching,
+  frequency, AoA, concreteness, sensorimotor evidence, and Interactive
+  Annotation without changing tokenization or source-text preservation.
+- [x] Record the inclusion reason in the audit trail and keep annotation
+  highlighting aligned with each active analytical lens.
+- [x] Rebuild and validate VerseMap Standard Profile 1.0 for all 2,315 bundled
+  reference poems, then verify public/hosted parity with automated tests.
+
 ## Completed stacked-punctuation tokenization correction
 
 - [x] Split alphabetic words joined by two or more non-apostrophe punctuation

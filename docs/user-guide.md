@@ -428,6 +428,13 @@ labels the evidence as an expression match rather than an independent unigram
 rating. Annotation display choices are stored with a full saved analysis and
 restored when that historical result is reopened.
 
+Number-like language-model tags do not automatically remove written words from
+lexical evidence. Alphabetically spelled forms such as **one** can match exact
+lexicon entries and expressions while retaining their `NUM` tag; pure numeric
+literals such as **1**, **27**, and **3.5** remain excluded. Highlighting follows
+the active completed analysis: NRC VAD v2.1 may show **some one** as one
+expression while SUBTLEX shows **some** and **one** separately.
+
 Choose a one-text **Report section** from the dropdown. All large vertical
 sections begin collapsed and can be opened independently, so several may remain
 open at once. Each expanded report section ends with a compact, centered

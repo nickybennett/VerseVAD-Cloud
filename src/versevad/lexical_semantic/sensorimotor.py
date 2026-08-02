@@ -41,6 +41,12 @@ from versevad.core.resources import (
     ResourceStatus,
 )
 from versevad.models import DescriptiveStatistics, StopwordMode, TokenRecord
+from versevad.lexical_eligibility import (
+    LEXICON_ELIGIBILITY_POLICY_ID,
+    append_lexicon_eligibility_note,
+    is_lexicon_eligible,
+    lexicon_eligibility_note_for_tokens,
+)
 from versevad.normalization import normalize_lookup, possessive_base
 from versevad.stopwords import (
     DEFAULT_PROTECTED_WORDS,
@@ -181,7 +187,7 @@ class SensorimotorConfiguration:
     protected_stopwords: tuple[str, ...] = DEFAULT_PROTECTED_WORDS
     custom_stopword_additions: tuple[str, ...] = ()
     custom_stopword_removals: tuple[str, ...] = ()
-    scenario_id: str = "lancaster-sensorimotor-default-v1"
+    scenario_id: str = "lancaster-sensorimotor-default-v2"
 
     def __post_init__(self) -> None:
         if self.minimum_match_requirement < 1:
@@ -201,7 +207,7 @@ class SensorimotorConfiguration:
                 separators=(",", ":"),
             ).encode("utf-8")
         ).hexdigest()[:16]
-        return f"lancaster-sensorimotor:{digest}"
+        return f"lancaster-sensorimotor-v2:{digest}"
 
 
 @dataclass(frozen=True)
@@ -240,6 +246,7 @@ class SensorimotorObservation:
     percent_known_perceptual: float
     percent_known_action: float
     context: str
+    eligibility_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -355,7 +362,7 @@ def _rate(numerator: int, denominator: int) -> float | None:
 
 def _eligible(token: TokenRecord, configuration: SensorimotorConfiguration) -> bool:
     return (
-        token.is_lexical
+        is_lexicon_eligible(token)
         and not (configuration.exclude_proper_nouns and token.is_proper_noun)
     )
 
@@ -476,6 +483,7 @@ def _observation(
         percent_known_perceptual=entry.percent_known_perceptual,
         percent_known_action=entry.percent_known_action,
         context=tokens[0].context,
+        eligibility_note=lexicon_eligibility_note_for_tokens(tokens),
     )
 
 
@@ -527,7 +535,10 @@ def _match(
                         part_of_speech=token.part_of_speech,
                         line_number=token.line_number,
                         stanza_number=token.stanza_number,
-                        reason="No exact surface, possessive-base, or model-lemma entry.",
+                        reason=append_lexicon_eligibility_note(
+                            "No exact surface, possessive-base, or model-lemma entry.",
+                            token,
+                        ),
                         context=token.context,
                     )
                 )
@@ -919,7 +930,7 @@ class SensorimotorModule:
     """Framework-independent Lancaster sensorimotor analysis module."""
 
     name = "sensorimotor_imagery_and_embodiment"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def __init__(
         self,
@@ -1080,6 +1091,7 @@ class SensorimotorModule:
             (
                 self.name,
                 self.version,
+                LEXICON_ELIGIBILITY_POLICY_ID,
                 module_input.document.text_version_id,
                 config.configuration_id,
                 status.source_sha256,
@@ -1126,7 +1138,9 @@ class SensorimotorModule:
                     "POS-aware model lemma, unmatched."
                 ),
                 inclusion_policy=(
-                    "Lexical non-numeric tokens; model-tagged proper nouns "
+                    "Ordinary lexical tokens plus alphabetically spelled "
+                    "number-like tokens; punctuation and pure numeric literals "
+                    "excluded; model-tagged proper nouns "
                     + (
                         "excluded. "
                         if config.exclude_proper_nouns
