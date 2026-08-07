@@ -2801,7 +2801,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
             False,
         )
     )
-    active_report_section, report_containers = render_stateful_section_navigation(
+    (
+        active_report_section,
+        report_controls_container,
+        report_containers,
+    ) = render_stateful_section_navigation(
         "Report section",
         report_sections,
         state_key=report_state_key,
@@ -2812,14 +2816,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "The selected report family is retained when a view, weighting, "
             "lexicon, or prepared export causes the page to refresh."
         ),
+        include_header_container=True,
     )
     last_report_key = f"{report_state_key}_last_analytical_section"
     if active_report_section != "Export & Help":
         st.session_state[last_report_key] = active_report_section
-    profile_state = render_report_profile_controls(
-        "other_text" if is_other_text else "single_poem",
-        annotation_active=(active_report_section == "Interactive Annotation"),
-    )
+    with report_controls_container:
+        profile_state = render_report_profile_controls(
+            "other_text" if is_other_text else "single_poem",
+            annotation_active=(active_report_section == "Interactive Annotation"),
+        )
     # Transitional aliases keep the established detailed panels aligned with
     # the single global scope selector while their calculations continue to
     # come from the completed immutable analysis.

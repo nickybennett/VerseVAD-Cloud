@@ -1800,7 +1800,11 @@ def render_stateful_section_navigation(
     default: str | None = None,
     help_text: str | None = None,
     control: Literal["segmented", "dropdown"] = "segmented",
-) -> tuple[str, dict[str, DeltaGenerator]]:
+    include_header_container: bool = False,
+) -> (
+    tuple[str, dict[str, DeltaGenerator]]
+    | tuple[str, DeltaGenerator, dict[str, DeltaGenerator]]
+):
     """Render rerun-stable section navigation and keyed content containers."""
 
     section_options = tuple(options)
@@ -1851,8 +1855,15 @@ def render_stateful_section_navigation(
         "</style>",
         unsafe_allow_html=True,
     )
+    header_container = (
+        st.container(key=f"{container_key_prefix}_report_controls")
+        if include_header_container
+        else None
+    )
     containers = {
         section: st.container(key=container_keys[section])
         for section in section_options
     }
+    if header_container is not None:
+        return active_section, header_container, containers
     return active_section, containers
