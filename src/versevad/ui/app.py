@@ -55,7 +55,7 @@ _application_was_reloaded = (
     )
     or getattr(_nrc_vad_services.NrcVadV1Adapter, "adapter_version", "") != "0.3.0"
     or not _nrc_vad_services.NrcVadV1Adapter.configuration.phrase_support
-    or getattr(_repository_services, "SCHEMA_VERSION", 0) < 3
+    or getattr(_repository_services, "SCHEMA_VERSION", 0) < 5
     or (
         getattr(_pronunciation_services.PronunciationModule, "version", "")
         != "1.2.0"
@@ -169,7 +169,6 @@ from versevad.application import (
     vad_cumulative_views,
     vad_interpretation_views,
     vad_part_of_speech_views,
-    vad_sensitivity_views,
     vad_views,
 )
 from versevad.diagnostics import run_self_test
@@ -217,6 +216,10 @@ from versevad.poetry_id import (
 from versevad.ui.poetry_id import render_poetry_id
 from versevad.ui.inherited_form import render_inherited_form
 from versevad.ui.interactive_annotation import render_interactive_annotation
+from versevad.analysis_profiles import LexicalScope
+from versevad.ui.profile_controls import render_report_profile_controls
+from versevad.ui.profile_tables import render_configurable_profile_table
+from versevad.module_capabilities import fixed_profile_notice
 from versevad.ui.versemap import render_versemap
 from versevad.ui.sensorimotor import render_sensorimotor
 from versevad.ui.dataframes import rounded_display_data
@@ -230,6 +233,7 @@ from versevad.ui.profiles import (
 )
 from versevad.ui.profile_management import (
     analysis_profile_options,
+    apply_profile_display_defaults,
     consume_pending_profile_selection,
     custom_profile_settings,
     render_custom_profile_manager,
@@ -299,7 +303,7 @@ if _corpus_was_reloaded:
         importlib.reload(sys.modules["versevad.ui.corpus"])
     st.session_state["_corpus_runtime_revision"] = _CORPUS_RUNTIME_REVISION
 
-# Stage 13 centralizes the shell and appearance tokens. Reload the presentation
+# The shared design module centralizes the shell and appearance tokens. Reload the presentation
 # modules once in an already-open local server so theme and workspace changes
 # do not require the scholar to restart VerseVAD manually.
 _DESIGN_RUNTIME_REVISION = "2026-07-28-design-7"
@@ -355,14 +359,17 @@ def _decimal(value: float | None) -> str:
 
 
 def _clear_current_text(workspace: str) -> None:
-    """Detach the current unsaved context before clearing the text widget."""
+    """Clear only the active text workspace after explicit confirmation."""
 
     from versevad.ui.research import release_active_context
+    from versevad.ui.profile_controls import clear_report_profile_state
+    from versevad.ui.workspace_state import clear_workspace_state
 
     release_active_context(workspace)
-
-    st.session_state["poem_text"] = ""
-    st.session_state.pop("upload_signature", None)
+    clear_workspace_state(st.session_state, workspace)
+    clear_report_profile_state(
+        "other_text" if workspace == "Other Text" else "single_poem"
+    )
     st.session_state.pop("_historical_analysis", None)
 
 
@@ -922,6 +929,10 @@ def _render_resource_setup_notice(readiness: ResourceReadiness) -> None:
 workspace_page, _appearance_mode = render_app_shell()
 resource_readiness = installed_resource_readiness()
 _render_resource_setup_notice(resource_readiness)
+if workspace_page == "Personal Corpus":
+    from versevad.ui.personal_corpus import render_personal_corpus_workspace
+
+    render_personal_corpus_workspace(_preprocessor(), resource_readiness)
 if workspace_page == "Compare Poems":
     from versevad.ui.comparison import render_compare_poems_workspace
     from versevad.ui.research import render_historical_analysis_notice
@@ -1001,26 +1012,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
     st.session_state.setdefault("workspace", None)
 
     with st.sidebar:
-        _hosted_session = (
-            os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT", "").strip().lower()
-            in {"1", "true", "yes", "on"}
-        )
-        st.markdown("### Hosted Session" if _hosted_session else "### Local Session")
+        st.markdown("### Local Session")
         st.caption(f"{workspace_page} · VerseVAD {__version__}")
-        if _hosted_session:
-            st.success("Your analysis is isolated to this hosted app session.")
-            st.info(
-                "Hosted results are temporary. Download them or use Analysis "
-                "Library during this session; Analysis Library and Saved "
-                "Projects both expire when the hosted session ends."
-            )
-        else:
-            st.success("Private by design: analysis stays on this computer.")
-            st.info(
-                "Download results or save them in Analysis Library before "
-                "closing. With deployment mode off, the library persists "
-                "locally."
-            )
+        st.success("Private by design: analysis stays on this computer.")
+        st.info(
+            "Download results or save them in Analysis Library before closing. "
+            "Saved Projects remains the persistent collection workspace."
+        )
         st.markdown("### Installation Check")
         if st.button("Run self-test", width="stretch", key="run_self_test"):
             _display_self_test()
@@ -1073,13 +1071,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
         "frequency_moderate_below": 5.0,
         "frequency_very_common_min": 6.0,
         "frequency_exclude_proper": False,
-        "frequency_content_words_only": False,
         "frequency_lemma_fallback": True,
         "frequency_coverage_warning": 0.6,
         "aoa_early_max": 5.0,
         "aoa_later_min": 12.0,
         "aoa_exclude_proper": False,
-        "aoa_content_words_only": False,
         "aoa_lemma_fallback": True,
         "aoa_coverage_warning": 0.6,
         "lexical_style_mattr_window": 50,
@@ -1104,8 +1100,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
         "phonological_sound_repetitions": 2,
         "phonological_coverage_warning": 0.70,
         "phonological_maximum_pairs": 10000,
-        "show_all_matched_results": True,
-        "show_stopword_excluded_results": True,
     }
     for widget_key, default_value in configuration_widget_defaults.items():
         st.session_state.setdefault(widget_key, default_value)
@@ -1253,8 +1247,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
             else:
                 st.session_state.setdefault(module_key, False)
         poetry_id_widget_defaults = {
-            "poetry_id_weightings": ["token", "type"],
-            "poetry_id_views": ["all_matched", "stopwords_excluded"],
             "poetry_id_custom_thresholds": False,
             "poetry_id_valence_low": 0.4,
             "poetry_id_valence_high": 0.6,
@@ -1359,6 +1351,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         available_lexicon_ids=tuple(spec_by_id),
                     )
                     apply_profile_settings(st.session_state, preset_state)
+                apply_profile_display_defaults(
+                    selected_preset,
+                    "other_text" if is_other_text else "single_poem",
+                )
                 for key, unavailable in unavailable_modules.items():
                     if unavailable:
                         st.session_state[key] = False
@@ -1550,27 +1546,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "a consensus VAD score."
                 ),
             )
-            poetry_id_weightings = st.multiselect(
-                "PoetryID weighting views",
-                options=["token", "type"],
-                disabled=not include_poetry_id,
-                key="poetry_id_weightings",
-            )
-            poetry_id_views = st.multiselect(
-                "PoetryID analysis views",
-                options=["all_matched", "stopwords_excluded"],
-                format_func=lambda value: (
-                    "All matched tokens (including stopwords)"
-                    if value == "all_matched"
-                    else "Stopwords excluded"
-                ),
-                disabled=not include_poetry_id,
-                key="poetry_id_views",
-                help=(
-                    "Both views are kept separate. All matched tokens includes "
-                    "matched stopwords; unmatched vocabulary remains missing in "
-                    "both views and is never assigned a neutral value."
-                ),
+            # PoetryID retains all compatible evidence. The global report
+            # controls select which scope/weighting perspectives are shown.
+            poetry_id_weightings = ("token", "type")
+            poetry_id_views = (
+                "all_matched",
+                "stopwords_excluded",
+                "content_words",
             )
             available_character_dimensions = []
             if include_concreteness:
@@ -1623,7 +1605,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 key="include_pronunciation",
                 help=(
                     "Optional exact observed-form dictionary pronunciations, "
-                    "syllable counts, and lexical stress. This Stage 5 module does "
+                    "syllable counts, and lexical stress. This pronunciation module does "
                     "not classify meter, rhyme, or performed scansion."
                 ),
             )
@@ -1643,7 +1625,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 disabled=not pronunciation_available,
                 key="include_meter",
                 help=(
-                    "Stage 6 compares retained lexical-stress evidence against "
+                    "The meter module compares retained lexical-stress evidence against "
                     "iambic, trochaic, anapestic, dactylic, and amphibrachic "
                     "templates from monometer through octameter."
                 ),
@@ -1660,7 +1642,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 disabled=not pronunciation_available,
                 key="include_phonology",
                 help=(
-                    "Stage 7 derives end-rhyme groups and schemes, perfect, identical, "
+                    "The sound-pattern module derives end-rhyme groups and schemes, perfect, identical, "
                     "masculine, feminine, multisyllabic, graded slant, eye, and "
                     "internal-rhyme evidence plus alliteration, assonance, consonance, "
                     "refrains, and coverage."
@@ -1668,7 +1650,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
             if pronunciation_available:
                 st.caption(
-                    "Optional and off by default. Stage 7 automatically runs the "
+                    "Optional and off by default. This analysis automatically runs the "
                     "pronunciation foundation. Dictionary, spelling, and repeated-text "
                     "evidence remain separately labeled."
                 )
@@ -1870,7 +1852,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 key="frequency_very_common_min",
                 disabled=not include_frequency,
             )
-            frequency_policy_columns = st.columns(3)
+            frequency_policy_columns = st.columns(2)
             exclude_frequency_proper_nouns = frequency_policy_columns[
                 0
             ].checkbox(
@@ -1878,21 +1860,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 key="frequency_exclude_proper",
                 disabled=not include_frequency,
             )
-            frequency_content_words_only = frequency_policy_columns[
-                1
-            ].checkbox(
-                "Content words only",
-                key="frequency_content_words_only",
-                disabled=not include_frequency,
-                help=(
-                    "Optional and off by default. Limits eligible tokens to "
-                    "model-tagged NOUN, VERB, ADJ, and ADV; excludes determiners, "
-                    "prepositions, conjunctions, pronouns, auxiliaries, and "
-                    "punctuation."
-                ),
-            )
+            frequency_content_words_only = False
             enable_frequency_lemma_fallback = frequency_policy_columns[
-                2
+                1
             ].checkbox(
                 "Allow explicit lemma fallback",
                 key="frequency_lemma_fallback",
@@ -1929,24 +1899,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 key="aoa_later_min",
                 disabled=not include_aoa,
             )
-            aoa_policy_columns = st.columns(3)
+            aoa_policy_columns = st.columns(2)
             exclude_aoa_proper_nouns = aoa_policy_columns[0].checkbox(
                 "Exclude AoA proper nouns",
                 key="aoa_exclude_proper",
                 disabled=not include_aoa,
             )
-            aoa_content_words_only = aoa_policy_columns[1].checkbox(
-                "AoA content words only",
-                key="aoa_content_words_only",
-                disabled=not include_aoa,
-                help=(
-                    "Optional and off by default. Uses the poem occurrence's "
-                    "model tag and retains only NOUN, VERB, ADJ, and ADV. The "
-                    "paper's source-sampling rule does not make this contextual "
-                    "filter redundant."
-                ),
-            )
-            enable_aoa_lemma_fallback = aoa_policy_columns[2].checkbox(
+            aoa_content_words_only = False
+            enable_aoa_lemma_fallback = aoa_policy_columns[1].checkbox(
                 "Allow AoA lemma fallback",
                 key="aoa_lemma_fallback",
                 disabled=not include_aoa,
@@ -2336,21 +2296,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "rhyme-part edit similarity, stress alignment, and syllable "
                 "similarity. It is a configurable heuristic, not a probability."
             )
-            st.markdown("**Stopword reporting**")
-            reporting_columns = st.columns(2)
-            show_all_matched = reporting_columns[0].checkbox(
-                "Show all-token results",
-                key="show_all_matched_results",
-            )
-            show_stopword_excluded = reporting_columns[1].checkbox(
-                "Show stopword-excluded results",
-                key="show_stopword_excluded_results",
-            )
-            st.caption(
-                "Stopword exclusion removes common grammatical words from the secondary "
-                "analysis only. The complete analysis and token audit remain available."
-            )
-            with st.expander("Stopword settings"):
+            show_all_matched = True
+            show_stopword_excluded = True
+            with st.expander("Stopword Resource and Exclusions"):
                 stopword_settings = render_stopword_settings("one_poem")
             _render_bottom_collapse_button(
                 "Analysis Configuration and Methodology",
@@ -2865,6 +2813,20 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "lexicon, or prepared export causes the page to refresh."
         ),
     )
+    last_report_key = f"{report_state_key}_last_analytical_section"
+    if active_report_section != "Export & Help":
+        st.session_state[last_report_key] = active_report_section
+    profile_state = render_report_profile_controls(
+        "other_text" if is_other_text else "single_poem",
+        annotation_active=(active_report_section == "Interactive Annotation"),
+    )
+    # Transitional aliases keep the established detailed panels aligned with
+    # the single global scope selector while their calculations continue to
+    # come from the completed immutable analysis.
+    show_all_matched = LexicalScope.ALL_LEXICAL in profile_state.selection.scopes
+    show_stopword_excluded = (
+        LexicalScope.STOPWORD_EXCLUDED in profile_state.selection.scopes
+    )
     overview_tab = report_containers["Overview"]
     affective_tab = report_containers["Affective Evidence"]
     lexical_tab = report_containers[
@@ -2891,6 +2853,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             render_interactive_annotation(
                 workspace,
                 theme_tokens=THEME_TOKENS[_appearance_mode],
+                active_scope=profile_state.active_annotation_scope,
             )
 
     def _section_label(label: str, available: bool) -> str:
@@ -2979,6 +2942,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             collapse_label="Inherited Form Analysis",
         )
     with structure_tab:
+        st.caption(fixed_profile_notice("structure"))
         language_tab = _bottom_collapsible_expander(
             _section_label("Language Profile", workspace.poem_document is not None),
             state_key=f"{report_state_key}_language",
@@ -2993,6 +2957,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             collapse_label="Lexical & Structural Measures",
         )
     with versemap_report_tab:
+        st.caption(fixed_profile_notice("versemap"))
         versemap_tab = _bottom_collapsible_expander(
             _section_label("VerseMap", workspace.versemap is not None),
             state_key=f"{report_state_key}_versemap",
@@ -3039,8 +3004,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             ]
             if st.session_state.get("lexical_trajectory_source") not in source_ids:
                 st.session_state["lexical_trajectory_source"] = source_ids[0]
-            trajectory_controls = st.columns(2)
-            trajectory_source = trajectory_controls[0].selectbox(
+            trajectory_source = st.selectbox(
                 "Trajectory VAD source",
                 options=source_ids,
                 format_func=lambda value: next(
@@ -3054,38 +3018,24 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "the Affective Evidence report section."
                 ),
             )
-            selected_result = next(
-                result
-                for result in vad_sources
-                if result.lexicon_metadata.lexicon_id == trajectory_source
-            )
-            trajectory_view_options = ["All matched tokens"]
-            if selected_result.stopword_coverage is not None:
-                trajectory_view_options.append("Stopwords excluded")
-            current_trajectory_view = st.session_state.get(
-                "lexical_trajectory_view"
-            )
-            if current_trajectory_view not in trajectory_view_options:
-                st.session_state["lexical_trajectory_view"] = (
-                    trajectory_view_options[0]
+            trajectory_view_labels = {
+                LexicalScope.ALL_LEXICAL: "All matched tokens",
+                LexicalScope.STOPWORD_EXCLUDED: "Stopwords excluded",
+                LexicalScope.CONTENT_WORDS: "Content words only",
+            }
+            trajectory = tuple(
+                point
+                for scope in profile_state.selection.scopes
+                for point in lexical_trajectory_views(
+                    workspace,
+                    lexicon_id=trajectory_source,
+                    analysis_view=trajectory_view_labels[scope],
                 )
-            trajectory_view = trajectory_controls[1].selectbox(
-                "Trajectory token scope",
-                options=trajectory_view_options,
-                key="lexical_trajectory_view",
-                help=(
-                    "The full and stopword-excluded views remain distinct; changing "
-                    "this display choice does not rerun the poem analysis."
-                ),
-            )
-            trajectory = lexical_trajectory_views(
-                workspace,
-                lexicon_id=trajectory_source,
-                analysis_view=trajectory_view,
             )
             trajectory_frame = pd.DataFrame(
                 [
                     {
+                        "Profile": row.analysis_view,
                         "Line": row.line_number,
                         "Text": row.source_text,
                         "Valence": row.valence_mean,
@@ -3101,6 +3051,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     for row in trajectory
                 ],
                 columns=[
+                    "Profile",
                     "Line",
                     "Text",
                     "Valence",
@@ -3123,7 +3074,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             if workspace.concreteness is not None:
                 chart_columns.append("Concreteness")
             chart_long = trajectory_frame.melt(
-                id_vars=["Line", "Text"],
+                id_vars=["Profile", "Line", "Text"],
                 value_vars=chart_columns,
                 var_name="Measure",
                 value_name="Mean",
@@ -3160,9 +3111,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         ),
                         legend=alt.Legend(title=None, orient="top"),
                     ),
+                    strokeDash=alt.StrokeDash("Profile:N", title="Lexical scope"),
                     tooltip=[
                         alt.Tooltip("Line:Q", format=".0f"),
                         "Text:N",
+                        "Profile:N",
                         "Measure:N",
                         alt.Tooltip("Mean:Q", format=".3f"),
                     ],
@@ -3199,12 +3152,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
 
     with poetry_id_tab:
-        render_poetry_id(workspace.poetry_id)
+        render_poetry_id(workspace.poetry_id, profile_state.selection)
 
     with inherited_form_tab:
+        st.caption(fixed_profile_notice("inherited_form"))
         render_inherited_form(workspace.inherited_form)
 
     with versemap_tab:
+        st.caption(fixed_profile_notice("versemap"))
         render_versemap(
             workspace.versemap,
             show_poem_neighbors=True,
@@ -4173,12 +4128,39 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         st.warning(warning.message)
 
     with sensorimotor_tab:
-        render_sensorimotor(
-            workspace.sensorimotor,
-            state_key_prefix=f"{report_state_key}_sensorimotor_controls",
+        render_configurable_profile_table(
+            workspace,
+            profile_state.selection,
+            module_ids=("sensorimotor",),
+            heading="Selected Sensorimotor Profiles",
         )
+        sensorimotor_primary = profile_state.selection.profiles[0]
+        if sensorimotor_primary.scope is LexicalScope.CONTENT_WORDS:
+            st.info(
+                "The selected Content words only profile is reported in the "
+                "canonical table above. Lancaster's legacy trajectory and "
+                "dominant-domain evidence does not have a content-only native "
+                "view, so VerseVAD does not substitute a different scope here."
+            )
+        else:
+            render_sensorimotor(
+                workspace.sensorimotor,
+                state_key_prefix=f"{report_state_key}_sensorimotor_controls",
+                analysis_view=(
+                    "All matched tokens"
+                    if sensorimotor_primary.scope is LexicalScope.ALL_LEXICAL
+                    else "Stopwords excluded"
+                ),
+                weighting=sensorimotor_primary.weighting.value.casefold(),
+            )
 
     with concreteness_tab:
+        render_configurable_profile_table(
+            workspace,
+            profile_state.selection,
+            module_ids=("concreteness",),
+            heading="Selected Concreteness Profiles",
+        )
         concreteness = workspace.concreteness
         if concreteness is None:
             st.info(
@@ -4478,6 +4460,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.caption(resource.license_notice)
 
     with frequency_tab:
+        render_configurable_profile_table(
+            workspace,
+            profile_state.selection,
+            module_ids=("frequency",),
+            heading="Selected Frequency Profiles",
+        )
         frequency = workspace.frequency
         if frequency is None:
             st.subheader("SUBTLEX-US Lexical Frequency & Rarity")
@@ -4804,8 +4792,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.caption(resource.license_notice)
 
     with aoa_tab:
+        render_configurable_profile_table(
+            workspace,
+            profile_state.selection,
+            module_ids=("aoa", "word_length"),
+            heading="Selected Lexical Accessibility Profiles",
+        )
         readability = workspace.readability
         if readability is not None:
+            st.caption(fixed_profile_notice("traditional_readability"))
+            st.caption(fixed_profile_notice("vv_pre"))
             readability_summary = readability.summary
             st.subheader("Readability and Grade-Formula Evidence")
             poetic_reading_ease = getattr(
@@ -5419,6 +5415,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.caption(resource.license_notice)
 
     with pronunciation_tab:
+        st.caption(fixed_profile_notice("pronunciation"))
         pronunciation = workspace.pronunciation
         if pronunciation is None:
             st.info(
@@ -5603,6 +5600,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
 
     with meter_tab:
+        st.caption(fixed_profile_notice("meter"))
         meter = workspace.meter
         if meter is None:
             st.info(
@@ -6117,6 +6115,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
 
     with phonology_tab:
+        st.caption(fixed_profile_notice("phonology"))
         phonology = workspace.phonology
         if phonology is None:
             st.info(
@@ -6359,120 +6358,18 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
 
     with vad_tab:
-        visible_vad_views = set()
-        if show_all_matched:
-            visible_vad_views.add("All matched tokens")
-        if show_stopword_excluded:
-            visible_vad_views.add("Stopwords excluded")
-        vad = [
-            row
-            for row in vad_views(workspace)
-            if row.analysis_view in visible_vad_views
-        ]
-        if not vad:
-            if not visible_vad_views:
-                st.info("Enable at least one stopword-reporting view in the settings above.")
-            else:
-                st.info("No VAD lexicon was selected. Choose Warriner or either NRC VAD source to see this view.")
+        render_configurable_profile_table(
+            workspace,
+            profile_state.selection,
+            module_ids=("vad",),
+            heading="Selected VAD Profiles",
+        )
+        if not workspace.results:
+            st.info(
+                "No VAD lexicon was selected. Choose Warriner or either NRC VAD "
+                "source to see this view."
+            )
         else:
-            st.subheader("Parallel Normalized VAD Views")
-            st.write(
-                "These means use a derived 0–1 scale so the three VAD sources can be "
-                "placed side by side. Higher values mean higher normative ratings on "
-                "that dimension among matched observations—not more emotion in the poem."
-            )
-            vad_frame = _frame(
-                vad,
-                {
-                    "lexicon": "Lexicon",
-                    "analysis_view": "Analysis view",
-                    "matched_observations": "Matched observations",
-                    "matched_types": "Matched types",
-                    "eligible_tokens": "Eligible tokens",
-                    "lexical_coverage": "Coverage",
-                    "normalized_valence": "Valence",
-                    "normalized_arousal": "Arousal",
-                    "normalized_dominance": "Dominance",
-                    "type_valence": "Type valence",
-                    "type_arousal": "Type arousal",
-                    "type_dominance": "Type dominance",
-                    "original_scale": "Original scale",
-                    "normalization_formula": "Formula",
-                },
-            )
-            render_dataframe(
-                vad_frame[
-                    [
-                        "Lexicon",
-                        "Analysis view",
-                        "Matched observations",
-                        "Matched types",
-                        "Eligible tokens",
-                        "Coverage",
-                        "Valence",
-                        "Arousal",
-                        "Dominance",
-                    ]
-                ].style.format(
-                    {
-                        "Coverage": lambda value: _percentage(value),
-                        "Valence": lambda value: _decimal(value),
-                        "Arousal": lambda value: _decimal(value),
-                        "Dominance": lambda value: _decimal(value),
-                    }
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-            dimension_order = ["Valence", "Arousal", "Dominance"]
-            vad_frame["Lexicon and view"] = (
-                vad_frame["Lexicon"] + " · " + vad_frame["Analysis view"]
-            )
-            lexicon_order = vad_frame["Lexicon and view"].tolist()
-            chart_data = vad_frame[
-                ["Lexicon", "Analysis view", "Lexicon and view", *dimension_order]
-            ].melt(
-                id_vars=["Lexicon", "Analysis view", "Lexicon and view"],
-                var_name="Dimension",
-                value_name="Normalized mean",
-            )
-            chart = (
-                alt.Chart(chart_data)
-                .mark_bar(size=12)
-                .encode(
-                    x=alt.X(
-                        "Normalized mean:Q",
-                        scale=alt.Scale(domain=[0, 1]),
-                        title="Derived normalized mean (0–1)",
-                    ),
-                    y=alt.Y("Lexicon and view:N", sort=lexicon_order, title=None),
-                    yOffset=alt.YOffset("Dimension:N", sort=dimension_order),
-                    color=alt.Color(
-                        "Dimension:N",
-                        sort=dimension_order,
-                        scale=alt.Scale(
-                            range=[
-                                PUBLICATION_CHART_COLORS[0],
-                                PUBLICATION_CHART_COLORS[1],
-                                PUBLICATION_CHART_COLORS[2],
-                            ]
-                        ),
-                        title=None,
-                    ),
-                    tooltip=[
-                        alt.Tooltip("Lexicon:N"),
-                        alt.Tooltip("Analysis view:N"),
-                        alt.Tooltip("Dimension:N"),
-                        alt.Tooltip("Normalized mean:Q", format=".3f"),
-                    ],
-                )
-                .properties(height=max(210, 80 * len(vad)))
-            )
-            st.altair_chart(publication_chart(chart), width="stretch")
-            st.caption(
-                "All three dimensions are normative lexical ratings. They do not identify "
-                "the poem's emotion or predict an individual reader's response."
-            )
             st.subheader("What Valence, Arousal, and Dominance Mean")
             definition_columns = st.columns(3)
             for column, dimension in zip(
@@ -6483,417 +6380,18 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 with column:
                     st.markdown(f"**{dimension.title()}**")
                     st.write(VAD_DEFINITIONS[dimension])
-
-            interpretations = [
-                row
-                for row in vad_interpretation_views(workspace)
-                if row.analysis_view in visible_vad_views
-            ]
-            interpretation_lexicon = st.selectbox(
-                "Explain results from",
-                options=list(dict.fromkeys(row.lexicon for row in vad)),
-                key="interpretation_lexicon",
-            )
-            for explanation in interpretations:
-                if explanation.lexicon == interpretation_lexicon:
-                    st.markdown(
-                        f"**{explanation.analysis_view} · "
-                        f"{explanation.dimension.title()}:** {explanation.explanation}"
-                    )
-
-            dispersion_rows = []
-            for result in workspace.results:
-                summary = result.vad_summary
-                if summary is None:
-                    continue
-                groups = (
-                    (
-                        "All matched tokens",
-                        "Token-weighted",
-                        summary.token_weighted_normalized,
-                    ),
-                    (
-                        "All matched tokens",
-                        "Type-weighted",
-                        summary.type_weighted_normalized,
-                    ),
-                    (
-                        "Stopwords excluded",
-                        "Token-weighted",
-                        summary.stopword_excluded_token_weighted_normalized,
-                    ),
-                    (
-                        "Stopwords excluded",
-                        "Type-weighted",
-                        summary.stopword_excluded_type_weighted_normalized,
-                    ),
-                )
-                for analysis_view, weighting, group in groups:
-                    if group is None or analysis_view not in visible_vad_views:
-                        continue
-                    for dimension, statistics in group.by_dimension().items():
-                        dispersion_rows.append(
-                            {
-                                "Lexicon": result.lexicon_metadata.display_name,
-                                "Analysis view": analysis_view,
-                                "Weighting": weighting,
-                                "Dimension": dimension.title(),
-                                "Count": statistics.count,
-                                "Population standard deviation": (
-                                    statistics.population_standard_deviation
-                                ),
-                            }
-                        )
-            st.subheader("Dispersion of Matched Ratings")
-            st.write(
-                "Population standard deviation describes how widely the matched "
-                "lexicon ratings vary around their mean. It is not the source "
-                "lexicon's rater-level uncertainty."
-            )
-            render_dataframe(
-                pd.DataFrame(dispersion_rows).style.format(
-                    {"Population standard deviation": lambda value: _decimal(value)}
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-
-            st.subheader("Repetition-Sensitive and Vocabulary-Sensitive Means")
-            st.write(
-                "Token-weighted means count every included occurrence, so repetition matters. "
-                "Type-weighted means count each distinct matched lexicon entry once, so they "
-                "describe the breadth of the matched vocabulary. Both use the same 0–1 display scale."
-            )
-            weighting_details = []
-            for row in vad:
-                weighting_details.extend(
-                    (
-                        {
-                            "Lexicon": row.lexicon,
-                            "Analysis view": row.analysis_view,
-                            "Weighting": "Token-weighted",
-                            "Valence": row.normalized_valence,
-                            "Arousal": row.normalized_arousal,
-                            "Dominance": row.normalized_dominance,
-                        },
-                        {
-                            "Lexicon": row.lexicon,
-                            "Analysis view": row.analysis_view,
-                            "Weighting": "Type-weighted",
-                            "Valence": row.type_valence,
-                            "Arousal": row.type_arousal,
-                            "Dominance": row.type_dominance,
-                        },
-                    )
-                )
-            render_dataframe(
-                pd.DataFrame(weighting_details).style.format(
-                    {dimension: lambda value: _decimal(value) for dimension in dimension_order}
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-
-            st.subheader("Stopword Sensitivity")
-            st.write(
-                "Stopword sensitivity is the stopword-excluded mean minus the "
-                "all-matched mean. A large absolute difference indicates that common "
-                "grammatical words materially influence the aggregate; it does not "
-                "make either view more accurate."
-            )
-            sensitivity_frame = _frame(
-                vad_sensitivity_views(workspace),
-                {
-                    "lexicon": "Lexicon",
-                    "weighting": "Weighting",
-                    "dimension": "Dimension",
-                    "all_matched_mean": "All matched tokens",
-                    "stopwords_excluded_mean": "Stopwords excluded",
-                    "difference": "Difference",
-                },
-            )
-            sensitivity_frame["Dimension"] = sensitivity_frame["Dimension"].str.title()
-            render_dataframe(
-                sensitivity_frame.style.format(
-                    {
-                        "All matched tokens": lambda value: _decimal(value),
-                        "Stopwords excluded": lambda value: _decimal(value),
-                        "Difference": lambda value: (
-                            "—" if pd.isna(value) else f"{value:+.3f}"
-                        ),
-                    }
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-
-            st.subheader("Cumulative Normative Lexical Load")
-            st.write(
-                "These token totals are deliberately sensitive to length and repetition. "
-                "The absolute midpoint load sums each matched rating's distance from 0.5; "
-                "above and below loads preserve direction, while net load lets them offset. "
-                "This reports encountered lexical evidence—not a measured load on a reader."
-            )
-            cumulative = [
-                row
-                for row in vad_cumulative_views(workspace)
-                if row.analysis_view in visible_vad_views
-            ]
-            cumulative_frame = _frame(
-                cumulative,
-                {
-                    "lexicon": "Lexicon",
-                    "analysis_view": "Analysis view",
-                    "weighting": "Weighting",
-                    "dimension": "Dimension",
-                    "matched_observations": "Matched observations",
-                    "lexical_coverage": "Coverage",
-                    "rating_total": "Rating total",
-                    "above_midpoint_deviation": "Above-midpoint load",
-                    "below_midpoint_deviation": "Below-midpoint load",
-                    "net_midpoint_deviation": "Net midpoint load",
-                    "absolute_midpoint_deviation": "Absolute midpoint load",
-                },
-            )
-            cumulative_frame["Dimension"] = cumulative_frame["Dimension"].str.title()
-            render_dataframe(
-                cumulative_frame[
-                    [
-                        "Lexicon",
-                        "Analysis view",
-                        "Weighting",
-                        "Dimension",
-                        "Matched observations",
-                        "Coverage",
-                        "Rating total",
-                        "Above-midpoint load",
-                        "Below-midpoint load",
-                        "Net midpoint load",
-                        "Absolute midpoint load",
-                    ]
-                ].style.format(
-                    {
-                        "Coverage": lambda value: _percentage(value),
-                        "Rating total": "{:.3f}",
-                        "Above-midpoint load": "{:.3f}",
-                        "Below-midpoint load": "{:.3f}",
-                        "Net midpoint load": "{:.3f}",
-                        "Absolute midpoint load": "{:.3f}",
-                    }
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-
-            st.subheader("Length-Normalized Midpoint Deviation")
-            st.write(
-                "These values divide the directional midpoint loads by the number "
-                "of included matched observations. They support comparisons between "
-                "poems of different lengths when the lexicon, token scope, and "
-                "weighting are held constant. The per-100 columns are the same rates "
-                "on a more readable scale."
-            )
-            normalized_rows = []
-            for row in cumulative:
-                for measure, per_observation, per_100 in (
-                    (
-                        "Above-midpoint deviation",
-                        row.above_midpoint_deviation_per_observation,
-                        row.above_midpoint_deviation_per_100,
-                    ),
-                    (
-                        "Below-midpoint deviation",
-                        row.below_midpoint_deviation_per_observation,
-                        row.below_midpoint_deviation_per_100,
-                    ),
-                    (
-                        "Total absolute deviation",
-                        row.absolute_midpoint_deviation_per_observation,
-                        row.absolute_midpoint_deviation_per_100,
-                    ),
-                ):
-                    normalized_rows.append(
-                        {
-                            "Lexicon": row.lexicon,
-                            "Analysis view": row.analysis_view,
-                            "Weighting": row.weighting,
-                            "Dimension": row.dimension.title(),
-                            "Measure": measure,
-                            "Per matched observation": per_observation,
-                            "Per 100 matches": per_100,
-                            "Matched observations": row.matched_observations,
-                            "Coverage": row.lexical_coverage,
-                        }
-                    )
-            normalized_frame = pd.DataFrame(normalized_rows)
-            render_dataframe(
-                normalized_frame.style.format(
-                    {
-                        "Per matched observation": "{:.3f}",
-                        "Per 100 matches": "{:.3f}",
-                        "Coverage": lambda value: _percentage(value),
-                    },
-                    na_rep="—",
-                ),
-                hide_index=True,
-                width="stretch",
-            )
             st.caption(
-                "A high total absolute deviation means the selected VAD ratings "
-                "sit farther from 0.5 on average. Above and below deviations show "
-                "which side supplies that distance; they do not preserve word order."
+                "Means, within-text dispersion, cumulative loads, length-normalized "
+                "midpoint deviations, mean-centered volatility, coverage, and exact "
+                "denominators are organized in the expandable profile sections above."
             )
-
-            st.subheader("Mean-Centered Lexical Volatility")
-            st.write(
-                "These rates measure how far matched ratings spread from this "
-                "poem's own mean rather than from the fixed 0.5 midpoint. Mean "
-                "absolute deviation is the clearest length-neutral volatility value; "
-                "population standard deviation above is its squared-distance counterpart."
-            )
-            volatility_rows = []
-            for row in cumulative:
-                volatility_rows.append(
-                    {
-                        "Lexicon": row.lexicon,
-                        "Analysis view": row.analysis_view,
-                        "Weighting": row.weighting,
-                        "Dimension": row.dimension.title(),
-                        "Average deviation from poem mean": (
-                            row.average_deviation_from_poem_mean
-                        ),
-                        "Matched observations": row.matched_observations,
-                        "Coverage": row.lexical_coverage,
-                    }
-                )
-            volatility_frame = pd.DataFrame(volatility_rows)
-            render_dataframe(
-                volatility_frame.style.format(
-                    {
-                        "Average deviation from poem mean": "{:.3f}",
-                        "Coverage": lambda value: _percentage(value),
-                    },
-                    na_rep="—",
-                ),
-                hide_index=True,
-                width="stretch",
-            )
-            st.caption(
-                "This mean absolute deviation weights departures linearly; "
-                "population SD weights extreme departures more strongly. Neither "
-                "measure preserves the order or timing of swings."
-            )
-
-            st.subheader("Top Contributors to Each Mean")
-            st.write(
-                "Signed contribution is frequency × (normalized rating − 0.5). "
-                "This midpoint-centered calculation shows how repetition and distance "
-                "from the midpoint combine. For arousal and dominance, read the sign "
-                "as weighted deviation rather than positive or negative emotion."
-            )
-            contributor_view = st.selectbox(
-                "Contributor analysis view",
-                options=sorted(visible_vad_views),
-                key="contributor_analysis_view",
-            )
-            contributor_dimension = st.selectbox(
-                "Contributor dimension",
-                options=["valence", "arousal", "dominance"],
-                format_func=str.title,
-                key="contributor_dimension",
-            )
-            contributors = [
-                row
-                for row in vad_contributor_views(workspace)
-                if row.dimension == contributor_dimension
-                and row.analysis_view == contributor_view
-            ]
-            contributor_frame = _frame(
-                contributors,
-                {
-                    "lexicon": "Lexicon",
-                    "analysis_view": "Analysis view",
-                    "term": "Matched entry",
-                    "surface_forms": "Surface forms",
-                    "observations": "Occurrences",
-                    "normalized_rating": "Normalized rating",
-                    "midpoint_deviation_per_occurrence": "Deviation per occurrence",
-                    "signed_contribution": "Signed contribution",
-                    "absolute_contribution": "Absolute contribution",
-                    "direction": "Direction",
-                    "stopword_status": "Stopword status",
-                    "example_surface": "Example surface",
-                    "example_line": "Line",
-                    "match_method": "Method",
-                },
-            )
-            if contributor_frame.empty:
-                st.info("No contributor ranking is available for this dimension.")
-            else:
-                render_dataframe(
-                    contributor_frame[
-                        [
-                            "Lexicon",
-                            "Analysis view",
-                            "Matched entry",
-                            "Surface forms",
-                            "Occurrences",
-                            "Normalized rating",
-                            "Deviation per occurrence",
-                            "Signed contribution",
-                            "Absolute contribution",
-                            "Direction",
-                            "Stopword status",
-                            "Example surface",
-                            "Line",
-                            "Method",
-                        ]
-                    ].style.format(
-                        {
-                            "Normalized rating": "{:.3f}",
-                            "Deviation per occurrence": "{:+.3f}",
-                            "Signed contribution": "{:+.3f}",
-                            "Absolute contribution": "{:.3f}",
-                        }
-                    ),
-                    hide_index=True,
-                    width="stretch",
-                )
-
-            with st.expander("Original source scales and normalization formulas"):
-                st.markdown(
-                    "**Normalization formulas:** Warriner `(x − 1) / 8`; NRC VAD v1 "
-                    "identity; NRC VAD v2.1 `(x + 1) / 2`. Original values are never overwritten."
-                )
-                details = []
-                result_by_id = {
-                    result.lexicon_metadata.lexicon_id: result for result in workspace.results
-                }
-                for row in vad:
-                    result = result_by_id[row.lexicon_id]
-                    summary = result.vad_summary
-                    assert summary is not None
-                    original = (
-                        summary.token_weighted_original
-                        if row.analysis_view == "All matched tokens"
-                        else summary.stopword_excluded_token_weighted_original
-                    )
-                    if original is None:
-                        continue
-                    details.append(
-                        {
-                            "Lexicon": row.lexicon,
-                            "Analysis view": row.analysis_view,
-                            "Original scale": row.original_scale,
-                            "Source valence mean": original.valence.mean,
-                            "Source arousal mean": original.arousal.mean,
-                            "Source dominance mean": original.dominance.mean,
-                            "Formula": row.normalization_formula,
-                        }
-                    )
-                render_dataframe(details, hide_index=True, width="stretch")
-
     with emotion_tab:
+        render_configurable_profile_table(
+            workspace,
+            profile_state.selection,
+            module_ids=("emotion_association", "emotion_intensity"),
+            heading="Selected Emotion Profiles",
+        )
         associations = emotion_association_views(workspace)
         sentiments = sentiment_association_views(workspace)
         intensities = emotion_intensity_views(workspace)
@@ -6904,6 +6402,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
         vader = workspace.vader_sentiment
         if vader is not None:
+            st.caption(fixed_profile_notice("vader"))
             st.subheader("VADER Rule-Based Sentiment")
             st.write(
                 "VADER reports raw positive, neutral, and negative lexical-polarity "
@@ -7387,6 +6886,53 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 + f"|note_metadata:{include_note_metadata}"
             ).encode("utf-8")
         ).hexdigest()
+        export_mode_label = st.radio(
+            "Export mode",
+            options=("Export Current View", "Export Complete Audit"),
+            horizontal=True,
+            key=f"{report_state_key}_export_mode",
+            help=(
+                "Current View includes the selected report section and selected "
+                "scope/weighting profiles. Complete Audit includes every compatible "
+                "profile plus the complete retained evidence and fixed-profile modules."
+            ),
+        )
+        export_mode = (
+            "current_view"
+            if export_mode_label == "Export Current View"
+            else "complete_audit"
+        )
+        exportable_sections = tuple(
+            section for section in report_sections if section != "Export & Help"
+        )
+        target_key = f"{report_state_key}_current_export_section"
+        if st.session_state.get(target_key) not in exportable_sections:
+            st.session_state[target_key] = st.session_state.get(
+                last_report_key,
+                "Overview",
+            )
+        export_section = (
+            st.selectbox(
+                "Report section to export",
+                options=exportable_sections,
+                key=target_key,
+                help=(
+                    "Current View exports this report family using the globally "
+                    "selected profiles. Complete Audit includes every report family."
+                ),
+            )
+            if export_mode == "current_view"
+            else "Complete Audit"
+        )
+        export_signature = hashlib.sha256(
+            (
+                export_signature
+                + f"|mode:{export_mode}|section:{export_section}|profiles:"
+                + ",".join(
+                    profile.id for profile in profile_state.selection.profiles
+                )
+            ).encode("utf-8")
+        ).hexdigest()
         prepared_exports = st.session_state.get("prepared_workspace_exports")
         if st.button(
             "Prepare downloads",
@@ -7397,13 +6943,19 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "of the unchanged analysis uses the bounded export cache."
             ),
         ):
-            with st.spinner("Preparing complete local exports..."):
+            with st.spinner("Preparing requested exports..."):
                 audit_bundle = detailed_export_zip(
                     workspace,
                     use_cache=st.session_state.get(
                         "analysis_cache_enabled",
                         True,
                     ),
+                    profile_selection=profile_state.selection,
+                    export_mode=export_mode,
+                    visible_section=export_section,
+                    workspace_label=workspace_page,
+                    active_annotation_scope=profile_state.active_annotation_scope.value,
+                    active_preset=str(st.session_state.get("module_preset") or "Custom"),
                 )
                 audit_bundle = add_research_notes_to_audit_bundle(
                     audit_bundle,
@@ -7414,9 +6966,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     narrative_report = archive.read(
                         "VerseVAD_analysis_report.docx"
                     )
+                    selected_summary = archive.read(
+                        "profile_metrics_selected.csv"
+                    )
                 prepared_exports = {
                     "signature": export_signature,
-                    "summary": scholar_summary_csv(workspace),
+                    "summary": (
+                        scholar_summary_csv(workspace)
+                        if export_mode == "complete_audit"
+                        else selected_summary
+                    ),
                     "guide": csv_reading_guide(),
                     "report": narrative_report,
                     "bundle": audit_bundle,
@@ -7457,7 +7016,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 key="download_narrative_report",
             )
             column4.download_button(
-                "Download full audit bundle",
+                (
+                    "Download current-view bundle"
+                    if export_mode == "current_view"
+                    else "Download complete audit bundle"
+                ),
                 data=prepared_exports["bundle"],
                 file_name=f"{safe_stem}_VerseVAD_audit.zip",
                 mime="application/zip",
@@ -7470,12 +7033,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "large audit bundles during ordinary interface interactions."
             )
         st.info(
-            "The full bundle contains the narrative Word report, readable CSV "
-            "summary and guide, shared processing CSVs, and complete module CSV "
-            "audit tables. Each selected optional module also includes its own "
-            "narrative Word report. ZIP is used only to keep the related CSV and "
-            "DOCX files together; VerseVAD no longer generates JSON, TXT, or XLSX "
-            "analysis exports. When explicitly selected above, research notes "
+            "Each ZIP contains CSV data, a narrative Word report, "
+            "REPRODUCIBILITY_README.txt, and FILE_INVENTORY.txt. Complete Audit "
+            "adds every compatible profile and fixed-profile module; Current View "
+            "contains only the selected report family and profiles. VerseVAD does "
+            "not generate JSON or XLSX analysis exports. When explicitly selected "
+            "above, research notes "
             "are added to the Word appendix plus separate notes CSV and Markdown "
             "files in the full audit bundle."
         )
@@ -7519,7 +7082,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             ("Matched frequency coverage", "The share of eligible token occurrences or observed surface types that found a SUBTLEX-US entry; unmatched values stay missing."),
             ("Normative lexical AoA", "A matched retrospective source mean, in years, for when respondents believed they learned a word; it is not grade level or difficulty."),
             ("AoA source SD", "Variation among source respondents for one word, kept distinct from variation among the poem's matched normative means."),
-            ("Content words only", "An optional frequency or AoA scope limited to model-tagged NOUN, VERB, ADJ, and ADV; it is off by default."),
+            ("Content words only", "A global post-analysis lexical scope limited to contextually tagged NOUN, VERB, ADJ, and ADV. It changes compatible report aggregation, not the retained evidence."),
             ("MATTR", "The mean surface-form type-token ratio across every overlapping fixed-length token window."),
             ("HD-D", "The expected proportion of distinct surface types in a configured without-replacement token sample."),
             ("MTLD", "The mean forward/reverse token-sequence length that maintains a configured type-token-ratio threshold."),

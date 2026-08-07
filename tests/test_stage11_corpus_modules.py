@@ -64,7 +64,7 @@ def test_optional_module_only_corpus_batch_persists_auditable_results(
         preprocessor=preprocessor,
     )
 
-    assert repository.schema_version() == 4
+    assert repository.schema_version() == 5
     assert batch.status == "complete"
     assert batch.lexicon_ids == ()
     assert batch.module_names == (

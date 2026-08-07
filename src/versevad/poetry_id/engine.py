@@ -36,7 +36,9 @@ SUPPORTED_VAD_LEXICON_IDS = frozenset(
 )
 _DIMENSIONS = ("valence", "arousal", "dominance")
 _SUPPORTED_WEIGHTINGS = frozenset({"token", "type"})
-_SUPPORTED_VIEWS = frozenset({"all_matched", "stopwords_excluded"})
+_SUPPORTED_VIEWS = frozenset(
+    {"all_matched", "stopwords_excluded", "content_words"}
+)
 
 
 def _number(value: object, label: str) -> float:
@@ -189,7 +191,11 @@ DEFAULT_THRESHOLD_PROFILE = ThresholdProfile(
 class PoetryIDConfiguration:
     threshold_profile: ThresholdProfile = DEFAULT_THRESHOLD_PROFILE
     weighting_modes: tuple[str, ...] = ("token", "type")
-    analysis_views: tuple[str, ...] = ("all_matched",)
+    analysis_views: tuple[str, ...] = (
+        "all_matched",
+        "stopwords_excluded",
+        "content_words",
+    )
     vad_lexicon_ids: tuple[str, ...] = ()
     requested_lexical_dimensions: tuple[str, ...] = ()
     minimum_matched_tokens: int = 5
@@ -217,7 +223,8 @@ class PoetryIDConfiguration:
             _SUPPORTED_VIEWS
         ):
             raise ValueError(
-                "PoetryID views must be all_matched and/or stopwords_excluded."
+                "PoetryID views must be all_matched, stopwords_excluded, and/or "
+                "content_words."
             )
         if len(set(self.analysis_views)) != len(self.analysis_views):
             raise ValueError("PoetryID analysis views cannot be duplicated.")

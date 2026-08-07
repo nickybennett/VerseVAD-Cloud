@@ -6,6 +6,7 @@ from collections.abc import Mapping
 
 import streamlit as st
 
+from versevad.analysis_profiles import LexicalScope
 from versevad.interactive_annotation import (
     build_interactive_annotation_payload,
     sanitize_annotation_settings,
@@ -222,6 +223,18 @@ function byId(payload, layerId) { return (payload.layers || []).find(layer => la
 function enabled(settings, layerId) { return (settings.enabled_layers || []).includes(layerId); }
 function isVad(layerId) { return ["valence", "arousal", "dominance"].includes(layerId); }
 
+function baseScopeEligible(token, settings) {
+  return Boolean(token.scope_eligibility?.[settings.active_scope]);
+}
+
+function scopeEligible(payload, token, evidence, settings) {
+  if (baseScopeEligible(token, settings)) return true;
+  const primary = evidence?.primary;
+  if (!primary?.expression_match || !Array.isArray(primary.token_ids)) return false;
+  const ids = new Set(primary.token_ids);
+  return (payload.tokens || []).some(candidate => ids.has(candidate.token_id) && baseScopeEligible(candidate, settings));
+}
+
 function normalizeSettings(payload, candidate) {
   const available = new Set((payload.layers || []).filter(layer => layer.available).map(layer => layer.id));
   const sources = (payload.sources?.vad || []).map(source => source.id);
@@ -237,6 +250,7 @@ function normalizeSettings(payload, candidate) {
     active_lens: activeLens,
     vad_source: vadSource,
     underline_unmatched: Boolean(incoming.underline_unmatched),
+    active_scope: String(payload.active_scope || incoming.active_scope || "STOPWORD_EXCLUDED"),
   };
 }
 
@@ -508,10 +522,14 @@ function applyTokenStyles(root, payload, settings) {
     const token = payload.tokens[Number(node.dataset.tokenIndex)];
     const evidence = settings.active_lens ? evidenceFor(token, settings.active_lens, settings) : null;
     const value = settings.active_lens ? valueFor(token, settings.active_lens, settings) : null;
-    node.style.backgroundColor = activeLayer && evidence?.status === "matched" ? fillFor(value, activeLayer) : "transparent";
-    node.dataset.unmatched = String(Boolean(settings.underline_unmatched && settings.active_lens && token.lexicon_eligible && evidence?.status === "unmatched"));
-    node.dataset.sensorimotor = String(Boolean(enabled(settings, "sensorimotor") && token.evidence?.sensorimotor?.status === "matched"));
-    node.dataset.emotion = String(Boolean(enabled(settings, "emotion") && token.evidence?.emotion?.categories?.length));
+    const eligible = scopeEligible(payload, token, evidence, settings);
+    node.style.backgroundColor = activeLayer && eligible && evidence?.status === "matched" ? fillFor(value, activeLayer) : "transparent";
+    node.dataset.scopeExcluded = String(!eligible);
+    node.dataset.unmatched = String(Boolean(settings.underline_unmatched && settings.active_lens && eligible && evidence?.status === "unmatched"));
+    const sensorEvidence = token.evidence?.sensorimotor;
+    const emotionEvidence = token.evidence?.emotion;
+    node.dataset.sensorimotor = String(Boolean(enabled(settings, "sensorimotor") && scopeEligible(payload, token, sensorEvidence, settings) && sensorEvidence?.status === "matched"));
+    node.dataset.emotion = String(Boolean(enabled(settings, "emotion") && scopeEligible(payload, token, emotionEvidence, settings) && emotionEvidence?.categories?.length));
   });
 }
 
@@ -570,7 +588,10 @@ function renderPoem(root, payload, settings) {
     node.addEventListener("pointerleave", () => hideTooltip(root));
     node.addEventListener("focus", () => showTooltip(root, payload, token, node, settings));
     node.addEventListener("blur", () => hideTooltip(root));
-    node.addEventListener("click", () => showPanel(root, payload, token, settings));
+    node.addEventListener("click", () => {
+      const evidence = settings.active_lens ? evidenceFor(token, settings.active_lens, settings) : null;
+      if (scopeEligible(payload, token, evidence, settings)) showPanel(root, payload, token, settings);
+    });
     node.addEventListener("keydown", event => {
       if (event.key === "Enter" || event.key === " ") { event.preventDefault(); showPanel(root, payload, token, settings); }
       if (event.key === "Escape") { event.preventDefault(); hideTooltip(root); closePanel(root, payload); }
@@ -714,11 +735,16 @@ def render_interactive_annotation(
     workspace: object,
     *,
     theme_tokens: Mapping[str, str] | None = None,
+    active_scope: LexicalScope = LexicalScope.STOPWORD_EXCLUDED,
 ) -> None:
     """Render a completed analysis without recalculating any metric."""
 
     saved = st.session_state.get(ANNOTATION_SETTINGS_KEY)
-    payload = build_interactive_annotation_payload(workspace, saved_settings=saved)
+    payload = build_interactive_annotation_payload(
+        workspace,
+        saved_settings=saved,
+        active_scope=active_scope,
+    )
     available_layers = tuple(
         layer["id"] for layer in payload["layers"] if layer["available"]
     )

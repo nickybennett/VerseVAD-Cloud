@@ -274,20 +274,12 @@ def test_optional_content_word_scope_uses_only_requested_pos_tags(
     )
 
     assert default.summary.eligible_token_count == 10
-    assert content.summary.eligible_token_count == 4
-    assert {
-        row.part_of_speech for row in content.token_audit if row.eligible
-    } == {"NOUN", "VERB", "ADJ", "ADV"}
-    assert all(
-        row.match_method is FrequencyMatchMethod.NOT_ELIGIBLE
-        for row in content.token_audit
-        if row.part_of_speech in {"DET", "ADP", "CCONJ", "SCONJ", "PRON", "AUX"}
-    )
-    assert "NOUN, VERB, ADJ, and ADV" in next(
-        warning.message
-        for warning in content.module_result.warnings
-        if warning.code == "content_words_only_scope"
-    )
+    # The retired module-local flag is accepted for saved-profile compatibility,
+    # but lookup retains all evidence. Canonical content-word scope is now a
+    # post-analysis profile derived from this audit.
+    assert content.summary.eligible_token_count == 10
+    assert content.summary == default.summary
+    assert all(row.match_method is not FrequencyMatchMethod.NOT_ELIGIBLE for row in content.token_audit)
 
 
 def test_proper_names_are_included_by_default_and_can_be_excluded(
@@ -318,10 +310,16 @@ def test_proper_names_are_included_by_default_and_can_be_excluded(
     assert result.summary.eligible_token_count == 2
 
     excluded = module.analyze_detailed(
-        ModuleInput(document=poem.source, tokens=tokens, preprocessing=poem.preprocessing),
+        ModuleInput(
+            document=poem.source,
+            tokens=tokens,
+            preprocessing=poem.preprocessing,
+        ),
         FrequencyConfiguration(exclude_proper_nouns=True),
     )
-    excluded_alice = next(row for row in excluded.token_audit if row.surface_form == "Alice")
+    excluded_alice = next(
+        row for row in excluded.token_audit if row.surface_form == "Alice"
+    )
     assert excluded_alice.match_method is FrequencyMatchMethod.NOT_ELIGIBLE
     assert excluded_alice.zipf_value is None
     assert "proper" in excluded_alice.reason.casefold()

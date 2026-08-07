@@ -80,7 +80,9 @@ def test_poetry_id_corpus_reuses_modules_and_keeps_compatible_distributions(
     ]
     assert {row.weighting for row in archetype_rows} == {"token", "type"}
     assert {row.scope_id for row in archetype_rows} == {
-        "nrc_vad_v1:all_matched"
+        "nrc_vad_v1:all_matched",
+        "nrc_vad_v1:stopwords_excluded",
+        "nrc_vad_v1:content_words",
     }
 
     comparisons = _poetry_id_work_comparison_rows(

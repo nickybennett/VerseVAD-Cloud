@@ -33,8 +33,10 @@ from versevad.exports.comparison import (
     export_poem_comparison_docx,
     export_poem_comparison_set_csv,
     export_poem_comparison_set_docx,
+    export_poem_comparison_set_bundle,
 )
 from versevad.models import PhrasePolicy
+from versevad.module_capabilities import fixed_profile_notice
 from versevad.lexical_semantic.aoa import AoAConfiguration
 from versevad.lexical_semantic.concreteness import ConcretenessConfiguration
 from versevad.lexical_semantic.frequency import FrequencyConfiguration
@@ -73,6 +75,7 @@ from versevad.ui.design import (
 )
 from versevad.ui.profile_management import (
     analysis_profile_options,
+    apply_profile_display_defaults,
     consume_pending_profile_selection,
     custom_profile_settings,
     render_custom_profile_manager,
@@ -84,6 +87,8 @@ from versevad.ui.profiles import (
     snapshot_profile_settings,
 )
 from versevad.ui.stopwords import render_stopword_settings
+from versevad.analysis_profiles import LexicalScope
+from versevad.ui.profile_controls import render_report_profile_controls
 from versevad.ui.vad_overview import (
     overview_metric_matches_vad_preference,
     preferred_overview_vad_lexicon_id,
@@ -262,7 +267,7 @@ def _report_location(
     prefix = metric_id.split(".", 1)[0]
     if prefix == "vad":
         return "Affective Evidence", "VAD Profile"
-    if prefix in {"emotion", "emotion_intensity", "vader"}:
+    if prefix in {"emotion", "emotion_association", "emotion_intensity", "vader"}:
         return (
             "Affective Evidence",
             "Emotion Association, Intensity & Sentiment",
@@ -293,7 +298,7 @@ def _report_location(
         return "Sound & Form", "Inherited Form Analysis"
     if prefix == "pos":
         return "Structure", "Language Profile"
-    if prefix == "lexical_style":
+    if prefix in {"lexical_style", "word_length"}:
         return "Structure", "Lexical & Structural Measures"
     if prefix == "versemap":
         return "VerseMap", "VerseMap Comparative Profile"
@@ -320,6 +325,7 @@ def _comparison_metric_family(
             "midpoint",
             "cumulative_load",
             "load_per_100",
+            ".cumulative",
         )
     )
     if panel == "VAD Profile":
@@ -964,6 +970,17 @@ def _render_comparison_results(comparison: PoemComparison) -> None:
 
     with containers["Export & Help"]:
         st.subheader("Export & Help")
+        export_mode_label = st.radio(
+            "Export mode",
+            options=("Export Current View", "Export Complete Audit"),
+            horizontal=True,
+            key="comparison_set_export_mode",
+        )
+        export_mode = (
+            "current_view"
+            if export_mode_label == "Export Current View"
+            else "complete_audit"
+        )
         st.write(
             "Download the complete machine-readable comparison or a narrative "
             "Word report. Both retain the selected shared scope and weighting."
@@ -1112,7 +1129,7 @@ def _render_legacy_binary_comparison_workspace(
             "resource is installed. Sound/form modules may be added when CMUdict "
             "is available."
         )
-        with st.expander("Shared stopword sensitivity settings", expanded=False):
+        with st.expander("Shared Stopword Resource and Exclusions", expanded=False):
             stopwords = render_stopword_settings("compare")
 
     with st.container(border=True):
@@ -1603,6 +1620,7 @@ def _render_comparison_versemap(
         if isinstance(analysis.versemap, VerseMapAnalysisResult)
     ]
     st.subheader("VerseMap")
+    st.caption(fixed_profile_notice("versemap"))
     st.caption(
         "The dashboard shows only the compared poems' PCA positions and nearest "
         "reference context. The Standard Profile dimensions remain available in "
@@ -1743,6 +1761,18 @@ def _render_comparison_set_panel(
         expanded=False,
     ):
         st.caption(_PANEL_NOTES.get(panel, "Shared comparison evidence."))
+        fixed_modules = {
+            "Emotion Association, Intensity & Sentiment": ("vader",),
+            "Acquisition & Readability": ("traditional_readability", "vv_pre"),
+            "Pronunciation, Syllables & Stress": ("pronunciation",),
+            "Candidate Meter & Rhythmic Regularity": ("meter",),
+            "Rhyme & Recurring Sound": ("phonology",),
+            "Inherited Form Analysis": ("inherited_form",),
+            "Lexical & Structural Measures": ("structure",),
+            "VerseMap Comparative Profile": ("versemap",),
+        }.get(panel, ())
+        for module_id in fixed_modules:
+            st.caption(fixed_profile_notice(module_id))
         if panel == "Pronunciation, Syllables & Stress":
             _render_comparison_pronunciation_review(comparison_set)
         if panel_rows.empty:
@@ -1786,6 +1816,7 @@ def _render_comparison_set_panel(
                     "measure preserves lexical order."
                 )
             display_columns = [
+                "Profile",
                 "Source",
                 "Metric",
                 *poem_labels,
@@ -1804,6 +1835,7 @@ def _render_comparison_set_panel(
             )
         with st.expander("Coverage, denominators, and methodological notes"):
             detail_columns = [
+                "Profile",
                 "Source",
                 "Metric",
                 *[
@@ -1827,33 +1859,58 @@ def _render_comparison_set_panel(
 def _render_comparison_set_results(
     comparison_set: PoemComparisonSet,
 ) -> None:
-    view_columns = st.columns(2)
-    analysis_view_label = view_columns[0].selectbox(
-        "Shared token scope",
-        options=("All matched tokens", "Stopwords excluded"),
-        key="comparison_set_analysis_view",
-    )
-    weighting_label = view_columns[1].selectbox(
-        "Shared weighting",
-        options=("Token weighted", "Type weighted"),
-        key="comparison_set_weighting",
-    )
     report_section = st.selectbox(
         "Report Section",
         options=_REPORT_SECTIONS,
         key="comparison_set_report_section",
     )
-    analysis_view = (
-        "stopwords_excluded"
-        if analysis_view_label == "Stopwords excluded"
-        else "all_matched"
+    if report_section != "Export & Help":
+        st.session_state["comparison_set_last_analytical_section"] = report_section
+    profile_state = render_report_profile_controls("compare_poems")
+    view_ids = {
+        LexicalScope.ALL_LEXICAL: "all_matched",
+        LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+        LexicalScope.CONTENT_WORDS: "content_words",
+    }
+    frames: list[pd.DataFrame] = []
+    configurable_prefixes = (
+        "vad.",
+        "emotion_association.",
+        "emotion_intensity.",
+        "concreteness.",
+        "frequency.",
+        "aoa.",
+        "sensorimotor.",
+        "word_length.",
+        "poetry_id.",
     )
-    weighting = "type" if weighting_label == "Type weighted" else "token"
-    frame = _comparison_set_frame(
-        comparison_set,
-        analysis_view=analysis_view,
-        weighting=weighting,
+    for index, profile in enumerate(profile_state.selection.profiles):
+        profile_view = view_ids[profile.scope]
+        profile_weighting = profile.weighting.value.casefold()
+        profile_frame = _comparison_set_frame(
+            comparison_set,
+            analysis_view=profile_view,
+            weighting=profile_weighting,
+        )
+        if profile_frame.empty:
+            continue
+        if index:
+            profile_frame = profile_frame[
+                profile_frame["Metric ID"].astype(str).str.startswith(
+                    configurable_prefixes
+                )
+            ]
+        profile_frame = profile_frame.copy()
+        profile_frame["Profile"] = profile.label
+        frames.append(profile_frame)
+    frame = (
+        pd.concat(frames, ignore_index=True)
+        if frames
+        else pd.DataFrame()
     )
+    primary_profile = profile_state.selection.profiles[0]
+    analysis_view = view_ids[primary_profile.scope]
+    weighting = primary_profile.weighting.value.casefold()
     poem_labels = _comparison_set_labels(comparison_set)
     if frame.empty:
         st.info(
@@ -1881,32 +1938,31 @@ def _render_comparison_set_results(
             int(frame["Category Summary"].notna().sum()) if not frame.empty else 0,
         )
         metric_ids = frame["Metric ID"].fillna("").astype(str)
-        core_mask = (
-            metric_ids.str.match(
-                r"^vad\.[^.]+\.(valence|arousal|dominance)\.mean$"
-            )
-            | metric_ids.isin(
-                {
-                    "concreteness.mean",
-                    "frequency.mean",
-                    "rarity.mean",
-                    "aoa.mean",
-                    "readability.poetic_reading_ease.score",
-                    "lexical_style.mattr",
-                    "lexical_style.hdd",
-                    "lexical_style.mtld",
-                    "poetry_id.categorical_archetype_id",
-                    "poetry_id.nearest_centroid_archetype_id",
-                }
-            )
+        core_mask = frame["Metric Family"].isin(
+            {
+                "VAD Means",
+                "Mean Concreteness",
+                "Mean Frequency",
+                "Mean Rarity",
+                "Mean Age of Acquisition",
+                "VerseVAD Poetic Reading Ease",
+                "PoetryID Archetypes",
+            }
+        ) | metric_ids.isin(
+            {
+                "lexical_style.mattr",
+                "lexical_style.hdd",
+                "lexical_style.mtld",
+            }
         )
-        core = _prefer_overview_vad_source(frame[core_mask]).head(20)
+        core = _prefer_overview_vad_source(frame[core_mask]).head(36)
         if not core.empty:
             st.markdown("#### Core Comparison Snapshot")
             render_dataframe(
                 _arrow_safe_display_frame(
                     core[
                         [
+                            "Profile",
                             "Source",
                             "Metric",
                             *poem_labels,
@@ -1992,6 +2048,7 @@ def _render_comparison_set_results(
         )
         diagnostic_rows = frame[frame["Report Panel"] == selected_panel]
         detail_columns = [
+            "Profile",
             "Source",
             "Metric",
             *[
@@ -2020,6 +2077,37 @@ def _render_comparison_set_results(
         from versevad.ui.research import render_note_export_options
 
         st.subheader("Export & Help")
+        export_mode_label = st.radio(
+            "Export mode",
+            options=("Export Current View", "Export Complete Audit"),
+            horizontal=True,
+            key="comparison_set_export_mode_current",
+        )
+        export_mode = (
+            "current_view"
+            if export_mode_label == "Export Current View"
+            else "complete_audit"
+        )
+        visible_section = str(
+            st.session_state.get(
+                "comparison_set_last_analytical_section",
+                "Overview",
+            )
+        )
+        if export_mode == "current_view":
+            export_sections = tuple(
+                section for section in _REPORT_SECTIONS if section != "Export & Help"
+            )
+            visible_section = st.selectbox(
+                "Report section to export",
+                options=export_sections,
+                index=(
+                    export_sections.index(visible_section)
+                    if visible_section in export_sections
+                    else 0
+                ),
+                key="comparison_set_export_section",
+            )
         selected_notes, include_note_metadata = render_note_export_options(
             "Compare Poems",
             key_prefix="comparison_set_export_notes",
@@ -2039,7 +2127,13 @@ def _render_comparison_set_results(
             selected_notes,
             include_metadata=include_note_metadata,
         )
-        downloads = st.columns(3 if selected_notes else 2)
+        bundle_content = export_poem_comparison_set_bundle(
+            comparison_set,
+            selection=profile_state.selection,
+            export_mode=export_mode,
+            visible_section=visible_section,
+        )
+        downloads = st.columns(4 if selected_notes else 3)
         downloads[0].download_button(
             "Download Comparison-Set CSV",
             data=csv_content,
@@ -2059,8 +2153,20 @@ def _render_comparison_set_results(
             key="comparison_set_download_docx",
             width="stretch",
         )
+        downloads[2].download_button(
+            (
+                "Download Current-View Bundle"
+                if export_mode == "current_view"
+                else "Download Complete Audit Bundle"
+            ),
+            data=bundle_content,
+            file_name="VerseVAD_poem_comparison_bundle.zip",
+            mime="application/zip",
+            key="comparison_set_download_bundle",
+            width="stretch",
+        )
         if selected_notes:
-            downloads[2].download_button(
+            downloads[3].download_button(
                 "Download Research Notes CSV",
                 data=research_notes_csv(
                     selected_notes,
@@ -2188,9 +2294,6 @@ def _render_shared_comparison_configuration(
         "frequency_exclude_proper": defaults[
             "frequency"
         ].exclude_proper_nouns,
-        "frequency_content_words_only": defaults[
-            "frequency"
-        ].content_words_only,
         "frequency_lemma_fallback": defaults[
             "frequency"
         ].enable_lemma_fallback,
@@ -2201,7 +2304,6 @@ def _render_shared_comparison_configuration(
         "aoa_later_min": defaults["aoa"].later_acquired_min,
         "aoa_coverage_warning": defaults["aoa"].low_coverage_warning_threshold,
         "aoa_exclude_proper": defaults["aoa"].exclude_proper_nouns,
-        "aoa_content_words_only": defaults["aoa"].content_words_only,
         "aoa_lemma_fallback": defaults["aoa"].enable_lemma_fallback,
         "lexical_style_mattr_window": defaults[
             "lexical_style"
@@ -2364,20 +2466,17 @@ def _render_shared_comparison_configuration(
             step=0.1,
             key=key("frequency_very_common_min"), disabled="frequency" not in selected,
         )
-        columns = st.columns(4)
+        columns = st.columns(3)
         frequency_proper = columns[0].checkbox(
             "Exclude proper nouns",
             key=key("frequency_exclude_proper"), disabled="frequency" not in selected,
         )
-        frequency_content = columns[1].checkbox(
-            "Content words only",
-            key=key("frequency_content_words_only"), disabled="frequency" not in selected,
-        )
-        frequency_lemma = columns[2].checkbox(
+        frequency_content = False
+        frequency_lemma = columns[1].checkbox(
             "Allow lemma fallback",
             key=key("frequency_lemma_fallback"), disabled="frequency" not in selected,
         )
-        frequency_coverage = columns[3].number_input(
+        frequency_coverage = columns[2].number_input(
             "Coverage caution", 0.0, 1.0,
             step=0.05,
             key=key("frequency_coverage_warning"), disabled="frequency" not in selected,
@@ -2400,16 +2499,13 @@ def _render_shared_comparison_configuration(
             step=0.05,
             key=key("aoa_coverage_warning"), disabled="aoa" not in selected,
         )
-        columns = st.columns(3)
+        columns = st.columns(2)
         aoa_proper = columns[0].checkbox(
             "Exclude proper nouns",
             key=key("aoa_exclude_proper"), disabled="aoa" not in selected,
         )
-        aoa_content = columns[1].checkbox(
-            "Content words only",
-            key=key("aoa_content_words_only"), disabled="aoa" not in selected,
-        )
-        aoa_lemma = columns[2].checkbox(
+        aoa_content = False
+        aoa_lemma = columns[1].checkbox(
             "Allow lemma fallback",
             key=key("aoa_lemma_fallback"), disabled="aoa" not in selected,
         )
@@ -2539,21 +2635,34 @@ def _render_shared_comparison_configuration(
         )
         meter_realization = st.columns(3)
         meter_performance_candidate_limit = meter_realization[0].number_input(
-            "Realization candidates per line", 2, 40,
+            "Realization candidates per line",
+            2,
+            40,
             step=1,
             key=key("meter_performance_candidate_limit"),
-            disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+            disabled=(
+                not meter_enabled
+                or meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+            ),
         )
         meter_realized_alternatives = meter_realization[1].number_input(
-            "Retained realized alternatives", 1, 8,
+            "Retained realized alternatives",
+            1,
+            8,
             step=1,
             key=key("meter_realized_alternatives"),
-            disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+            disabled=(
+                not meter_enabled
+                or meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+            ),
         )
         meter_allow_visible_elision = meter_realization[2].checkbox(
             "Recognize visibly marked contractions",
             key=key("meter_allow_visible_elision"),
-            disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+            disabled=(
+                not meter_enabled
+                or meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+            ),
             help=(
                 "Only preserved spellings such as o'er may be recognized; "
                 "unmarked syllables are never silently removed."
@@ -2563,7 +2672,10 @@ def _render_shared_comparison_configuration(
             "Shared scholar scansion revisions",
             key=key("meter_scholar_revisions"),
             height=100,
-            disabled=(not meter_enabled or meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+            disabled=(
+                not meter_enabled
+                or meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+            ),
             placeholder=(
                 "line 2 = iambic pentameter | "
                 "x / x / x / x / x / | reason for the revised reading"
@@ -2651,7 +2763,11 @@ def _render_shared_comparison_configuration(
             ),
             poetry_id=PoetryIDConfiguration(
                 weighting_modes=("token", "type"),
-                analysis_views=("all_matched", "stopwords_excluded"),
+                analysis_views=(
+                    "all_matched",
+                    "stopwords_excluded",
+                    "content_words",
+                ),
                 vad_lexicon_ids=vad_sources,
                 minimum_matched_tokens=int(poetry_tokens),
                 minimum_matched_types=int(poetry_types),
@@ -2672,13 +2788,21 @@ def _render_shared_comparison_configuration(
                 analysis_mode=meter_analysis_mode,
                 style_profile=METER_STYLE_LABELS[meter_style_label],
                 interpretation_depth=METER_DEPTH_LABELS[meter_depth_label],
-                performance_candidate_limit=int(meter_performance_candidate_limit),
-                retained_realized_alternatives=int(meter_realized_alternatives),
-                allow_visible_poetic_elision=bool(meter_allow_visible_elision),
+                performance_candidate_limit=int(
+                    meter_performance_candidate_limit
+                ),
+                retained_realized_alternatives=int(
+                    meter_realized_alternatives
+                ),
+                allow_visible_poetic_elision=bool(
+                    meter_allow_visible_elision
+                ),
                 scholar_revisions=(
                     ()
                     if meter_analysis_mode is MeterAnalysisMode.CANDIDATE
-                    else parse_meter_scholar_revisions(meter_scholar_revisions)
+                    else parse_meter_scholar_revisions(
+                        meter_scholar_revisions
+                    )
                 ),
             ),
             phonology=PhonologicalConfiguration(
@@ -2885,6 +3009,7 @@ def render_compare_poems_workspace(
             ):
                 if source_key in profile_settings:
                     st.session_state[target_key] = profile_settings[source_key]
+            apply_profile_display_defaults(selected_profile, "compare_poems")
             st.session_state.pop("poem_comparison_set", None)
             st.rerun()
 
@@ -2946,7 +3071,7 @@ def render_compare_poems_workspace(
                     "No indexed VerseMap reference corpus is available. Disable "
                     "VerseMap or build an index under Collections > Reference Corpora."
                 )
-        with st.expander("Shared stopword sensitivity settings", expanded=False):
+        with st.expander("Shared Stopword Resource and Exclusions", expanded=False):
             stopwords = render_stopword_settings("compare")
         shared_configuration, configuration_error = (
             _render_shared_comparison_configuration(

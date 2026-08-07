@@ -178,7 +178,7 @@ def test_folder_decode_preserves_relative_paths_and_text() -> None:
 
 def test_sqlite_import_versions_and_metadata_are_preserved(tmp_path) -> None:
     repository = ProjectRepository(tmp_path / "versevad.sqlite3")
-    assert repository.schema_version() == 4
+    assert repository.schema_version() == 5
     project = repository.create_project("Jeffers test", researcher="Researcher")
     original = CorpusTextImport("Poem", "poem.txt", "book/poem.txt", "Bright.\n")
     first = repository.import_texts(project.project_id, (original,))[0]
@@ -324,6 +324,7 @@ def test_corpus_service_runs_each_preserved_work_and_completes_batch(
     assert {row.analysis_view for row in metrics if row.metric == "vad_mean"} == {
         "all_matched",
         "stopwords_excluded",
+        "content_words",
     }
 
 
@@ -354,3 +355,37 @@ def test_project_deletion_requires_exact_title_and_is_scoped(tmp_path) -> None:
     assert repository.list_texts(second.project_id)[0].title == "Second"
     with pytest.raises(KeyError, match="Unknown project"):
         repository.get_project(first.project_id)
+
+
+def test_text_deletion_requires_exact_title_and_is_scoped(tmp_path) -> None:
+    repository = ProjectRepository(tmp_path / "personal_corpus.sqlite3")
+    project = repository.create_project("My Personal Corpus")
+    repository.import_texts(
+        project.project_id,
+        (
+            CorpusTextImport("Delete Me", "delete.txt", "delete.txt", "Bright."),
+            CorpusTextImport("Keep Me", "keep.txt", "keep.txt", "Dark."),
+        ),
+    )
+    delete_me, keep_me = repository.list_texts(project.project_id)
+    if delete_me.title != "Delete Me":
+        delete_me, keep_me = keep_me, delete_me
+
+    with pytest.raises(ValueError, match="exactly match"):
+        repository.delete_text(
+            project.project_id,
+            delete_me.text_id,
+            confirmation_title="delete me",
+        )
+
+    repository.delete_text(
+        project.project_id,
+        delete_me.text_id,
+        confirmation_title="Delete Me",
+    )
+
+    remaining = repository.list_texts(project.project_id)
+    assert [text.text_id for text in remaining] == [keep_me.text_id]
+    assert remaining[0].title == "Keep Me"
+    with pytest.raises(KeyError, match="Unknown text"):
+        repository.get_text(delete_me.text_id)

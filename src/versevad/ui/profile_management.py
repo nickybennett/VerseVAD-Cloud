@@ -14,6 +14,12 @@ from versevad.ui.profiles import (
     snapshot_profile_settings,
     update_custom_profile,
 )
+from versevad.analysis_profiles import (
+    DEFAULT_SCOPES,
+    DEFAULT_WEIGHTINGS,
+    SCOPE_ORDER,
+    WEIGHTING_ORDER,
+)
 
 
 CUSTOM_PROFILE_LABEL_PREFIX = "Custom \u00b7 "
@@ -57,6 +63,54 @@ def custom_profile_settings(
         name: dict(profile.settings)
         for name, profile in load_custom_profiles().items()
     }
+
+
+def _current_display_defaults(scope_key: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    scope_labels = st.session_state.get(
+        f"{scope_key}_report_profiles_scopes",
+        [scope.label for scope in DEFAULT_SCOPES],
+    )
+    weighting_labels = st.session_state.get(
+        f"{scope_key}_report_profiles_weightings",
+        [weighting.label for weighting in DEFAULT_WEIGHTINGS],
+    )
+    scopes = tuple(
+        scope.value for scope in SCOPE_ORDER if scope.label in scope_labels
+    ) or tuple(scope.value for scope in DEFAULT_SCOPES)
+    weightings = tuple(
+        weighting.value
+        for weighting in WEIGHTING_ORDER
+        if weighting.label in weighting_labels
+    ) or tuple(weighting.value for weighting in DEFAULT_WEIGHTINGS)
+    return scopes, weightings
+
+
+def apply_profile_display_defaults(profile_label: str, workspace_id: str) -> None:
+    """Apply only a profile's initial report display state."""
+
+    custom_name = selected_custom_profile_name(profile_label)
+    scopes = tuple(scope.value for scope in DEFAULT_SCOPES)
+    weightings = tuple(weighting.value for weighting in DEFAULT_WEIGHTINGS)
+    if custom_name is not None:
+        if _hosted():
+            metadata = st.session_state.get(_SESSION_PROFILE_METADATA_KEY, {})
+            item = metadata.get(custom_name, {}) if isinstance(metadata, Mapping) else {}
+            if isinstance(item, Mapping):
+                scopes = tuple(item.get("initial_display_scopes") or scopes)
+                weightings = tuple(item.get("initial_display_weightings") or weightings)
+        else:
+            profile = load_custom_profiles().get(custom_name)
+            if profile is not None:
+                scopes = profile.initial_display_scopes
+                weightings = profile.initial_display_weightings
+    st.session_state[f"{workspace_id}_report_profiles_scopes"] = [
+        scope.label for scope in SCOPE_ORDER if scope.value in scopes
+    ] or [scope.label for scope in DEFAULT_SCOPES]
+    st.session_state[f"{workspace_id}_report_profiles_weightings"] = [
+        weighting.label
+        for weighting in WEIGHTING_ORDER
+        if weighting.value in weightings
+    ] or [weighting.label for weighting in DEFAULT_WEIGHTINGS]
 
 
 def analysis_profile_options(
@@ -106,6 +160,8 @@ def _save_hosted_profile(
     description: str,
     base_profile: str,
     existing_name: str | None = None,
+    initial_display_scopes: tuple[str, ...] = (),
+    initial_display_weightings: tuple[str, ...] = (),
 ) -> str:
     clean_name = " ".join(name.split())
     if not clean_name:
@@ -136,6 +192,8 @@ def _save_hosted_profile(
     metadata[clean_name] = {
         "description": description.strip(),
         "base_profile": base_profile,
+        "initial_display_scopes": list(initial_display_scopes),
+        "initial_display_weightings": list(initial_display_weightings),
     }
     return clean_name
 
@@ -219,6 +277,7 @@ def render_custom_profile_manager(
         )
         existing_settings = custom_profile_settings()
         builtin_names = set(builtin_profile_names)
+        display_scopes, display_weightings = _current_display_defaults(scope_key)
 
         if add_profile:
             clean_name = " ".join(profile_name.split())
@@ -237,6 +296,8 @@ def render_custom_profile_manager(
                             settings=current_settings,
                             description=profile_description,
                             base_profile=selected_profile,
+                            initial_display_scopes=display_scopes,
+                            initial_display_weightings=display_weightings,
                         )
                     else:
                         saved_name = save_custom_profile(
@@ -244,6 +305,8 @@ def render_custom_profile_manager(
                             current_settings,
                             description=profile_description,
                             base_profile=selected_profile,
+                            initial_display_scopes=display_scopes,
+                            initial_display_weightings=display_weightings,
                         ).name
                     _queue_result(
                         scope_key,
@@ -270,6 +333,8 @@ def render_custom_profile_manager(
                             settings=current_settings,
                             description=profile_description,
                             base_profile=selected_profile,
+                            initial_display_scopes=display_scopes,
+                            initial_display_weightings=display_weightings,
                         )
                     else:
                         saved_name = update_custom_profile(
@@ -278,6 +343,8 @@ def render_custom_profile_manager(
                             current_settings,
                             description=profile_description,
                             base_profile=selected_profile,
+                            initial_display_scopes=display_scopes,
+                            initial_display_weightings=display_weightings,
                         ).name
                     _queue_result(
                         scope_key,
@@ -312,6 +379,7 @@ def render_custom_profile_manager(
 __all__ = [
     "CUSTOM_PROFILE_LABEL_PREFIX",
     "analysis_profile_options",
+    "apply_profile_display_defaults",
     "consume_pending_profile_selection",
     "custom_profile_label",
     "custom_profile_settings",

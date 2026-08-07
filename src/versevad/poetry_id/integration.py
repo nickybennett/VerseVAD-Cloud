@@ -11,6 +11,12 @@ from collections import Counter
 from typing import Sequence
 
 from versevad.analysis.statistics import descriptive_statistics
+from versevad.analysis_profiles import (
+    AggregationWeighting,
+    AnalysisProfile,
+    LexicalScope,
+    token_is_in_scope,
+)
 from versevad.lexical_semantic.aoa import AoAAnalysisResult
 from versevad.lexical_semantic.concreteness import ConcretenessAnalysisResult
 from versevad.lexical_semantic.frequency import FrequencyAnalysisResult
@@ -26,6 +32,7 @@ from versevad.poetry_id.engine import (
     PoetryIDConfiguration,
     VadEvidence,
 )
+from versevad.profile_aggregation import vad_profile_summaries
 
 
 def _scores(statistics: WeightedVadStatistics) -> VadScores:
@@ -55,10 +62,15 @@ def _unmatched_terms(
 ) -> tuple[str, ...]:
     tokens = {row.token_id: row for row in result.tokens}
     active_stopwords = (
-        set(result.stopword_policy.active_words)
+        tuple(result.stopword_policy.active_words)
         if result.stopword_policy is not None
-        else set()
+        else ()
     )
+    scope = {
+        "all_matched": LexicalScope.ALL_LEXICAL,
+        "stopwords_excluded": LexicalScope.STOPWORD_EXCLUDED,
+        "content_words": LexicalScope.CONTENT_WORDS,
+    }[analysis_view]
     counts: Counter[str] = Counter()
     for match in result.matches:
         if match.selection != MatchSelection.UNMATCHED:
@@ -67,9 +79,10 @@ def _unmatched_terms(
             token = tokens.get(token_id)
             if token is None:
                 continue
-            if (
-                analysis_view == "stopwords_excluded"
-                and token.normalized_form in active_stopwords
+            if not token_is_in_scope(
+                token,
+                scope,
+                active_stopwords=active_stopwords,
             ):
                 continue
             counts[token.normalized_form] += 1
@@ -97,49 +110,36 @@ def vad_evidence_from_results(
             not in configuration.vad_lexicon_ids
         ):
             continue
+        profile_dimensions = vad_profile_summaries(result)
         for analysis_view in configuration.analysis_views:
-            if analysis_view == "all_matched":
-                coverage = result.coverage
-                token_stats = result.vad_summary.token_weighted_normalized
-                type_stats = result.vad_summary.type_weighted_normalized
-                matched_tokens = coverage.matched_token_count
-                eligible_tokens = coverage.total_lexical_tokens
-                token_coverage = coverage.lexical_token_coverage
-                matched_types = coverage.matched_type_count
-                eligible_types = coverage.total_unique_types
-                type_coverage = coverage.type_coverage
-            else:
-                stopword_coverage = result.stopword_coverage
-                token_stats = (
-                    result.vad_summary
-                    .stopword_excluded_token_weighted_normalized
-                )
-                type_stats = (
-                    result.vad_summary
-                    .stopword_excluded_type_weighted_normalized
-                )
-                if (
-                    stopword_coverage is None
-                    or token_stats is None
-                    or type_stats is None
-                ):
-                    continue
-                matched_tokens = stopword_coverage.matched_token_count
-                eligible_tokens = stopword_coverage.eligible_token_count
-                token_coverage = (
-                    stopword_coverage.lexical_token_coverage
-                )
-                matched_types = stopword_coverage.matched_type_count
-                eligible_types = (
-                    stopword_coverage.eligible_unique_type_count
-                )
-                type_coverage = stopword_coverage.type_coverage
-            for weighting_mode, statistics in (
-                ("token", token_stats),
-                ("type", type_stats),
+            scope = {
+                "all_matched": LexicalScope.ALL_LEXICAL,
+                "stopwords_excluded": LexicalScope.STOPWORD_EXCLUDED,
+                "content_words": LexicalScope.CONTENT_WORDS,
+            }[analysis_view]
+            for weighting_mode, weighting in (
+                ("token", AggregationWeighting.TOKEN),
+                ("type", AggregationWeighting.TYPE),
             ):
                 if weighting_mode not in configuration.weighting_modes:
                     continue
+                profile = AnalysisProfile(scope, weighting)
+                summaries = {
+                    dimension: profile_dimensions[dimension][profile]
+                    for dimension in ("valence", "arousal", "dominance")
+                }
+                statistics = WeightedVadStatistics(
+                    valence=summaries["valence"].statistics,
+                    arousal=summaries["arousal"].statistics,
+                    dominance=summaries["dominance"].statistics,
+                )
+                profile_coverage = summaries["valence"].coverage
+                matched_tokens = profile_coverage.matched_token_count
+                eligible_tokens = profile_coverage.eligible_token_count
+                token_coverage = profile_coverage.token_coverage
+                matched_types = profile_coverage.matched_type_count
+                eligible_types = profile_coverage.eligible_type_count
+                type_coverage = profile_coverage.type_coverage
                 scores = _scores(statistics)
                 if scores is None:
                     continue
@@ -191,10 +191,14 @@ def vad_evidence_from_results(
                             analysis_view,
                         ),
                         token_vad_observation_count=(
-                            token_stats.valence.count
+                            profile_dimensions["valence"][
+                                AnalysisProfile(scope, AggregationWeighting.TOKEN)
+                            ].statistics.count
                         ),
                         type_vad_observation_count=(
-                            type_stats.valence.count
+                            profile_dimensions["valence"][
+                                AnalysisProfile(scope, AggregationWeighting.TYPE)
+                            ].statistics.count
                         ),
                     )
                 )

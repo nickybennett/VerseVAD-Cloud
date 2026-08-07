@@ -23,7 +23,75 @@ the experience of a reader, or an author's intention.
 - An aggregate summarizes included matches for a declared analysis scenario.
 - Literary interpretation remains a scholarly act outside the numeric score.
 
-## Provisional default recipe
+## Unified lexical scope and weighting architecture
+
+VerseVAD performs one complete analysis and retains reusable token, type,
+phrase, resource-match, structural, and provenance evidence. Compatible report
+aggregates are then calculated from that retained evidence. Changing a report
+scope or weighting does not rerun Unicode normalization, tokenization, sentence,
+line or stanza segmentation, POS tagging, lemmatization, lexicon lookup,
+pronunciation, rhyme, meter, corpus ingestion, or VerseMap fitting.
+
+Exactly three configurable lexical scopes exist:
+
+- `ALL_LEXICAL` (**All lexical tokens**) includes every lexicon-eligible word
+  token, including stopwords and function words, and excludes punctuation-only
+  and nonlexical artifacts.
+- `STOPWORD_EXCLUDED` (**Stopword-excluded**) removes forms in the recorded
+  list-based stopword resource. POS is not used as a stopword proxy.
+- `CONTENT_WORDS` (**Content words only**) retains contextually tagged `NOUN`,
+  `VERB`, `ADJ`, and `ADV` tokens under content definition
+  `versevad-content-pos-v1`.
+
+Exactly two configurable aggregation weightings exist:
+
+- `TOKEN` (**Token-weighted**) lets every eligible occurrence contribute;
+- `TYPE` (**Type-weighted**) contributes each metric's documented type identity
+  once. VAD and most resource ratings use matched resource entry; emotion
+  intensity uses matched entry plus category; word length uses normalized
+  surface; POS-aware lexical summaries may use POS plus normalized lemma.
+
+Compatible modules expose all six scope/weighting combinations from one
+completed result. The ordinary initial display is
+`STOPWORD_EXCLUDED × TOKEN`. Selected scopes and weightings generate a
+cross-product; they do not mutate the evidence.
+
+Scope-relative coverage is:
+
+`token coverage = matched eligible token positions / eligible token positions`
+
+`type coverage = matched eligible types / eligible types`
+
+Excluded stopwords and excluded non-content words are outside the denominator
+and are not unmatched. If a published multiword expression intersects the
+selected lexical scope, the complete matched span is retained for that
+phrase-based metric under `retain-complete-matched-expression-v1`. This does
+not force its components into unrelated unigram metrics.
+
+### Module capability categories
+
+The versioned central capability registry is authoritative for reports,
+exports, and documentation:
+
+- **A — scope and weighting configurable:** VAD mean/dispersion/load,
+  emotion-association and intensity summaries, concreteness, frequency/rarity,
+  AoA, sensorimotor aggregates, PoetryID, word length, and compatible POS
+  summaries.
+- **B — scope configurable, weighting not applicable:** Interactive Annotation,
+  lexical diagnostics, and sequence-native diversity calculations where the
+  method retains its own occurrence sequence.
+- **C — weighting configurable, fixed scope:** reserved for a method with a
+  documented justification; no ordinary release module currently requires it.
+- **D — fixed analytical profile:** VerseMap (`VERSEMAP_REGISTERED_V1`), VV-PRE
+  (`VV_PRE_V1`), VADER (`VADER_NATIVE_V1`), published readability formulas
+  (`TRADITIONAL_READABILITY_NATIVE_V1`), full-text pronunciation/meter/rhyme
+  (`FULL_TEXT_PROSODY_V1`), inherited forms (`INHERITED_FORM_V2`), and full-text
+  structure (`FULL_TEXT_STRUCTURE_V1`).
+
+Fixed-profile methods display a notice because applying arbitrary global
+scopes would change their named method or break reference comparability.
+
+## Default preprocessing recipe
 
 The default recipe for implementation and testing is:
 
@@ -39,9 +107,11 @@ The default recipe for implementation and testing is:
 9. use reviewed mappings only when their scope and approval allow it;
 10. do not stem, guess historical substitutions, or infer coined-word meanings;
 11. do not automatically invert scores near negation;
-12. retain all matched observations as the complete lexical-evidence view;
-13. also calculate a separately labeled, auditable stopword-excluded view;
-14. report token- and type-weighted summaries separately;
+12. retain all compatible matched observations once as reusable lexical evidence;
+13. derive all-lexical, stopword-excluded, and content-word report scopes from
+    that evidence;
+14. report token- and type-weighted summaries separately for every compatible
+    scope;
 15. show matched counts and coverage with every aggregate;
 16. preserve all candidate, suppression, exclusion, and match provenance.
 
@@ -79,7 +149,7 @@ ordinary hyphenation, and abbreviations unchanged.
 Leading and trailing whitespace on every physical line is analytically inert.
 This includes ordinary spaces, tabs, non-breaking spaces, and other Unicode
 whitespace, including mixed indentation. VerseVAD removes those characters
-only from the analysis view supplied to statistical and raw-string scoring
+only from the processing representation supplied to statistical and raw-string scoring
 methods, then maps tokens and spans back to the preserved source offsets.
 Whitespace-only physical lines remain blank stanza separators. The exact
 original spacing, indentation, line endings, text checksum, and source display
@@ -112,10 +182,10 @@ published expression `some one`. Pure numeric literals such as `1`, `27`, and
 This is a matching-policy decision, not retokenization or preprocessing.
 Original spelling, offsets, lineation, POS, lemma, and number-like status are
 unchanged. Audit reasons identify alphabetically spelled number-like tokens
-admitted to broad lexical lookup. A module's narrower declared scope still
-applies afterward: the optional content-word-only Frequency and AoA views use
-only `NOUN`, `VERB`, `ADJ`, and `ADV`, so a `NUM` token remains outside those
-four-tag sensitivity views. Interactive Annotation displays only the evidence
+admitted to broad lexical lookup. The global `CONTENT_WORDS` report scope uses
+only `NOUN`, `VERB`, `ADJ`, and `ADV`, so a `NUM` token remains outside that
+four-tag view even when it was eligible for broad lookup. Interactive
+Annotation displays only the evidence
 recorded by the completed active module and never performs its own lookup.
 
 ## VAD summaries
@@ -129,7 +199,7 @@ Cross-scale comparison may use a separate normalized score when the adapter's
 source scale supports a documented linear transformation. Original scores and
 source limits always remain available.
 
-Phase 3 implements these derived transformations:
+VerseVAD implements these derived transformations:
 
 - Warriner VAD 1-9: `(x - 1) / 8`;
 - NRC VAD v1 0-1: identity (`x`);
@@ -178,6 +248,25 @@ polysyllable, dictionary/override, and heuristic counts accompany the scores.
 These formulas were designed for prose. They do not measure literary quality,
 actual comprehension, a reader's ability, cognitive status, or a prescriptive
 grade requirement.
+
+With `W` words, `S` sentences, `Y` syllables, `C` alphabetic characters, and
+`P` polysyllabic words, the implemented formulas are:
+
+- Flesch Reading Ease:
+  `206.835 - 1.015(W/S) - 84.6(Y/W)`;
+- Flesch-Kincaid Grade:
+  `0.39(W/S) + 11.8(Y/W) - 15.59`;
+- Gunning Fog:
+  `0.4 * ((W/S) + 100(P/W))`;
+- Automated Readability Index:
+  `4.71(C/W) + 0.5(W/S) - 21.43`;
+- Coleman-Liau, where `L = 100C/W` and `T = 100S/W`:
+  `0.0588L - 0.296T - 15.8`;
+- SMOG: `1.043 * sqrt(P * (30/S)) + 3.1291`, available only when
+  `S >= 30` under the default configuration.
+
+Any required zero or missing denominator makes the corresponding result
+missing rather than zero.
 
 VerseVAD also reports **VerseVAD Poetic Reading Ease (Experimental)**, or
 **VV-PRE**, when Frequency & Rarity, Age of Acquisition, Structural & Lexical
@@ -228,7 +317,7 @@ retains line text and the VAD/concreteness observation counts.
 
 ## Normative lexical concreteness
 
-The optional Stage 2 module reads the user-supplied Brysbaert, Warriner, and
+The optional concreteness module reads the user-supplied Brysbaert, Warriner, and
 Kuperman (2014) workbook in place and retains its original 1-5 ratings. It uses
 the same shared token and poetic-structure record as the affective analysis but
 remains a separate construct and result.
@@ -254,28 +343,24 @@ The default lower band at 2.0 and upper band at 4.0 are configurable VerseVAD
 orientation aids. They are not source-published diagnostic categories. Results
 must be described as normative lexical concreteness evidence, not imagery
 quality, readability, cognition, or a declaration that a poem is concrete or
-abstract. See
-[`poetic-fingerprint-stage2.md`](poetic-fingerprint-stage2.md).
+abstract. See [lexicons.md](lexicons.md) for resource provenance.
 
 ## Corpus-relative lexical frequency and rarity
 
-The optional Stage 3 module reads the pinned official SUBTLEX-US workbook in
+The optional frequency module reads the pinned official SUBTLEX-US workbook in
 place and retains its published word-form counts, contextual-diversity fields,
 and Zipf values. It remains separate from affective ratings and concreteness.
 No `wordfreq` or alternate corpus value is substituted.
 
 By default, model-tagged proper nouns remain eligible alongside other lexical
-tokens. The recorded exclusion option can remove them explicitly.
-Punctuation, pure numeric literals, and other non-lexical tokens remain in the
-audit but outside the denominator. Alphabetically spelled number-like word
-forms remain eligible under the shared broad lexical policy. The optional,
-non-default **Content words only**
-scope restricts eligibility to exact model tags `NOUN`, `VERB`, `ADJ`, and
-`ADV`. It excludes determiners (`DET`), adpositions/prepositions (`ADP`),
-coordinating and subordinating conjunctions (`CCONJ`, `SCONJ`), pronouns
-(`PRON`), auxiliaries (`AUX`), punctuation, and every other tag. `PROPN`
-is outside this deliberately narrow four-tag scope even though proper nouns
-remain included under the ordinary all-lexical-token default.
+tokens. The recorded exclusion option can remove them before reusable resource
+evidence is retained. Punctuation, pure numeric literals, and other nonlexical
+tokens remain in the audit but outside lexical denominators. Alphabetically
+spelled number-like forms remain eligible under the shared broad lexical
+policy. The global `CONTENT_WORDS` report scope retains exact contextual tags
+`NOUN`, `VERB`, `ADJ`, and `ADV`; `PROPN`, `DET`, `ADP`, `CCONJ`, `SCONJ`,
+`PRON`, `AUX`, and every other tag are outside that scope. The global scope is
+post-analysis aggregation, not a Frequency-only configuration.
 
 This strict scope must not be confused with the broad Language Profile:
 the latter groups `VERB` and `AUX` together under **Verb** for a readable
@@ -299,12 +384,12 @@ difference. The default rare-to-very-common bands are configurable VerseVAD
 orientation aids, not source-published literary categories. Results must be
 described as corpus-relative lexical frequency evidence from an American
 subtitle corpus, not difficulty, sophistication, accessibility, intelligence,
-literary quality, or reader response. See
-[`poetic-fingerprint-stage3.md`](poetic-fingerprint-stage3.md).
+literary quality, or reader response. See [lexicons.md](lexicons.md) for
+resource provenance.
 
 ## Retrospective normative lexical Age of Acquisition
 
-The optional Stage 4 module reads the pinned official Kuperman,
+The optional Age of Acquisition module reads the pinned official Kuperman,
 Stadthagen-Gonzalez, and Brysbaert supplement in place. Its numeric values are
 adult retrospective estimates of the age, in years, at which a source
 respondent believed they had learned a word well enough to understand it.
@@ -312,9 +397,9 @@ They remain separate from affect, concreteness, frequency, difficulty, grade
 level, familiarity, comprehension, intelligence, and reader response.
 
 By default, model-tagged proper nouns remain eligible alongside other lexical
-tokens. The recorded exclusion option can remove them explicitly.
-The optional, non-default **AoA content words only** scope restricts
-eligibility to exact contextual model tags `NOUN`, `VERB`, `ADJ`, and `ADV`.
+tokens. The recorded exclusion option can remove them explicitly. The global
+`CONTENT_WORDS` report scope restricts aggregation to exact contextual model
+tags `NOUN`, `VERB`, `ADJ`, and `ADV`; it is not an AoA-only configuration.
 The paper describes its target selection as base forms used most frequently
 as nouns, verbs, or adjectives, but the official supplement also contains
 numeric ratings for polyfunctional spellings such as `the`, `and`, `he`, `of`,
@@ -342,8 +427,7 @@ does not establish causation or a reader effect.
 
 Results must be described as retrospective normative lexical AoA evidence
 among matched tokens. They are not diagnostic of cognitive impairment or
-decline. See
-[`poetic-fingerprint-stage4.md`](poetic-fingerprint-stage4.md).
+decline. See [lexicons.md](lexicons.md) for resource provenance.
 
 ## Part-of-speech profile
 
@@ -377,9 +461,9 @@ requested by the user while preserving their original tags in token evidence.
 The one-text Language Profile may also join the already completed VAD matches
 to these broad POS groups. This is a separate, lexicon-dependent subsection;
 it does not change the independent grammatical count/share profile. Lexicons
-and the all-matched and stopword-excluded analysis views are never pooled.
+and selected lexical scopes are never pooled.
 
-Within each lexicon, view, and broad POS group, the token-weighted VAD mean
+Within each lexicon, lexical scope, and broad POS group, the token-weighted VAD mean
 uses every included match occurrence and the type-weighted mean uses each
 distinct matched lexicon lookup form once. Both appear on the independently
 normalized 0-1 scale; the detailed CSV also retains original-scale means and
@@ -395,13 +479,13 @@ toward coverage. A phrase spanning several broad POS groups remains under
 than a token population, VerseVAD reports no coverage denominator for that
 row. Groups below the configured minimum match requirement are marked sparse.
 
-## Dual VAD reporting and stopword policy
+## Global lexical scopes and stopword policy
 
-VerseVAD does not treat stopword removal as neutral preprocessing. Every VAD
-analysis keeps the complete **all matched observations** result and derives a
-second **stopwords excluded** result from the same audited matches. The second
-view changes aggregate inclusion only; it does not change tokenization,
-lexicon lookup, exact-versus-lemma priority, or source ratings.
+VerseVAD does not treat stopword removal or content-word restriction as neutral
+preprocessing. Every compatible module retains broad lexical evidence once and
+derives the three canonical scopes described above. A scope changes aggregate
+eligibility only; it does not change tokenization, lexicon lookup,
+exact-versus-lemma priority, source ratings, or fixed-profile modules.
 
 The standard list is spaCy English `STOP_WORDS`, pinned to the installed spaCy
 version and identified by its full active-list SHA-256 hash. VerseVAD protects
@@ -416,14 +500,15 @@ evidence caused exclusion. This does not silently turn a lemma into a lexicon
 match. An activated exact published phrase remains one match and is retained
 intact rather than being split because one component is a stopword.
 
-Full-view coverage keeps the ordinary eligible lexical-token denominator.
-Content-focused coverage uses eligible non-stopword tokens as its denominator
-and reports excluded matched observations separately. Stopword sensitivity is
-the stopwords-excluded statistic minus the corresponding all-matched statistic;
-it is descriptive rather than a robustness threshold.
+Each scope uses its own eligible token and type denominators. Stopword-excluded
+coverage removes recorded stopwords from the denominator. Content-word
+coverage includes only contextual `NOUN`, `VERB`, `ADJ`, and `ADV` tokens.
+Excluded matched observations remain auditable but are not relabeled as
+unmatched. Differences among scopes may be calculated from exported rows, but
+VerseVAD does not promote a separate redundant stopword-sensitivity metric.
 
-Top-contributor tables remain separate by view. A matched entry's signed
-midpoint contribution for one dimension is:
+Top-contributor tables remain separate by profile. A matched entry's signed
+midpoint contribution for one normalized VAD dimension is:
 
 `frequency × (normalized rating - 0.5)`
 
@@ -443,7 +528,7 @@ positive and negative sentiment labels. Both constructs use the same documented
 association-counting calculations, but the interface and readable summary keep
 their headings distinct.
 
-Phase 2 reports, for every association, occurrence count, unique matched entry
+VerseVAD reports, for every association, occurrence count, unique matched entry
 count, rate per all lexical tokens, rate among tokens bearing at least one
 positive association, rate per unique lexical surface type, line and stanza
 distributions, and frequent contributing terms. A source term present in the
@@ -461,16 +546,40 @@ Prevalence and intensity answer different questions and remain separate:
 A token without a score for an emotion is not an intensity-zero observation in
 the primary mean.
 
-Phase 2 defines a matched word-emotion pair as one distinct matched lexicon
+VerseVAD defines a matched word-emotion pair as one distinct matched lexicon
 entry and category. Matched token occurrences repeat when the same entry occurs
 more than once. The token-weighted intensity mean repeats those occurrences;
 the type-weighted mean uses each matched entry-category pair once. Prevalence is
 the category's matched occurrences divided by all lexical tokens or by tokens
 matched anywhere in the intensity lexicon, as labeled.
 
+## Sensorimotor imagery and embodiment
+
+The optional Lancaster module matches retained lexical evidence to the local
+Lancaster Sensorimotor Norms resource. It reports each published dimensional
+strength on its source scale and preserves the source's calculated dominant
+perceptual, action, and overall sensorimotor domains. VerseVAD does not invent
+an independent threshold for whether a domain is “present.”
+
+For a selected report profile with values `x_1 ... x_N`, the dimension mean is
+`sum(x_i) / N`, population SD is `sqrt(sum((x_i - mean)^2) / N)`, cumulative
+load is `sum(x_i)`, and load per 100 observations is
+`100 * sum(x_i) / N`. Token weighting retains repeated occurrences; type
+weighting retains one observation per matched resource entry.
+
+Dominant-domain proportion is
+`number of included observations whose source dominant domain is d / N`.
+Dominant-domain diversity is normalized Shannon entropy:
+`-sum(p_d * ln(p_d)) / ln(number of registered domains)`. Values near zero
+indicate concentration in fewer dominant domains; larger values indicate a
+more even distribution. The Lancaster Minkowski-3 strength and exclusivity
+fields are source-derived composites retained as published, not formulas
+redefined by VerseVAD. These norms describe lexical associations, not actual
+reader sensation, imagery quality, embodiment, or authorial intention.
+
 ## Phrase policies
 
-NRC VAD v2.1 explicitly supplies unigrams and multiword expressions. Phase 2
+NRC VAD v2.1 explicitly supplies unigrams and multiword expressions. VerseVAD
 normalizes exact surface tokens, constructs candidates within a single poetic
 line without crossing punctuation, orders candidates by descending token length
 and then textual position, and greedily selects non-overlapping spans.
@@ -481,8 +590,8 @@ The three policies are:
 
 - `phrase_preferred`: selected phrases contribute one summary observation;
   component candidates remain visible but suppressed;
-- `unigram_only`: phrase entries are ignored and unigram matching proceeds as in
-  Phase 1;
+- `unigram_only`: phrase entries are ignored and the same deterministic
+  unigram matching proceeds;
 - `phrase_and_component_exploratory`: selected phrases and independently matched
   components both contribute, with a warning that this intentionally
   double-counts the span.
@@ -631,7 +740,7 @@ or short phrase is not a defensible readability document.
 
 Compare Poems applies one validated `AnalysisRequest` configuration to every
 poem. A displayed numeric row therefore compares like with like: the same
-source, analysis view, weighting, metric definition, and unit. The normal
+source, lexical scope, weighting, metric definition, and unit. The normal
 report shows each available poem value and the observed range:
 
 ```text
@@ -649,7 +758,7 @@ in the normal report.
 
 The dashboard imposes a presentation order without changing calculations:
 headline means or composite scores, cumulative lexical loads, then within-poem
-dispersion. PoetryID is narrowed to the selected analysis view and weighting,
+dispersion. PoetryID is narrowed to the selected lexical scope and weighting,
 then to one identified VAD source, and displays category fit before nearest
 centroid. All alternate source/view/weighting rows remain auditable in export.
 
@@ -672,7 +781,7 @@ Each lexicon is analyzed independently. Numeric VAD means may be displayed on a
 separate normalized 0-1 scale alongside source-scale results. NRC VAD v1 and
 v2.1 remain labeled as versions of the same family, not independent
 replications. Categorical association rates and intensity prevalence/means keep
-their different value kinds and denominators. Phase 2 creates no consensus
+their different value kinds and denominators. VerseVAD creates no consensus
 score or pooled rating.
 
 ## Context and close reading
@@ -690,14 +799,14 @@ data remains missing rather than becoming zero. Coverage, lemma reliance,
 mapping reliance, exclusions, and semantic-risk dependence are part of the
 result, not merely diagnostics hidden elsewhere.
 
-The Phase 3 interface labels coverage below 60% as limited orientation, 60-80%
+The interface labels coverage below 60% as limited orientation, 60-80%
 as moderate orientation, and at least 80% as broad orientation. These bands are
 reading aids only, not validated universal thresholds or exclusion rules. The
 exact numerator, denominator, and rate remain primary.
 
-## Phase 1 statistical definitions
+## Descriptive statistical definitions
 
-Phase 1 reports descriptive statistics on the included matched observations.
+VerseVAD reports descriptive statistics on the included matched observations.
 Its standard deviation is the population standard deviation (`ddof = 0`),
 because it describes the complete selected match set rather than estimating a
 larger sampled population. Quartiles use the inclusive method. A single
@@ -708,6 +817,78 @@ Confidence intervals are deliberately deferred until the resampling unit and
 dependence structure can be declared for the requested comparison. No
 inferential meaning should be attached to the current descriptive summaries.
 
+## Metric formula and denominator reference
+
+The equations below summarize cross-cutting calculations. Module-specific
+sections above and the resource manifests remain authoritative for source
+scales, matching order, thresholds, and limitations.
+
+- Arithmetic mean: `sum(x_i) / N` over included observations.
+- Population variance: `sum((x_i - mean)^2) / N`; population SD is its square
+  root. VerseVAD uses `ddof=0`.
+- Mean absolute deviation from the poem mean:
+  `sum(abs(x_i - mean)) / N`.
+- Inclusive quartiles use the inclusive interpolation method; IQR is
+  `Q3 - Q1`; range is `maximum - minimum`.
+- Token/type coverage is matched eligible tokens/types divided by eligible
+  tokens/types. Scope exclusions are outside both numerator and denominator.
+- Type-token ratio is `distinct normalized surface types / lexical tokens`.
+  MATTR is the arithmetic mean of TTR across all overlapping fixed-length
+  windows. HD-D sums each type's hypergeometric probability of appearing in a
+  without-replacement sample and divides by sample size. MTLD averages forward
+  and reverse factor lengths at the configured TTR threshold.
+- Mean words per nonblank line is lexical tokens on nonblank physical lines
+  divided by nonblank physical lines. Mean words per stanza is lexical tokens
+  divided by stanzas. Mean nonblank lines per stanza is nonblank physical lines
+  divided by stanzas. Their displayed SDs use the complete observed line or
+  stanza population.
+- Mean alphabetic word length is total Unicode alphabetic characters divided
+  by included lexical observations. POS share is category token count divided
+  by all eligible lexical-token occurrences in that profile.
+- Emotion-association proportion is associated included observations divided
+  by eligible lexical observations. Because one term may carry several
+  associations, category proportions need not sum to one. Emotion-intensity
+  means include only recorded word-category intensity pairs; absence is not
+  intensity zero.
+- Rarity is derived from the retained SUBTLEX Zipf value with the report's
+  explicitly labeled orientation; a one-point Zipf difference is approximately
+  tenfold frequency. No absent word is assigned Zipf zero.
+- Pronunciation coverage is resolved eligible pronunciation items divided by
+  eligible items. Syllables per line sum resolved syllables on each nonblank
+  line; mean syllables per line is the arithmetic mean across those lines.
+  Stress density is stressed resolved syllables divided by all resolved
+  syllables.
+- Meter line fit is `max(0, 1 - alignment_cost / max(observed_syllables,
+  template_syllables, 1))`. Rhythmic regularity and trajectory summarize the
+  distribution and sequence of those line-level fits under the documented
+  candidate/performance profile; they are not scansion probabilities.
+- Rhyme coverage is analyzable eligible line endings divided by eligible line
+  endings. Alliteration, assonance, consonance, internal rhyme, and refrain
+  rates use their labeled eligible line, token, phone, or pair denominators;
+  the detailed audit identifies the actual denominator for each row.
+- Corpus equal-poem mean is `sum(poem means) / included poems`. A pooled
+  observation mean is `sum(poem_mean_i * observation_count_i) /
+  sum(observation_count_i)`. Corpus-relative standardized deviation is
+  `(poem value - corpus mean) / corpus SD`; when corpus SD is zero, the
+  standardized value remains unavailable.
+- Euclidean profile or centroid distance is
+  `sqrt(sum((standardized_feature_i - centroid_i)^2))` over the registered
+  available feature space. VerseMap PCA coordinates are linear projections of
+  registered standardized features for visualization; nearest-neighbor search
+  continues to use full registered feature-space distance. Characteristicity
+  increases as centroid distance decreases; distinctiveness increases as it
+  increases. Exact registry, scaling, missingness, and percentile rules are in
+  [VerseMap Standard Profile 1.0](versemap-standard-profile.md).
+- Inherited-form consistency is the coverage-weighted mean of available rule
+  scores. Evidence coverage is effective available rule weight divided by
+  total possible rule weight. Match percentage and confidence remain separate
+  because agreement without adequate evidence is not strong support.
+
+Every exported numeric row retains its metric ID, unit or scale, scope,
+weighting where applicable, observation count, eligible count, coverage, and
+source/configuration identity. Interface rounding never changes exported
+precision.
+
 ## Capitalization collisions
 
 Case-insensitive lookup can collapse source entries that have different
@@ -716,16 +897,16 @@ adapter retains every source entry. Exact source capitalization may resolve the
 pair; otherwise the occurrence is left unmatched for review. VerseVAD does not
 average the candidates or select the first row.
 
-## Stage 5 pronunciation, syllable, and lexical stress
+## Pronunciation, syllable, and lexical stress
 
-Stage 5 uses exact observed-form entries from official CMUdict files pinned at
+The pronunciation module uses exact observed-form entries from official CMUdict files pinned at
 one upstream commit. Case and apostrophe style are normalized for lookup, but
 the observed surface, normalized form, lemma, and every dictionary candidate
 remain separate. No lemma, possessive-base, spelling repair, or pronunciation
 prediction is substituted automatically.
 
 The shared linguistic model may internally split a contraction into components
-such as `you` + `'re`, `ca` + `n't`, or `wo` + `n't`. Stage 5 instead consumes
+such as `you` + `'re`, `ca` + `n't`, or `wo` + `n't`. The module instead consumes
 the complete contraction span preserved during preprocessing and performs one
 exact lookup for the observed spelling, such as `you're`, `can't`, or `won't`.
 The component tokens remain visible in the token audit but are marked
@@ -780,13 +961,13 @@ syllables by all resolved syllables. It is not a measure of metrical fit or
 performed emphasis.
 
 CMUdict primarily represents North American English. Dialect, historical
-pronunciation, performance, context, and poetic elision can differ. Stage 5
+pronunciation, performance, context, and poetic elision can differ. VerseVAD
 therefore reports dictionary-based pronunciation, syllable, and lexical-stress
 evidence, not the poem's definitive sound or meter.
 
-## Stage 6 candidate meter and rhythmic regularity
+## Candidate meter and rhythmic regularity
 
-Stage 6 consumes retained Stage 5 stress evidence without changing its
+The meter module consumes retained pronunciation and stress evidence without changing its
 pronunciation decisions. For every analyzable physical line it compares five
 recurring base patterns—iambic `01`, trochaic `10`, anapestic `001`,
 dactylic `100`, and amphibrachic `010`—at one through eight feet. Spondees
@@ -810,13 +991,12 @@ variation, deviations, and rule-based confidence. The output language is
 “nearest configured candidate” or “candidate meter,” never definitive meter,
 correct scansion, performed rhythm, or authorial intention.
 
-### Optional Stage 14 performance-aware realization
+### Optional performance-aware realization
 
-Built-in profiles default to comparing the unchanged candidate result with the
-separate performance-aware realization. If the scholar instead selects either
-layer alone, VerseVAD still records that choice explicitly. The
-performance-aware layer reranks a bounded set of retained Stage 6 candidates
-using separately visible fixed-fit, contextual-prominence,
+Built-in analysis profiles display the fixed candidate and performance-aware
+layers together by default; the fixed estimator and its result remain
+unchanged. When a performance-aware layer is selected, VerseVAD reranks a bounded set of retained meter
+candidates using separately visible fixed-fit, contextual-prominence,
 syllable-count, phrasing, ending, pronunciation, poem/stanza recurrence, and
 declared-profile components. The overall score is a configured heuristic, not
 a probability.
@@ -841,9 +1021,9 @@ resource/engine, and upstream-result fingerprints relevant to one module.
 Invalid entries are discarded and recomputed. Cache state and timing are
 diagnostic evidence, not analytical metrics.
 
-## Stage 7 rhyme and phonological patterns
+## Rhyme and phonological patterns
 
-Stage 7 consumes retained Stage 5 phones and stress without changing any
+The rhyme and phonology module consumes retained phones and stress without changing any
 pronunciation decision. A line-ending rhyme part begins at the last
 primary-stressed vowel, or the last secondary-stressed/marked vowel when
 necessary, and continues to the word end. Exact scheme groups require one
@@ -871,12 +1051,10 @@ Results describe local dictionary-, spelling-, and text-based evidence, not a
 definitive rhyme, performed reading, dialect, perceptual sound effect, or
 authorial intention.
 
-## Narrowed Stage 10 lexical diversity, word length, and word counts
+## Lexical diversity, word length, and word counts
 
-The scholar skipped the broader planned visible-structure and syntax/lineation
-stages. This narrower module therefore reports no typography, punctuation,
-approximate-refrain, syntactic-complexity, enjambment, or end-stopping
-classification.
+This module does not report typography, punctuation, approximate-refrain,
+syntactic-complexity, enjambment, or end-stopping classification.
 
 One word-count unit is one shared-preprocessing lexical token. Punctuation and
 numeric tokens are excluded. Physical blank lines remain in the line audit
@@ -916,7 +1094,7 @@ The module reports textual observations, not literary quality, vocabulary
 knowledge, intelligence, education, comprehension, reader effect, or
 authorial intention.
 
-## Stage 11 project/corpus aggregation and all-resource lookup
+## Project/corpus aggregation and all-resource lookup
 
 The corpus path invokes the existing workspace orchestration once per preserved
 work. Every enabled optional module therefore consumes the same shared
@@ -935,7 +1113,7 @@ For lexical style, separately labeled pooled TTR, MATTR, HD-D, MTLD, and mean
 alphabetic word length are recalculated from the ordered sequence of included
 normalized-surface token evidence stored for each work. Work count, omitted
 work count, token count, configuration, and aggregation method remain visible.
-Meter and rhyme remain work-level candidates/evidence; Stage 11 does not
+Meter and rhyme remain work-level candidates/evidence; VerseVAD does not
 declare a collection's definitive meter or rhyme scheme.
 
 Lexicon Explorer performs read-only local lookup in the packaged Open English
@@ -950,12 +1128,12 @@ available-but-unmatched, and source-entry-without-numeric-rating states remain
 distinct. Explorer evidence is decontextualized and does not resolve poetic
 sense, performance, dialect, metaphor, irony, or reader response.
 
-## Stage 12 PoetryID dependent classification
+## PoetryID dependent classification
 
 PoetryID consumes only completed normalized VAD summaries. It does not
 re-tokenize, reload a VAD source, rematch text, or calculate a second VAD
 result. Each assignment retains the exact upstream analysis ID, lexicon ID and
-name, lexicon version, adapter version, source SHA-256, analysis view, and
+name, lexicon version, adapter version, source SHA-256, lexical scope, and
 weighting.
 
 Version 1 classifies each normalized dimension using a versioned fixed profile:
@@ -1001,9 +1179,9 @@ work-level evidence and do not create a corpus-wide identity.
 PoetryID exports six UTF-8 CSV files and one narrative DOCX report
 and no JSON file.
 
-## Stage 13 interface-only invariants
+## Interface-only invariants
 
-The Stage 13 redesign does not define a new analytical method. Classic, Dark,
+The interface design does not define a new analytical method. Classic, Dark,
 Lavender, Ocean, Crimson, and Forest appearance; active workspace; preset-menu
 choice; expanded/collapsed sections; search text; and project-list filters are
 presentation state. They do
@@ -1061,7 +1239,7 @@ choice are presentation state. Full saved analyses may restore them, but they
 remain outside analytical configuration and have no effect on historical
 result identity or recalculation.
 
-## Stage 15 inherited-form candidate ranking
+## Inherited-form candidate ranking
 
 Inherited Form Analysis is a rule-based candidate-ranking system over 169
 versioned, source-documented profiles in registry version 2.0. It is not a
@@ -1105,7 +1283,5 @@ the evidence table and exports. If nothing qualifies, the concise ranking is
 limited to ten nearest profiles. The **All Inherited Forms** selector and full
 CSV exports retain all 169 entries, including obviously distant and
 manual-confirmation forms. See
-[`inherited-form-stage15.md`](inherited-form-stage15.md) for the original
-ten-profile foundation and
 [`inherited-form-registry-v2.md`](inherited-form-registry-v2.md) for the
 expanded registry policy.

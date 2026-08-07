@@ -1,7 +1,8 @@
-"""Shared Stage 13 visual system and reusable Streamlit presentation helpers."""
+"""Shared VerseVAD visual system and reusable Streamlit presentation helpers."""
 
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
@@ -13,7 +14,6 @@ import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
 from versevad import __version__
-from versevad.deployment import cloud_deployment_enabled
 from versevad.prosody import (
     MeterAnalysisMode,
     MeterInterpretationDepth,
@@ -21,18 +21,16 @@ from versevad.prosody import (
 )
 from versevad.ui.dataframes import rounded_display_data
 from versevad.ui.navigation import WORKSPACES, render_top_navigation
+from versevad.ui.sidebar import render_context_sidebar
 from versevad.ui.preferences import (
     AppearanceMode,
-    UiPreferences,
     appearance_from_browser_cookie,
     load_preferences,
     normalize_appearance,
     save_appearance,
 )
-from versevad.ui.sidebar import render_context_sidebar
 
 _APPEARANCE_COOKIE_NAME = "versevad_appearance"
-_APPEARANCE_QUERY_PARAMETER_NAME = "appearance"
 
 CLASSIC_TOKENS = {
     "background": "#f6f3ed",
@@ -769,7 +767,11 @@ def stylesheet_for(mode: AppearanceMode | str) -> str:
       color: inherit !important;
       -webkit-text-fill-color: inherit !important;
     }}
-    /* Streamlit renders the Training call-to-action as an anchor. */
+    /*
+     * The Training call-to-action is an anchor rather than a button in
+     * Streamlit's DOM. Give it the same contrast-tested theme tokens as every
+     * primary button, including its nested label and Material icon.
+     */
     .st-key-training_website_link [data-testid="stLinkButton"] a,
     .st-key-training_website_link a[data-testid^="stBaseButton-primary"] {{
       background: var(--color-button-primary-background) !important;
@@ -1507,28 +1509,15 @@ def bottom_collapsible_expander(
 
 
 def _persist_appearance() -> None:
-    if cloud_deployment_enabled():
-        # Community Cloud browser sessions can be replaced during a hard
-        # refresh. Keep the harmless appearance preference in the URL as a
-        # deterministic, server-readable fallback to the browser cookie.
-        st.query_params[_APPEARANCE_QUERY_PARAMETER_NAME] = normalize_appearance(
-            st.session_state["appearance_mode"]
-        ).value
-        return
-    save_appearance(st.session_state["appearance_mode"])
+    # Hosted deployments persist appearance per browser below. A shared server
+    # file would let one visitor's choice become another visitor's default.
+    if os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT") != "1":
+        save_appearance(st.session_state["appearance_mode"])
 
 
 def _cloud_browser_appearance() -> AppearanceMode | None:
-    if not cloud_deployment_enabled():
+    if os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT") != "1":
         return None
-    try:
-        query_appearance = appearance_from_browser_cookie(
-            st.query_params.get(_APPEARANCE_QUERY_PARAMETER_NAME)
-        )
-    except (AttributeError, KeyError, RuntimeError):
-        query_appearance = None
-    if query_appearance is not None:
-        return query_appearance
     try:
         return appearance_from_browser_cookie(
             st.context.cookies.get(_APPEARANCE_COOKIE_NAME)
@@ -1553,12 +1542,12 @@ def _appearance_cookie_html(appearance: AppearanceMode | str) -> str:
 def render_app_shell() -> tuple[str, AppearanceMode]:
     """Render the shared application header and return active workspace/theme."""
 
-    preferences = (
-        UiPreferences()
-        if cloud_deployment_enabled()
-        else load_preferences()
+    hosted = os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT") == "1"
+    preferences = load_preferences()
+    initial_appearance = (
+        _cloud_browser_appearance()
+        or (AppearanceMode.CLASSIC if hosted else preferences.appearance)
     )
-    initial_appearance = _cloud_browser_appearance() or preferences.appearance
     st.session_state.setdefault("appearance_mode", initial_appearance.value)
     st.session_state["appearance_mode"] = normalize_appearance(
         st.session_state["appearance_mode"]
@@ -1568,14 +1557,19 @@ def render_app_shell() -> tuple[str, AppearanceMode]:
     st.session_state.setdefault("workspace_page", WORKSPACES[0])
     appearance = normalize_appearance(st.session_state["appearance_mode"])
     apply_design_system(appearance)
-    if cloud_deployment_enabled():
+    if hosted:
         st.html(
             _appearance_cookie_html(appearance),
             width="content",
             unsafe_allow_javascript=True,
         )
-    route = render_top_navigation(include_local_routes=False)
+    route = render_top_navigation(
+        include_local_routes=not hosted
+    )
     workspace = route.workspace_id
+    from versevad.ui.workspace_state import activate_workspace_state
+
+    activate_workspace_state(st.session_state, workspace)
     st.session_state["workspace_page"] = workspace
     render_context_sidebar(workspace)
 

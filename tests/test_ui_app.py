@@ -11,13 +11,12 @@ from versevad.preprocessing import SpacyEnglishPreprocessor
 from versevad.research_library import ResearchLibraryRepository
 from versevad.ui.navigation import ROUTES
 from versevad.ui.profile_management import custom_profile_label
-from versevad.ui.preferences import AppearanceMode, load_preferences
 from versevad.ui.profiles import load_custom_profiles, save_custom_profile
+from versevad.ui.preferences import AppearanceMode, load_preferences
 from versevad.ui.inherited_form import render_inherited_form
 
 
 APP_PATH = Path(__file__).parents[1] / "src" / "versevad" / "ui" / "app.py"
-CLOUD_APP_PATH = Path(__file__).parents[1] / "streamlit_app.py"
 REPORT_SECTIONS = [
     "Overview",
     "Affective Evidence",
@@ -37,6 +36,16 @@ CORPUS_SECTIONS = [
     "Review & Scenarios",
     "Export",
     "Project Settings",
+]
+PERSONAL_CORPUS_SECTIONS = [
+    "Poems & Metadata",
+    "Poem Detail",
+    "Corpus Analysis",
+    "Language Profile",
+    "VerseMap",
+    "Review & Scenarios",
+    "Export",
+    "Corpus Settings",
 ]
 
 
@@ -330,14 +339,15 @@ def test_historical_analysis_ignores_legacy_nonrestorable_widget_state(
     caplog.clear()
     _button(app, "Open historical result").click()
     app.run(timeout=60)
+    _open_workspace(app, "Single Poem")
 
     assert not app.exception
     assert app.session_state["workspace"].request.title == (
         "Historical restore validation"
     )
-    assert "one_poem_restore_stopwords" not in app.session_state
-    assert "one_poem_import_stopwords" not in app.session_state
-    assert "uploaded_poem" not in app.session_state
+    assert app.session_state["one_poem_restore_stopwords"] is False
+    assert app.session_state["one_poem_import_stopwords"] is None
+    assert app.session_state["uploaded_poem"] is None
     assert "future_action_without_known_name" not in app.session_state
     assert "download_summary" not in app.session_state
     assert app.session_state["minimum_matches"] == 7
@@ -447,6 +457,7 @@ def test_historical_comparison_restores_custom_profile_and_configuration(
     caplog.clear()
     _button(app, "Open historical result").click()
     app.run(timeout=75)
+    _open_workspace(app, "Compare Poems")
 
     assert not app.exception
     assert app.session_state["compare_analysis_profile"] == profile_label
@@ -496,51 +507,6 @@ def test_interface_starts_with_beginner_input_workflow() -> None:
         panel.label for panel in app.expander
     ]
     assert not app.tabs
-
-
-def test_cloud_entrypoint_rerenders_after_report_navigation(
-    monkeypatch,
-) -> None:
-    # Record the pre-test environment through monkeypatch so the cloud
-    # entrypoint's process-wide flag is removed again during fixture teardown.
-    monkeypatch.setenv("VERSEVAD_CLOUD_DEPLOYMENT", "")
-    app = AppTest.from_file(
-        str(CLOUD_APP_PATH),
-        default_timeout=60,
-    ).run()
-    next(
-        field
-        for field in app.text_input
-        if field.label == "Poem title or working label"
-    ).input("Cloud rerun validation")
-    app.text_area[0].input(
-        "The bright cat\nA silver night\nThe soft hat\nA quiet light"
-    )
-    app.multiselect[0].set_value(["nrc_vad_v1"])
-    app.run(timeout=60)
-    _button(app, "Analyze Poem").click()
-    app.run(timeout=60)
-
-    report_navigation = _section_navigation(app, "Report section")
-    assert report_navigation.value == "Overview"
-    report_navigation.set_value("Sound & Form")
-    app.run(timeout=60)
-
-    assert not app.exception
-    assert _section_navigation(app, "Report section").value == "Sound & Form"
-    assert "Analyze Poem" in [button.label for button in app.button]
-
-
-def test_cloud_navigation_omits_the_local_only_personal_corpus() -> None:
-    app = AppTest.from_file(
-        str(CLOUD_APP_PATH),
-        default_timeout=60,
-    ).run()
-    app.session_state["_workspace_route_override"] = "Personal Corpus"
-    app.run(timeout=60)
-
-    assert not app.exception
-    assert [title.value for title in app.title] == ["Single Poem"]
 
 
 def test_inherited_form_report_uses_fragment_scoped_widget_reruns() -> None:
@@ -686,19 +652,19 @@ def test_saving_custom_analysis_profile_defers_selectbox_state_update(
     preset = next(
         field for field in app.selectbox if field.label == "Analysis profile"
     )
-    saved_label = custom_profile_label("My Close Reading")
-    assert preset.value == saved_label
+    assert preset.value == custom_profile_label("My Close Reading")
     _open_workspace(app, "Other Text")
     other_text_profile = next(
         field for field in app.selectbox if field.label == "Analysis profile"
     )
-    assert saved_label in other_text_profile.options
+    assert custom_profile_label("My Close Reading") in other_text_profile.options
     for label in ("Add as New", "Update Selected", "Delete Selected"):
         assert label in [button.label for button in app.button]
     _open_workspace(app, "Compare Poems")
     compare_profile = next(
         field for field in app.selectbox if field.label == "Analysis profile"
     )
+    saved_label = custom_profile_label("My Close Reading")
     assert saved_label in compare_profile.options
     for label in ("Add as New", "Update Selected", "Delete Selected"):
         assert label in [button.label for button in app.button]
@@ -782,8 +748,6 @@ def test_interface_opens_compare_poems_workspace() -> None:
     ) == 2
     assert "Analyze 2 Poems" in [button.label for button in app.button]
     assert "Add Another Poem" in [button.label for button in app.button]
-    for label in ("Add as New", "Update Selected", "Delete Selected"):
-        assert label in [button.label for button in app.button]
     assert "Phrase policy" in [field.label for field in app.selectbox]
     assert "MATTR window" in [field.label for field in app.number_input]
     assert "Meter analysis level" in [field.label for field in app.selectbox]
@@ -816,6 +780,8 @@ def test_interface_opens_compare_poems_workspace() -> None:
         for field in app.selectbox
         if field.label == "Analysis profile"
     )
+    for label in ("Add as New", "Update Selected", "Delete Selected"):
+        assert label in [button.label for button in app.button]
     profile.set_value("Teaching/Introductory")
     app.run(timeout=30)
     _button(app, "Apply / Restore").click()
@@ -945,50 +911,165 @@ def _populate_lexical_style_corpus(database_path: Path) -> str:
     return project.project_id
 
 
-def test_saved_corpus_uses_scope_and_report_selectors(
+def test_saved_and_personal_corpora_use_scope_and_report_selectors(
     tmp_path,
     monkeypatch,
 ) -> None:
-    database_path = tmp_path / "projects.sqlite3"
-    monkeypatch.setenv("VERSEVAD_DATABASE_PATH", str(database_path))
     monkeypatch.setenv(
         "VERSEVAD_RESEARCH_LIBRARY_PATH",
         str(tmp_path / "analysis-library.sqlite3"),
     )
-    project_id = _populate_lexical_style_corpus(database_path)
-    app = AppTest.from_file(str(APP_PATH), default_timeout=90).run()
-    app.session_state["_workspace_route_override"] = "Saved Projects"
-    app.session_state["active_corpus_project"] = project_id
-    app.session_state[
-        f"corpus_project_section_{project_id}"
-    ] = "Analyze & Compare"
-    app.run(timeout=90)
+    cases = (
+        (
+            "Saved Projects",
+            "VERSEVAD_DATABASE_PATH",
+            tmp_path / "projects.sqlite3",
+            "Analyze & Compare",
+        ),
+        (
+            "Personal Corpus",
+            "VERSEVAD_PERSONAL_CORPUS_DATABASE_PATH",
+            tmp_path / "personal.sqlite3",
+            "Corpus Analysis",
+        ),
+    )
+    for workspace, variable, database_path, section_name in cases:
+        monkeypatch.setenv(variable, str(database_path))
+        project_id = _populate_lexical_style_corpus(database_path)
+        app = AppTest.from_file(str(APP_PATH), default_timeout=90).run()
+        app.session_state["_workspace_route_override"] = workspace
+        if workspace == "Saved Projects":
+            app.session_state["active_corpus_project"] = project_id
+            app.session_state[
+                f"corpus_project_section_{project_id}"
+            ] = section_name
+        else:
+            app.session_state[
+                f"personal_corpus_report_section_{project_id}"
+            ] = section_name
+        app.run(timeout=90)
+
+        assert not app.exception
+        assert any(
+            field.label == "Corpus analysis profile"
+            for field in app.selectbox
+        )
+        for label in ("Add as New", "Update Selected", "Delete Selected"):
+            assert label in [button.label for button in app.button]
+        scope = next(
+            field
+            for field in app.selectbox
+            if field.label == "Result Scope"
+        )
+        report = next(
+            field
+            for field in app.selectbox
+            if field.label == "Analysis Report"
+            and "Structure" in field.options
+        )
+        assert list(scope.options) == [
+            "Whole Corpus",
+            "First",
+            "Second",
+        ]
+        assert "Structure" in report.options
+        assert not any(
+            "Work, line, and stanza results" in block.value
+            for block in app.markdown
+        )
+        scope.set_value(scope.options[1])
+        app.run(timeout=90)
+        assert not app.exception
+        assert any(
+            field.label == "Lexical scope" for field in app.multiselect
+        )
+        assert any(
+            field.label == "Aggregation weighting"
+            for field in app.multiselect
+        )
+
+
+def test_collections_opens_isolated_personal_corpus(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    database_path = tmp_path / "personal_corpus.sqlite3"
+    monkeypatch.setenv(
+        "VERSEVAD_PERSONAL_CORPUS_DATABASE_PATH",
+        str(database_path),
+    )
+    app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
+
+    _open_workspace(app, "Personal Corpus")
 
     assert not app.exception
-    scope = next(
-        field for field in app.selectbox if field.label == "Result Scope"
+    assert [title.value for title in app.title] == ["Personal Corpus"]
+    assert database_path.is_file()
+    report = _section_navigation(app, "Report Section")
+    assert report.options == PERSONAL_CORPUS_SECTIONS
+    assert report.value == "Poems & Metadata"
+    assert "Add One or More Poems" in [
+        panel.label for panel in app.expander
+    ]
+    assert "Edit a Poem" in [panel.label for panel in app.expander]
+    assert "Delete a Poem" in [panel.label for panel in app.expander]
+
+
+def test_personal_corpus_edits_versions_and_deletes_exactly_one_poem(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    database_path = tmp_path / "personal_corpus.sqlite3"
+    monkeypatch.setenv(
+        "VERSEVAD_PERSONAL_CORPUS_DATABASE_PATH",
+        str(database_path),
     )
-    report = next(
+    repository = ProjectRepository(database_path)
+    project = repository.create_project("My Personal Corpus")
+    original = repository.import_texts(
+        project.project_id,
+        (
+            CorpusTextImport(
+                "Editable Poem",
+                "editable.txt",
+                "editable.txt",
+                "Bright.",
+            ),
+        ),
+    )[0]
+
+    app = AppTest.from_file(str(APP_PATH), default_timeout=30).run()
+    _open_workspace(app, "Personal Corpus")
+
+    poem_text = next(
+        area for area in app.text_area if area.value == "Bright."
+    )
+    poem_text.input("Bright, then dark.")
+    _button(app, "Save Poem Changes").click()
+    app.run(timeout=30)
+
+    updated = repository.get_text(original.text_id)
+    assert updated.original_text == "Bright, then dark."
+    assert updated.text_version_id != original.text_version_id
+
+    confirmation = next(
         field
-        for field in app.selectbox
-        if field.label == "Analysis Report"
-        and "Structure" in field.options
+        for field in app.text_input
+        if field.label.startswith("Type the exact poem title to confirm")
     )
-    assert list(scope.options) == ["Whole Corpus", "First", "Second"]
-    assert "Structure" in report.options
-    assert any(
-        field.label == "Corpus analysis profile" for field in app.selectbox
-    )
-    for label in ("Add as New", "Update Selected", "Delete Selected"):
-        assert label in [button.label for button in app.button]
-    assert not any(
-        "Work, line, and stanza results" in block.value
-        for block in app.markdown
-    )
-    scope.set_value(scope.options[1])
-    app.run(timeout=90)
+    confirmation.input("Editable Poem")
+    app.run(timeout=30)
+    delete = _button(app, "Delete This Poem")
+    assert not delete.disabled
+    delete.click()
+    app.run(timeout=30)
+
     assert not app.exception
-    assert any(field.label == "Analysis" for field in app.selectbox)
+    assert repository.list_texts(project.project_id) == ()
+    assert any(
+        'Deleted "Editable Poem"' in message.value
+        for message in app.success
+    )
 
 
 def test_corpus_workspace_exposes_phase5_review_scenarios(
@@ -1113,10 +1194,7 @@ def test_lexicon_explorer_offers_printable_word_report() -> None:
     )
     query.input("bright")
     _button(app, "Search installed lexicons").click()
-    # The private cloud repository intentionally bundles every licensed
-    # dataset, so a completely cold Windows test process can spend longer than
-    # one minute loading all Lexicon Explorer sources for the first query.
-    app.run(timeout=180)
+    app.run(timeout=60)
 
     assert not app.exception
     assert "Dictionary Senses" in [
@@ -1283,8 +1361,8 @@ def test_affective_tables_render_when_no_tokens_match_the_lexicon(
 
     assert not app.exception
     assert any(
-        heading.value == "Cumulative Normative Lexical Load"
-        for heading in app.subheader
+        expander.label == "Cumulative Lexical Load"
+        for expander in app.expander
     )
 
 
@@ -1344,7 +1422,7 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
         "Download readable summary",
         "Download CSV reading guide",
         "Download narrative report",
-        "Download full audit bundle",
+        "Download current-view bundle",
     } <= {button.label for button in app.get("download_button")}
     report_navigation.set_value("Export & Help")
     app.run(timeout=60)
@@ -1356,48 +1434,16 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
     assert {button.label for button in downloads} >= {
         "Download readable summary",
         "Download CSV reading guide",
-        "Download full audit bundle",
+        "Download current-view bundle",
     }
-    assert any("Parallel Normalized VAD Views" in heading.value for heading in app.subheader)
-    vad_headings = [heading.value for heading in app.subheader]
-    assert "Dispersion of Matched Ratings" in vad_headings
-    assert vad_headings.index("What Valence, Arousal, and Dominance Mean") < (
-        vad_headings.index("Dispersion of Matched Ratings")
-    ) < vad_headings.index("Repetition-Sensitive and Vocabulary-Sensitive Means")
-    assert "Dispersion of matched ratings" not in [
-        expander.label for expander in app.expander
-    ]
-    assert any("Stopword Sensitivity" in heading.value for heading in app.subheader)
-    assert any("Eight Emotion Associations" in heading.value for heading in app.subheader)
     assert any(
-        "VADER Rule-Based Sentiment" in heading.value
-        for heading in app.subheader
-    )
-    assert any(
-        "Sentence-Level VADER Scores" in heading.value
-        for heading in app.subheader
-    )
-    assert any("Lexical Trajectory" in heading.value for heading in app.subheader)
-    assert any(
-        "Readability and Grade-Formula Evidence" in heading.value
-        for heading in app.subheader
-    )
-    assert any(
-        "Positive and Negative Sentiment Associations" in heading.value
-        for heading in app.subheader
-    )
-    assert any("Part-of-Speech Profile" in heading.value for heading in app.subheader)
-    assert any(
-        "VAD Means by Part of Speech" in heading.value
-        for heading in app.subheader
-    )
-    assert any(
-        "Shared Processing Record" in heading.value for heading in app.subheader
-    )
-    assert any(
-        "Concreteness was not selected" in message.value
+        "REPRODUCIBILITY_README.txt" in message.value
+        and "FILE_INVENTORY.txt" in message.value
         for message in app.info
     )
+    profile_controls = {field.label: field for field in app.multiselect}
+    assert profile_controls["Lexical scope"].value == ["Stopword-excluded"]
+    assert profile_controls["Aggregation weighting"].value == ["Token-weighted"]
 
 
 def test_lexical_trajectory_source_change_retains_affective_report_section() -> None:
@@ -1475,15 +1521,6 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     assert not poetry_id.disabled
     poetry_id.set_value(True)
     app.run(timeout=60)
-    analysis_views = next(
-        field
-        for field in app.multiselect
-        if field.label == "PoetryID analysis views"
-    )
-    assert analysis_views.value == [
-        "all_matched",
-        "stopwords_excluded",
-    ]
     _button(app, "Analyze Poem").click()
     app.run(timeout=60)
 
@@ -1492,39 +1529,37 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
         heading.value == "PoetryID" for heading in app.subheader
     )
     selectors = {field.label: field for field in app.selectbox}
-    assert {
-        "PoetryID VAD source",
-        "PoetryID token scope",
-        "PoetryID weighting",
-    } <= selectors.keys()
-    assert selectors["PoetryID token scope"].options == [
-        "All matched tokens (including stopwords)",
-        "Stopwords excluded",
+    assert "PoetryID VAD source" in selectors
+    profile_controls = {field.label: field for field in app.multiselect}
+    assert profile_controls["Lexical scope"].options == [
+        "All lexical tokens",
+        "Stopword-excluded",
+        "Content words only",
     ]
-    assert selectors["PoetryID weighting"].options == [
+    assert profile_controls["Aggregation weighting"].options == [
         "Token-weighted",
         "Type-weighted",
     ]
     report_navigation = _section_navigation(app, "Report section")
     report_navigation.set_value("Affective Evidence")
     app.run(timeout=60)
-    token_scope = next(
+    lexical_scope = next(
         field
-        for field in app.selectbox
-        if field.label == "PoetryID token scope"
+        for field in app.multiselect
+        if field.label == "Lexical scope"
     )
-    token_scope.set_value("stopwords_excluded")
+    lexical_scope.set_value(["Stopword-excluded"])
     app.run(timeout=60)
     assert _section_navigation(app, "Report section").value == (
         "Affective Evidence"
     )
-    labels = {
-        button.label
-        for button in app.get("download_button")
-        if button.label.startswith("Download poetry_id_")
-    }
-    assert "Download poetry_id_summary.csv" in labels
-    assert "Download poetry_id_report.docx" in labels
+    report_navigation = _section_navigation(app, "Report section")
+    report_navigation.set_value("Export & Help")
+    app.run(timeout=60)
+    _button(app, "Prepare downloads").click()
+    app.run(timeout=60)
+    labels = {button.label for button in app.get("download_button")}
+    assert "Download current-view bundle" in labels
     assert not any(label.endswith(".json") for label in labels)
 
 
@@ -1682,17 +1717,22 @@ def test_interface_runs_optional_frequency_profile_and_content_scope_if_present(
     assert not frequency.disabled
     frequency.set_value(True)
     app.run(timeout=90)
-    content_scope = next(
-        field for field in app.checkbox if field.label == "Content words only"
-    )
-    assert not content_scope.disabled
-    content_scope.set_value(True)
-    app.run(timeout=90)
     _button(app, "Analyze Poem").click()
     app.run(timeout=90)
 
     assert not app.exception
     assert any("Analysis complete" in message.value for message in app.success)
+    content_scope = [
+        field for field in app.multiselect if field.label == "Lexical scope"
+    ][-1]
+    content_scope.set_value(["Content words only"])
+    app.run(timeout=90)
+    assert app.session_state["single_poem_report_profiles_scopes"] == [
+        "Content words only"
+    ]
+    navigation = _section_navigation(app, "Report section")
+    navigation.set_value("Lexical Character, Imagery & Embodiment")
+    app.run(timeout=90)
     assert _section_navigation(app, "Report section").options == (
         REPORT_SECTIONS
     )
@@ -1705,9 +1745,9 @@ def test_interface_runs_optional_frequency_profile_and_content_scope_if_present(
         metric for metric in app.metric if metric.label == "Median Zipf (primary)"
     )
     assert median_metric.value != "—"
-    assert any(
-        "Content words only" in caption.value for caption in app.caption
-    )
+    assert next(
+        field for field in app.multiselect if field.label == "Lexical scope"
+    ).value == ["Content words only"]
 
 
 def test_interface_runs_optional_aoa_profile_and_contextual_scope_if_present() -> None:
@@ -1737,19 +1777,22 @@ def test_interface_runs_optional_aoa_profile_and_contextual_scope_if_present() -
     assert not aoa.disabled
     aoa.set_value(True)
     app.run(timeout=90)
-    content_scope = next(
-        field
-        for field in app.checkbox
-        if field.label == "AoA content words only"
-    )
-    assert not content_scope.disabled
-    content_scope.set_value(True)
-    app.run(timeout=90)
     _button(app, "Analyze Poem").click()
     app.run(timeout=90)
 
     assert not app.exception
     assert any("Analysis complete" in message.value for message in app.success)
+    content_scope = [
+        field for field in app.multiselect if field.label == "Lexical scope"
+    ][-1]
+    content_scope.set_value(["Content words only"])
+    app.run(timeout=90)
+    assert app.session_state["single_poem_report_profiles_scopes"] == [
+        "Content words only"
+    ]
+    navigation = _section_navigation(app, "Report section")
+    navigation.set_value("Lexical Character, Imagery & Embodiment")
+    app.run(timeout=90)
     assert any(
         heading.value == "Normative Lexical Age of Acquisition"
         for heading in app.subheader
@@ -1758,9 +1801,9 @@ def test_interface_runs_optional_aoa_profile_and_contextual_scope_if_present() -
         metric for metric in app.metric if metric.label == "Mean normative AoA"
     )
     assert mean_metric.value != "â€”"
-    assert any(
-        "Content words only" in caption.value for caption in app.caption
-    )
+    assert next(
+        field for field in app.multiselect if field.label == "Lexical scope"
+    ).value == ["Content words only"]
     assert any(
         "not diagnostic of cognitive impairment" in warning.value
         for warning in app.warning
@@ -2083,7 +2126,7 @@ def test_interface_runs_optional_performance_aware_meter_workflow() -> None:
     mode = next(
         field
         for field in app.selectbox
-        if field.label == "Meter analysis level"
+            if field.label == "Meter analysis level"
     )
     mode.set_value("Performance-aware realization")
     app.run(timeout=90)

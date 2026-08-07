@@ -11,7 +11,7 @@ from versevad.db import CorpusMetricRecord, CorpusTextRecord, ProjectRecord
 from versevad.exports.corpus_csv import build_corpus_export_bundle
 
 
-def test_corpus_export_contains_csv_data_and_word_report_only() -> None:
+def test_corpus_export_contains_data_report_and_reproducibility_records() -> None:
     project = ProjectRecord(
         project_id="project-export",
         title="Export Project",
@@ -48,10 +48,9 @@ def test_corpus_export_contains_csv_data_and_word_report_only() -> None:
         assert "corpus_report.docx" in names
         assert "corpus_works.csv" in names
         assert "corpus_methodology.csv" in names
-        assert not any(
-            name.endswith((".json", ".txt", ".xlsx"))
-            for name in names
-        )
+        assert "REPRODUCIBILITY_README.txt" in names
+        assert "FILE_INVENTORY.txt" in names
+        assert not any(name.endswith((".json", ".xlsx")) for name in names)
         rows = list(
             csv.DictReader(
                 io.StringIO(

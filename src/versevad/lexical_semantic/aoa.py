@@ -22,6 +22,7 @@ from versevad.adapters.kuperman_aoa import (
     KupermanAoAValidation,
 )
 from versevad.analysis.statistics import descriptive_statistics
+from versevad.analysis_profiles import CONTENT_WORD_POS_TAGS
 from versevad.core.documents import StructuralUnitKind
 from versevad.core.modules import (
     ModuleCoverage,
@@ -84,7 +85,7 @@ KUPERMAN_AOA_SPEC = ResourceSpec(
     license_notice=KUPERMAN_AOA_LICENSE_NOTICE,
 )
 
-AOA_CONTENT_WORD_POS = frozenset({"NOUN", "VERB", "ADJ", "ADV"})
+AOA_CONTENT_WORD_POS = CONTENT_WORD_POS_TAGS
 
 
 class AoAModuleError(RuntimeError):
@@ -107,6 +108,7 @@ class AoAConfiguration:
     early_acquired_max: float = 5.0
     later_acquired_min: float = 12.0
     exclude_proper_nouns: bool = False
+    # Legacy field: report scope no longer restricts retained evidence.
     content_words_only: bool = False
     enable_lemma_fallback: bool = True
     minimum_matched_tokens: int = 3
@@ -151,11 +153,7 @@ class AoAConfiguration:
 
     @property
     def scope_label(self) -> str:
-        return (
-            "Content words only (NOUN, VERB, ADJ, ADV)"
-            if self.content_words_only
-            else "All lexicon-eligible word tokens"
-        )
+        return "All lexicon-eligible word tokens; report scope is selected later"
 
 
 @dataclass(frozen=True)
@@ -428,16 +426,6 @@ def _ineligible_reason(
         return (
             "Excluded by the configured proper-name policy because a source "
             "spelling match need not represent this named entity."
-        )
-    if (
-        configuration.content_words_only
-        and token.part_of_speech not in AOA_CONTENT_WORD_POS
-    ):
-        return (
-            "Excluded by the optional contextual content-word-only scope. "
-            "Eligible model tags are NOUN, VERB, ADJ, and ADV; determiners, "
-            "prepositions, conjunctions, pronouns, auxiliaries, and punctuation "
-            "remain outside this denominator."
         )
     return None
 
@@ -939,10 +927,11 @@ def _warnings(
     if configuration.content_words_only:
         warnings.append(
             ModuleWarning(
-                code="content_words_only_scope",
+                code="legacy_content_scope_migrated",
                 message=(
-                    "The optional contextual content-word-only scope is active. "
-                    "Only model-tagged NOUN, VERB, ADJ, and ADV tokens contribute."
+                    "A legacy content-word setting was retained as provenance. "
+                    "The completed result still retains all lexical evidence; "
+                    "Content words only is now selected in report controls."
                 ),
                 severity=WarningSeverity.INFORMATION,
             )
@@ -1355,25 +1344,16 @@ class AoAModule:
             license_notice=self.resource_spec.license_notice,
             adapter_version=KupermanAoAAdapter.adapter_version,
         )
-        if config.content_words_only:
-            inclusion_policy = (
-                "Only model-tagged NOUN, VERB, ADJ, and ADV word tokens; "
-                "function words, auxiliaries, punctuation, pure numeric literals, "
-                "and alphabetically spelled NUM tokens are outside this explicit "
-                "content-word scope."
+        inclusion_policy = (
+            "All ordinary lexical tokens plus alphabetically spelled "
+            "number-like tokens; punctuation and pure numeric literals excluded; "
+            + (
+                "model-tagged proper nouns excluded by explicit configuration."
+                if config.exclude_proper_nouns
+                else "model-tagged proper nouns included by default."
             )
-        else:
-            inclusion_policy = (
-                "All ordinary lexical tokens plus alphabetically spelled "
-                "number-like tokens; punctuation and pure numeric literals excluded; "
-                + (
-                    "model-tagged proper nouns excluded by explicit configuration."
-                    if config.exclude_proper_nouns
-                    else (
-                        "model-tagged proper nouns included by default."
-                    )
-                )
-            )
+            + " Scope and weighting are applied later from retained evidence."
+        )
         lookup_policy = (
             "Exact normalized observed form first; "
             + (

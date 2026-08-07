@@ -234,6 +234,24 @@ def _vad_coverage(result, analysis_view: str) -> float | None:
 
 
 def _selected_vad_matches(result, analysis_view: str, weighting: str):
+    from versevad.analysis_profiles import (
+        LexicalScope,
+        phrase_adjusted_eligible_ids,
+        scoped_token_ids,
+    )
+
+    if analysis_view == "content_words":
+        base_ids = scoped_token_ids(result.tokens, LexicalScope.CONTENT_WORDS)
+        eligible_ids = phrase_adjusted_eligible_ids(
+            base_ids,
+            (
+                match.token_ids
+                for match in result.matches
+                if match.included and len(match.token_ids) > 1
+            ),
+        )
+    else:
+        eligible_ids = None
     selected = [
         match
         for match in result.matches
@@ -241,7 +259,12 @@ def _selected_vad_matches(result, analysis_view: str, weighting: str):
         and match.normalized_scores is not None
         and (
             analysis_view == "all_matched"
-            or match.included_in_stopword_view
+            or (analysis_view == "stopwords_excluded" and match.included_in_stopword_view)
+            or (
+                analysis_view == "content_words"
+                and eligible_ids is not None
+                and set(match.token_ids).issubset(eligible_ids)
+            )
         )
     ]
     if weighting == "type":
@@ -272,20 +295,46 @@ def _vad_rows(
     for lexicon_id in sorted(set(first_by_id) & set(second_by_id)):
         first = first_by_id[lexicon_id]
         second = second_by_id[lexicon_id]
-        group_a = _vad_group(first, analysis_view, weighting)
-        group_b = _vad_group(second, analysis_view, weighting)
-        if group_a is None or group_b is None:
-            continue
         source = first.lexicon_metadata.display_name
-        coverage_a = _vad_coverage(first, analysis_view)
-        coverage_b = _vad_coverage(second, analysis_view)
         matches_a = _selected_vad_matches(first, analysis_view, weighting)
         matches_b = _selected_vad_matches(second, analysis_view, weighting)
+        from versevad.analysis_profiles import (
+            AggregationWeighting,
+            AnalysisProfile,
+            LexicalScope,
+        )
+        from versevad.profile_aggregation import vad_profile_summaries
+
+        scope = {
+            "all_matched": LexicalScope.ALL_LEXICAL,
+            "stopwords_excluded": LexicalScope.STOPWORD_EXCLUDED,
+            "content_words": LexicalScope.CONTENT_WORDS,
+        }[analysis_view]
+        profile = AnalysisProfile(
+            scope,
+            AggregationWeighting.TYPE
+            if weighting == "type"
+            else AggregationWeighting.TOKEN,
+        )
+        summaries_a = vad_profile_summaries(first)
+        summaries_b = vad_profile_summaries(second)
         denominator_a = f"{len(matches_a)} matched {weighting}-weighted observations"
         denominator_b = f"{len(matches_b)} matched {weighting}-weighted observations"
         for dimension in ("valence", "arousal", "dominance"):
-            stats_a = getattr(group_a, dimension)
-            stats_b = getattr(group_b, dimension)
+            summary_a = summaries_a[dimension][profile]
+            summary_b = summaries_b[dimension][profile]
+            stats_a = summary_a.statistics
+            stats_b = summary_b.statistics
+            coverage_a = (
+                summary_a.coverage.token_coverage
+                if weighting == "token"
+                else summary_a.coverage.type_coverage
+            )
+            coverage_b = (
+                summary_b.coverage.token_coverage
+                if weighting == "token"
+                else summary_b.coverage.type_coverage
+            )
             rows.extend(
                 (
                     _row(
@@ -1077,7 +1126,6 @@ def _generic_dependent_rows(
         ("pronunciation", "Structure & Sound"),
         ("meter", "Structure & Sound"),
         ("phonology", "Structure & Sound"),
-        ("poetry_id", "Affective Evidence"),
         ("inherited_form", "Structure & Sound"),
         ("versemap", "Comparative Context"),
     )
@@ -1116,6 +1164,76 @@ def _generic_dependent_rows(
                     note=a.note,
                 )
             )
+    return rows
+
+
+def _poetry_id_rows(
+    comparison: PoemComparison,
+    *,
+    analysis_view: str,
+    weighting: str,
+) -> list[PoemComparisonRow]:
+    first = comparison.first.poetry_id
+    second = comparison.second.poetry_id
+    if first is None or second is None:
+        return []
+    first_by_source = {
+        assignment.source_analysis_id: assignment
+        for assignment in first.assignments
+        if assignment.analysis_view == analysis_view
+        and assignment.weighting_mode == weighting
+    }
+    second_by_source = {
+        assignment.source_analysis_id: assignment
+        for assignment in second.assignments
+        if assignment.analysis_view == analysis_view
+        and assignment.weighting_mode == weighting
+    }
+    rows: list[PoemComparisonRow] = []
+    for source_id in sorted(set(first_by_source) & set(second_by_source)):
+        first_assignment = first_by_source[source_id]
+        second_assignment = second_by_source[source_id]
+        denominator_a = (
+            f"{first_assignment.coverage.matched_token_count} matched tokens; "
+            f"{first_assignment.coverage.matched_type_count} matched types"
+        )
+        denominator_b = (
+            f"{second_assignment.coverage.matched_token_count} matched tokens; "
+            f"{second_assignment.coverage.matched_type_count} matched types"
+        )
+        common = dict(
+            section="Affective Evidence",
+            source=first_assignment.source_lexicon_name,
+            analysis_view=analysis_view,
+            weighting=weighting,
+            denominator_a=denominator_a,
+            denominator_b=denominator_b,
+            coverage_a=first_assignment.coverage.token_coverage,
+            coverage_b=second_assignment.coverage.token_coverage,
+            unit_or_scale="canonical profile ID",
+            note=(
+                "Category fit is the primary rule-based archetype; nearest "
+                "centroid is the secondary continuous-distance comparison."
+            ),
+        )
+        rows.extend(
+            (
+                _row(
+                    **common,
+                    metric_id=f"poetry_id.{source_id}.category_fit",
+                    metric="Category Fit Archetype",
+                    value_a=first_assignment.categorical_archetype.name,
+                    value_b=second_assignment.categorical_archetype.name,
+                ),
+                _row(
+                    **common,
+                    metric_id=f"poetry_id.{source_id}.nearest_centroid",
+                    metric="Nearest Centroid Archetype",
+                    value_a=first_assignment.nearest_centroid_archetype.name,
+                    value_b=second_assignment.nearest_centroid_archetype.name,
+                ),
+            )
+        )
     return rows
 
 
@@ -1410,13 +1528,152 @@ def _emotion_rows(
     return rows
 
 
+def _canonical_profile_rows(
+    comparison: PoemComparison,
+    *,
+    analysis_view: str,
+    weighting: str,
+) -> list[PoemComparisonRow]:
+    """Compare retained configurable evidence under one canonical profile."""
+
+    from versevad.analysis_profiles import (
+        AggregationWeighting,
+        AnalysisProfile,
+        LexicalScope,
+    )
+    from versevad.workspace_profiles import workspace_profile_metrics
+
+    scope = {
+        "all_matched": LexicalScope.ALL_LEXICAL,
+        "stopwords_excluded": LexicalScope.STOPWORD_EXCLUDED,
+        "content_words": LexicalScope.CONTENT_WORDS,
+    }[analysis_view]
+    profile = AnalysisProfile(
+        scope,
+        AggregationWeighting.TYPE if weighting == "type" else AggregationWeighting.TOKEN,
+    )
+    first = {
+        (row.module_id, row.source_id, row.metric_id): row
+        for row in workspace_profile_metrics(comparison.first)
+        if row.profile == profile
+    }
+    second = {
+        (row.module_id, row.source_id, row.metric_id): row
+        for row in workspace_profile_metrics(comparison.second)
+        if row.profile == profile
+    }
+    section_by_module = {
+        "vad": "Affective Evidence",
+        "emotion_association": "Affective Evidence",
+        "emotion_intensity": "Affective Evidence",
+        "concreteness": "Lexical Character, Imagery & Embodiment",
+        "frequency": "Lexical Character, Imagery & Embodiment",
+        "aoa": "Lexical Character, Imagery & Embodiment",
+        "sensorimotor": "Lexical Character, Imagery & Embodiment",
+        "word_length": "Structure",
+    }
+    output: list[PoemComparisonRow] = []
+    for key in sorted(set(first) & set(second)):
+        row_a = first[key]
+        row_b = second[key]
+        if row_a.module_id == "vad":
+            # VAD retains its established public metric IDs and complete
+            # midpoint/volatility family in _vad_rows below.
+            continue
+        section = section_by_module.get(row_a.module_id, "Structure")
+        denominator_a = (
+            f"{row_a.observation_count} observations; "
+            f"{row_a.coverage.matched_token_count}/"
+            f"{row_a.coverage.eligible_token_count} eligible tokens matched"
+        )
+        denominator_b = (
+            f"{row_b.observation_count} observations; "
+            f"{row_b.coverage.matched_token_count}/"
+            f"{row_b.coverage.eligible_token_count} eligible tokens matched"
+        )
+        common = dict(
+            section=section,
+            source=row_a.source_label,
+            analysis_view=analysis_view,
+            weighting=weighting,
+            denominator_a=denominator_a,
+            denominator_b=denominator_b,
+            coverage_a=row_a.coverage.token_coverage,
+            coverage_b=row_b.coverage.token_coverage,
+            note=(
+                "Post-analysis aggregation from retained evidence; scope-relative "
+                "coverage excludes out-of-scope tokens from the denominator."
+            ),
+        )
+        metric_base = row_a.metric_id
+        metric_statistic = "mean"
+        module_prefix = row_a.module_id
+        metric_label = row_a.metric_label
+        if row_a.module_id == "emotion_association":
+            module_prefix = "emotion"
+            metric_base = metric_base.removesuffix("_association")
+            metric_statistic = "proportion"
+        elif row_a.module_id == "emotion_intensity":
+            metric_base = metric_base.removesuffix("_intensity")
+        output.append(
+            _row(
+                **common,
+                metric_id=(
+                    f"{module_prefix}.{row_a.source_id}.{metric_base}."
+                    f"{metric_statistic}"
+                ),
+                metric=metric_label,
+                value_a=row_a.value,
+                value_b=row_b.value,
+                unit_or_scale=row_a.unit,
+            )
+        )
+        if (
+            row_a.population_standard_deviation is not None
+            or row_b.population_standard_deviation is not None
+        ):
+            output.append(
+                _row(
+                    **common,
+                    metric_id=(
+                        f"{module_prefix}.{row_a.source_id}.{metric_base}.population_sd"
+                    ),
+                    metric=f"{row_a.metric_label} population standard deviation",
+                    value_a=row_a.population_standard_deviation,
+                    value_b=row_b.population_standard_deviation,
+                    unit_or_scale=row_a.unit,
+                )
+            )
+        if (
+            row_a.module_id != "emotion_association"
+            and (row_a.cumulative_value is not None or row_b.cumulative_value is not None)
+        ):
+            output.append(
+                _row(
+                    **common,
+                    metric_id=(
+                        f"{module_prefix}.{row_a.source_id}.{metric_base}.cumulative"
+                    ),
+                    metric=f"{row_a.metric_label} cumulative lexical load",
+                    value_a=row_a.cumulative_value,
+                    value_b=row_b.cumulative_value,
+                    unit_or_scale=f"summed {row_a.unit}",
+                )
+            )
+    return output
+
+
 def comparison_rows(
     comparison: PoemComparison,
     *,
     analysis_view: str = "all_matched",
     weighting: str = "token",
 ) -> tuple[PoemComparisonRow, ...]:
-    if analysis_view not in {"all_matched", "stopwords_excluded"}:
+    if analysis_view not in {
+        "all_matched",
+        "stopwords_excluded",
+        "content_words",
+    }:
         raise ValueError(f"Unknown comparison analysis view: {analysis_view}")
     if weighting not in {"token", "type"}:
         raise ValueError(f"Unknown comparison weighting: {weighting}")
@@ -1426,12 +1683,12 @@ def comparison_rows(
             analysis_view=analysis_view,
             weighting=weighting,
         ),
-        *_emotion_rows(
+        *_canonical_profile_rows(
             comparison,
             analysis_view=analysis_view,
             weighting=weighting,
         ),
-        *_lexical_rows(
+        *_poetry_id_rows(
             comparison,
             analysis_view=analysis_view,
             weighting=weighting,

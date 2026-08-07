@@ -429,6 +429,7 @@ def build_narrative_report(
     result_id: str = "",
     warnings: Sequence[str] = (),
     additional_paragraphs: Sequence[str] = (),
+    methods_reproducibility: Sequence[str] = (),
 ) -> bytes:
     """Build one accessible narrative report with stable package bytes."""
 
@@ -482,6 +483,12 @@ def build_narrative_report(
             paragraph = document.add_paragraph(style="List Bullet")
             paragraph.add_run(caution)
 
+    if methods_reproducibility:
+        document.add_heading("Methods and Reproducibility", level=1)
+        for paragraph_text in methods_reproducibility:
+            if _clean(paragraph_text):
+                document.add_paragraph(_clean(paragraph_text))
+
     _add_companion_table(document, companion_csv_files)
     document.add_heading("How to cite and reproduce", level=1)
     document.add_paragraph(
@@ -505,6 +512,7 @@ def build_narrative_report_from_summary_csv(
     result_id: str = "",
     warnings: Sequence[str] = (),
     additional_paragraphs: Sequence[str] = (),
+    methods_reproducibility: Sequence[str] = (),
 ) -> bytes:
     """Build a report from any VerseVAD summary CSV using a named profile."""
 
@@ -517,4 +525,5 @@ def build_narrative_report_from_summary_csv(
         result_id=result_id,
         warnings=warnings,
         additional_paragraphs=additional_paragraphs,
+        methods_reproducibility=methods_reproducibility,
     )

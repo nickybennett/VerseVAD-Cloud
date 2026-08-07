@@ -44,6 +44,8 @@ from versevad.ui.design import (
     render_workspace_header,
 )
 from versevad.ui.versemap import render_versemap
+from versevad.module_capabilities import fixed_profile_notice
+from versevad.ui.profile_controls import render_report_profile_controls
 from versevad.versemap import VerseMapConfiguration
 from versevad.versemap.profile import FEATURE_BY_ID
 
@@ -864,6 +866,8 @@ def _render_corpus_browser_poem(index, poems_frame, point) -> None:
         ),
         key="corpus_browser_poem_report",
     )
+    render_report_profile_controls("corpus_browser_poem")
+    st.caption(fixed_profile_notice("versemap"))
     feature_frame = _corpus_browser_poem_feature_frame(index, point)
     if report == "Profile Overview":
         overview_rows = []
@@ -1116,6 +1120,8 @@ def render_corpus_browser_workspace() -> None:
         ),
         key="corpus_browser_section",
     )
+    render_report_profile_controls("corpus_browser")
+    st.caption(fixed_profile_notice("versemap"))
     if section == "Overview":
         metrics = st.columns(4)
         metrics[0].metric("Poems", len(index.poems))
@@ -1590,7 +1596,16 @@ def render_form_library_workspace() -> None:
 
 
 _DOCUMENTATION_SOURCES = (
-    ("User Guide", "docs/user-guide.md", "Workspace-by-workspace operating guide."),
+    (
+        "Documentation Index",
+        "docs/index.md",
+        "Maintained entry point for user, methods, resources, and development guidance.",
+    ),
+    (
+        "User Guide",
+        "docs/user-guide.md",
+        "Task-oriented operating guide for navigation, analysis, saving, and export.",
+    ),
     (
         "Resource Installation",
         "docs/resource-installation.md",
@@ -1611,7 +1626,7 @@ _DOCUMENTATION_SOURCES = (
     ("Project README", "README.md", "Project overview, installation, and entry points."),
 )
 _METHODOLOGY_SOURCES = (
-    ("All Metrics and Limitations", "docs/methodology.md"),
+    ("Metric Formulas, Denominators, and Limitations", "docs/methodology.md"),
     ("Lexicons and Provenance", "docs/lexicons.md"),
     ("VerseMap Standard Profile 1.0", "docs/versemap-standard-profile.md"),
     ("Inherited Form Registry", "docs/inherited-form-registry-v2.md"),

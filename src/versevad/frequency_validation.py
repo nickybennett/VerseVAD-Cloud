@@ -188,8 +188,10 @@ def run_synthetic_frequency_validation(
         "exact_tokens": 4,
         "lemma_tokens": 1,
         "unmatched_tokens": 1,
-        "content_scope_eligible_tokens": 4,
-        "content_scope_excluded_tokens": 5,
+        # The legacy module-local content_words_only flag is intentionally a
+        # no-op. Content scope is now reconstructed from retained evidence.
+        "content_scope_eligible_tokens": 9,
+        "content_scope_excluded_tokens": 0,
     }
     for field, value in expected.items():
         if getattr(report, field) != value:

@@ -41,7 +41,7 @@ from versevad.models import (
 from versevad.normalization import normalize_lookup
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 _OBSERVATION_COVERAGE_BY_METRIC = {
@@ -86,6 +86,15 @@ def default_database_path() -> Path:
     if configured:
         return Path(configured).expanduser()
     return PROJECT_ROOT / "projects" / "versevad.sqlite3"
+
+
+def default_personal_corpus_database_path() -> Path:
+    """Return the isolated local database used by the Personal Corpus view."""
+
+    configured = os.environ.get("VERSEVAD_PERSONAL_CORPUS_DATABASE_PATH")
+    if configured:
+        return Path(configured).expanduser()
+    return PROJECT_ROOT / "projects" / "personal_corpus.sqlite3"
 
 
 def _now() -> str:
@@ -745,6 +754,15 @@ CREATE INDEX idx_corpus_module_aggregates_batch
 ON corpus_module_aggregates(batch_id, module_name, metric_id);
 """
 
+# Version 5 changes the semantic contract of ``analysis_metrics.analysis_view``
+# to the three canonical scope identifiers and guarantees all six
+# scope/weighting rows for newly completed batches. No physical table change
+# is required; recording the migration prevents silent mixed-schema claims.
+_MIGRATION_5 = """
+CREATE INDEX IF NOT EXISTS idx_corpus_metrics_profile
+ON analysis_metrics(run_id, analysis_view, weighting, metric);
+"""
+
 
 class ProjectRepository:
     """Own the local SQLite database and its explicit migrations."""
@@ -836,6 +854,13 @@ class ProjectRepository:
                 connection.execute(
                     "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                     (4, _now()),
+                )
+                current = 4
+            if current < 5:
+                connection.executescript(_MIGRATION_5)
+                connection.execute(
+                    "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+                    (5, _now()),
                 )
 
     def schema_version(self) -> int:
@@ -1775,6 +1800,42 @@ class ProjectRepository:
             )
         return self.get_text(text_id)
 
+    def delete_text(
+        self,
+        project_id: str,
+        text_id: str,
+        *,
+        confirmation_title: str,
+    ) -> None:
+        """Delete exactly one corpus work after an exact title confirmation."""
+
+        self.initialize()
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT title
+                FROM texts
+                WHERE text_id = ? AND project_id = ?
+                """,
+                (text_id, project_id),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"Unknown text in this corpus: {text_id}")
+            if confirmation_title != row["title"]:
+                raise ValueError(
+                    "The confirmation text does not exactly match the poem title."
+                )
+            cursor = connection.execute(
+                "DELETE FROM texts WHERE text_id = ? AND project_id = ?",
+                (text_id, project_id),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError("VerseVAD could not delete the selected poem.")
+            connection.execute(
+                "UPDATE projects SET updated_at = ? WHERE project_id = ?",
+                (_now(), project_id),
+            )
+
     @staticmethod
     def _workspace_modules(workspace: WorkspaceAnalysis) -> tuple[tuple, ...]:
         """Return completed reusable results and their existing audit exporters."""
@@ -1983,6 +2044,207 @@ class ProjectRepository:
 
     @staticmethod
     def _metric_rows(workspace: WorkspaceAnalysis) -> list[tuple]:
+        # Version 2 stores the complete six-profile cross-product directly
+        # from retained evidence. Fixed-profile modules continue through the
+        # module-metric persistence path below.
+        from versevad.workspace_profiles import workspace_profile_metrics
+
+        canonical_rows: list[tuple] = []
+        recorded_coverage: set[tuple[str, str, str]] = set()
+        scope_ids = {
+            "ALL_LEXICAL": "all_matched",
+            "STOPWORD_EXCLUDED": "stopwords_excluded",
+            "CONTENT_WORDS": "content_words",
+        }
+        for item in workspace_profile_metrics(workspace):
+            coverage = item.coverage
+            coverage_key = (
+                item.source_id,
+                item.profile.scope.value,
+                item.profile.weighting.value,
+            )
+            if coverage_key not in recorded_coverage:
+                recorded_coverage.add(coverage_key)
+                type_weighted = item.profile.weighting.value == "TYPE"
+                matched_count = (
+                    coverage.matched_type_count
+                    if type_weighted
+                    else coverage.matched_token_count
+                )
+                eligible_count = (
+                    coverage.eligible_type_count
+                    if type_weighted
+                    else coverage.eligible_token_count
+                )
+                coverage_value = (
+                    coverage.type_coverage
+                    if type_weighted
+                    else coverage.token_coverage
+                )
+                if coverage_value is not None:
+                    canonical_rows.append(
+                        (
+                            item.source_id,
+                            item.source_label,
+                            "continuous",
+                            scope_ids[item.profile.scope.value],
+                            "type_coverage" if type_weighted else "coverage",
+                            "",
+                            "",
+                            item.profile.weighting.value.casefold(),
+                            "proportion",
+                            f"{eligible_count} eligible "
+                            f"{'types' if type_weighted else 'tokens'}",
+                            float(coverage_value),
+                            matched_count,
+                            coverage.matched_token_count,
+                            coverage.eligible_token_count,
+                            coverage.token_coverage,
+                        )
+                    )
+            values: tuple[tuple[str, float | None, str], ...] = (
+                ("mean", item.value, item.unit),
+                (
+                    "standard_deviation",
+                    item.population_standard_deviation,
+                    item.unit,
+                ),
+                ("cumulative", item.cumulative_value, f"summed {item.unit}"),
+            )
+            if item.module_id == "vad":
+                observation_count = item.observation_count
+                per_observation = (
+                    1.0 / observation_count if observation_count else None
+                )
+                values += (
+                    (
+                        "above_midpoint_load",
+                        item.above_midpoint_load,
+                        "summed normalized distance above 0.5",
+                    ),
+                    (
+                        "below_midpoint_load",
+                        item.below_midpoint_load,
+                        "summed normalized distance below 0.5",
+                    ),
+                    (
+                        "net_midpoint_load",
+                        item.net_midpoint_load,
+                        "signed normalized midpoint distance",
+                    ),
+                    (
+                        "absolute_midpoint_load",
+                        item.absolute_midpoint_load,
+                        "summed absolute normalized midpoint distance",
+                    ),
+                    (
+                        "average_deviation_from_poem_mean",
+                        item.average_deviation_from_mean,
+                        "mean absolute deviation",
+                    ),
+                )
+                if per_observation is not None:
+                    values += tuple(
+                        (
+                            f"{name}_per_observation",
+                            value * per_observation if value is not None else None,
+                            "normalized midpoint distance per observation",
+                        )
+                        for name, value in (
+                            ("above_midpoint_load", item.above_midpoint_load),
+                            ("below_midpoint_load", item.below_midpoint_load),
+                            ("net_midpoint_load", item.net_midpoint_load),
+                            ("absolute_midpoint_load", item.absolute_midpoint_load),
+                        )
+                    )
+                    values += tuple(
+                        (
+                            f"{name}_per_100_observations",
+                            value * per_observation * 100 if value is not None else None,
+                            "normalized midpoint distance per 100 observations",
+                        )
+                        for name, value in (
+                            ("above_midpoint_load", item.above_midpoint_load),
+                            ("below_midpoint_load", item.below_midpoint_load),
+                            ("net_midpoint_load", item.net_midpoint_load),
+                            ("absolute_midpoint_load", item.absolute_midpoint_load),
+                        )
+                    )
+            for statistic, value, unit in values:
+                if value is None:
+                    continue
+                metric_name = f"{item.module_id}_{item.metric_id}_{statistic}"
+                dimension = item.metric_id
+                scale = unit
+                if item.module_id == "vad":
+                    dimension = item.metric_id.removesuffix("_mean")
+                    metric_name = {
+                        "mean": "vad_mean",
+                        "standard_deviation": "vad_standard_deviation",
+                        "cumulative": "vad_rating_total",
+                        "above_midpoint_load": "vad_above_midpoint_load",
+                        "below_midpoint_load": "vad_below_midpoint_load",
+                        "net_midpoint_load": "vad_net_midpoint_load",
+                        "absolute_midpoint_load": "vad_absolute_midpoint_load",
+                        "average_deviation_from_poem_mean": (
+                            "vad_average_deviation_from_poem_mean"
+                        ),
+                        "above_midpoint_load_per_observation": (
+                            "vad_above_midpoint_load_per_observation"
+                        ),
+                        "below_midpoint_load_per_observation": (
+                            "vad_below_midpoint_load_per_observation"
+                        ),
+                        "net_midpoint_load_per_observation": (
+                            "vad_net_midpoint_load_per_observation"
+                        ),
+                        "absolute_midpoint_load_per_observation": (
+                            "vad_absolute_midpoint_load_per_observation"
+                        ),
+                        "above_midpoint_load_per_100_observations": (
+                            "vad_above_midpoint_load_per_100_observations"
+                        ),
+                        "below_midpoint_load_per_100_observations": (
+                            "vad_below_midpoint_load_per_100_observations"
+                        ),
+                        "net_midpoint_load_per_100_observations": (
+                            "vad_net_midpoint_load_per_100_observations"
+                        ),
+                        "absolute_midpoint_load_per_100_observations": (
+                            "vad_absolute_midpoint_load_per_100_observations"
+                        ),
+                    }[statistic]
+                    if statistic in {"mean", "standard_deviation"}:
+                        scale = "normalized_0_1"
+                    elif statistic == "cumulative":
+                        scale = "normalized_0_1_sum"
+                canonical_rows.append(
+                    (
+                        item.source_id,
+                        item.source_label,
+                        "continuous",
+                        scope_ids[item.profile.scope.value],
+                        metric_name,
+                        dimension,
+                        "",
+                        item.profile.weighting.value.casefold(),
+                        scale,
+                        (
+                            f"{item.observation_count} observations; "
+                            f"{coverage.matched_token_count}/"
+                            f"{coverage.eligible_token_count} eligible tokens matched"
+                        ),
+                        float(value),
+                        item.observation_count,
+                        coverage.matched_token_count,
+                        coverage.eligible_token_count,
+                        coverage.token_coverage,
+                    )
+                )
+        return canonical_rows
+
+        # Legacy construction remains below solely as a readable migration
+        # reference for older database exports.
         rows = []
         view_key = {
             "All matched tokens": "all_matched",

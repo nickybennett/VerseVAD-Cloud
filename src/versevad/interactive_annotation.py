@@ -10,10 +10,11 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from versevad.analysis_profiles import LexicalScope, token_is_in_scope
 from versevad.lexical_eligibility import is_lexicon_eligible
 
 
-ANNOTATION_PAYLOAD_VERSION = "1.1"
+ANNOTATION_PAYLOAD_VERSION = "1.2"
 VAD_SOURCE_PRIORITY = (
     "nrc_vad_v2_1",
     "nrc_vad_v1",
@@ -481,6 +482,7 @@ def build_interactive_annotation_payload(
     workspace: object,
     *,
     saved_settings: object = None,
+    active_scope: LexicalScope = LexicalScope.STOPWORD_EXCLUDED,
 ) -> dict[str, object]:
     """Join completed token audits into a JSON-safe annotation view-model."""
 
@@ -507,6 +509,15 @@ def build_interactive_annotation_payload(
         for result in vad_results
     )
     vad_by_id = {source["id"]: result for source, result in zip(vad_sources, vad_results)}
+    stopword_policy = next(
+        (
+            getattr(result, "stopword_policy", None)
+            for result in vad_results
+            if getattr(result, "stopword_policy", None) is not None
+        ),
+        None,
+    )
+    active_stopwords = tuple(getattr(stopword_policy, "active_words", ()) or ())
 
     optional_results = {
         "concreteness": getattr(workspace, "concreteness", None),
@@ -592,6 +603,14 @@ def build_interactive_annotation_payload(
                 "lexicon_eligible": bool(is_lexicon_eligible(token)),
                 "is_punctuation": bool(token.is_punctuation),
                 "is_stopword": bool(token.is_stopword),
+                "scope_eligibility": {
+                    scope.value: token_is_in_scope(
+                        token,
+                        scope,
+                        active_stopwords=active_stopwords,
+                    )
+                    for scope in LexicalScope
+                },
                 "context": str(token.context),
                 "evidence": evidence,
             }
@@ -620,6 +639,7 @@ def build_interactive_annotation_payload(
         "layers": _layer_contracts(available),
         "sources": sources,
         "settings": settings,
+        "active_scope": active_scope.value,
         "default_settings": default_settings,
         "methodology": {
             "text": "Exact source text is preserved; annotations use stable token offsets from the completed analysis.",

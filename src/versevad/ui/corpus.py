@@ -19,10 +19,6 @@ from versevad.application import (
     load_lexicon,
     part_of_speech_views_for_tokens,
 )
-from versevad.deployment import (
-    cloud_deployment_enabled,
-    cloud_session_database_path,
-)
 from versevad.exports.corpus_csv import build_corpus_export_bundle
 from versevad.corpus import (
     CorpusAnalysisConfiguration,
@@ -40,6 +36,7 @@ from versevad.lexical_semantic.concreteness import ConcretenessConfiguration
 from versevad.lexical_semantic.frequency import FrequencyConfiguration
 from versevad.lexical_semantic.sensorimotor import SensorimotorConfiguration
 from versevad.models import PhrasePolicy, ReviewAction, ReviewScope, TextDocument
+from versevad.module_capabilities import fixed_profile_notice
 from versevad.normalization import normalize_lookup
 from versevad.preprocessing import TextPreprocessor
 from versevad.prosody import (
@@ -77,6 +74,7 @@ from versevad.ui.design import (
 )
 from versevad.ui.profile_management import (
     analysis_profile_options,
+    apply_profile_display_defaults,
     consume_pending_profile_selection,
     custom_profile_settings,
     render_custom_profile_manager,
@@ -87,6 +85,11 @@ from versevad.ui.profiles import (
     snapshot_profile_settings,
 )
 from versevad.ui.stopwords import render_stopword_settings
+from versevad.analysis_profiles import LexicalScope, ProfileSelection
+from versevad.ui.profile_controls import (
+    render_report_profile_controls,
+    report_profile_state,
+)
 from versevad.versemap import (
     MODEL_FILENAME,
     POET_PROFILE_FILENAME,
@@ -142,14 +145,8 @@ def _corpus_profile_setting_keys(project_id: str) -> dict[str, str]:
         "frequency_exclude_proper": (
             f"corpus_frequency_exclude_proper_{project_id}"
         ),
-        "frequency_content_words_only": (
-            f"corpus_frequency_content_only_{project_id}"
-        ),
         "aoa_exclude_proper": f"corpus_aoa_exclude_proper_{project_id}",
-        "aoa_content_words_only": f"corpus_aoa_content_only_{project_id}",
         "poetry_id_sources": f"corpus_poetry_id_sources_{project_id}",
-        "poetry_id_weightings": f"corpus_poetry_id_weightings_{project_id}",
-        "poetry_id_views": f"corpus_poetry_id_views_{project_id}",
         "poetry_id_lexical_dimensions": (
             f"corpus_poetry_id_character_{project_id}"
         ),
@@ -222,7 +219,7 @@ def _records_frame(records) -> pd.DataFrame:
     return pd.DataFrame([asdict(record) for record in records])
 
 
-@st.cache_resource(show_spinner=False, max_entries=128)
+@st.cache_resource(show_spinner=False)
 def _project_repository_for_path(path: str) -> ProjectRepository:
     """Initialize each database schema once while keeping connections short-lived."""
 
@@ -798,7 +795,7 @@ def _create_project(repository: ProjectRepository, *, expanded: bool) -> None:
                     researcher=researcher,
                     description=description,
                 )
-                st.success("Project created in the VerseVAD project database.")
+                st.success("Project created in the local VerseVAD database.")
                 st.rerun()
             except ValueError as error:
                 st.error(str(error))
@@ -963,7 +960,7 @@ def _render_texts_tab(repository: ProjectRepository, project_id: str) -> None:
                 notes=notes,
                 custom_metadata=custom,
             )
-            st.success("Metadata saved.")
+            st.success("Metadata saved locally.")
             st.rerun()
         except (ValueError, json.JSONDecodeError) as error:
             st.error(f"Metadata was not changed: {error}")
@@ -1192,6 +1189,7 @@ def _render_corpus_affective_report(
     *,
     selected_text_id: str | None,
     state_prefix: str,
+    profile_selection: ProfileSelection,
 ) -> None:
     selected_metrics = tuple(
         row
@@ -1210,51 +1208,40 @@ def _render_corpus_affective_report(
         st.markdown("#### Poem-Level Comparison")
 
     lexicons = sorted({row.lexicon for row in comparisons})
-    views = [
-        view
-        for view in ("all_matched", "stopwords_excluded")
-        if any(row.analysis_view == view for row in comparisons)
-    ]
-    weightings = [
-        weighting
-        for weighting in ("token", "type")
-        if any(row.weighting == weighting for row in comparisons)
-    ]
-    controls = st.columns(3)
-    lexicon = controls[0].selectbox(
+    view_ids = {
+        LexicalScope.ALL_LEXICAL: "all_matched",
+        LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+        LexicalScope.CONTENT_WORDS: "content_words",
+    }
+    views = {view_ids[scope] for scope in profile_selection.scopes}
+    weightings = {
+        weighting.value.casefold() for weighting in profile_selection.weightings
+    }
+    lexicon = st.selectbox(
         "Lexicon",
         options=lexicons,
         key=f"{state_prefix}_affective_lexicon",
-    )
-    analysis_view = controls[1].selectbox(
-        "Token scope",
-        options=views,
-        format_func=lambda value: (
-            "All matched tokens"
-            if value == "all_matched"
-            else "Stopwords excluded"
-        ),
-        key=f"{state_prefix}_affective_view",
-    )
-    weighting = controls[2].selectbox(
-        "Weighting",
-        options=weightings,
-        format_func=lambda value: (
-            "Token weighted" if value == "token" else "Type weighted"
-        ),
-        key=f"{state_prefix}_affective_weighting",
     )
     chosen = tuple(
         row
         for row in comparisons
         if row.lexicon == lexicon
-        and row.analysis_view == analysis_view
-        and row.weighting == weighting
+        and row.analysis_view in views
+        and row.weighting in weightings
     )
+    scope_labels = {
+        "all_matched": "All lexical tokens",
+        "stopwords_excluded": "Stopword-excluded",
+        "content_words": "Content words only",
+    }
     long_frame = pd.DataFrame(
         [
             {
                 "Poem": row.title,
+                "Profile": (
+                    f"{scope_labels[row.analysis_view]} · "
+                    f"{row.weighting.title()}-weighted"
+                ),
                 "Dimension": row.dimension.title(),
                 "Mean": row.mean,
                 "Within-Poem SD": row.population_standard_deviation,
@@ -1268,7 +1255,7 @@ def _render_corpus_affective_report(
         st.info("No compatible VAD rows are available for this configuration.")
         return
 
-    if selected_text_id is not None:
+    if selected_text_id is not None and len(profile_selection.profiles) == 1:
         cards = st.columns(3)
         for column, dimension in zip(
             cards,
@@ -1325,8 +1312,10 @@ def _render_corpus_affective_report(
                     title=None,
                 ),
                 color=alt.Color("Poem:N"),
+                shape=alt.Shape("Profile:N"),
                 tooltip=[
                     "Poem:N",
+                    "Profile:N",
                     "Dimension:N",
                     alt.Tooltip("Mean:Q", format=".3f"),
                     alt.Tooltip("Within-Poem SD:Q", format=".3f"),
@@ -1339,7 +1328,7 @@ def _render_corpus_affective_report(
 
     summary = (
         long_frame.pivot_table(
-            index="Poem",
+            index=["Poem", "Profile"],
             columns="Dimension",
             values=["Mean", "Within-Poem SD"],
             aggfunc="first",
@@ -1356,7 +1345,7 @@ def _render_corpus_affective_report(
             {
                 column: "{:.3f}"
                 for column in summary.columns
-                if column != "Poem"
+                if column not in {"Poem", "Profile"}
             },
             na_rep="—",
         ),
@@ -1365,7 +1354,7 @@ def _render_corpus_affective_report(
         height=min(420, 76 + len(summary) * 35),
     )
     st.caption(
-        "Means and SDs use one source, token scope, and weighting at a time. "
+        "Each row identifies its source, scope, and weighting profile. "
         "Within-poem SD describes dispersion among matched lexical ratings; it "
         "is not uncertainty or variation among poems."
     )
@@ -1375,8 +1364,8 @@ def _render_corpus_affective_report(
         for row in selected_metrics
         if row.metric in _VAD_LOAD_METRICS
         and row.lexicon == lexicon
-        and row.analysis_view == analysis_view
-        and row.weighting == weighting
+        and row.analysis_view in views
+        and row.weighting in weightings
     )
     if loads:
         with bottom_collapsible_expander(
@@ -1402,6 +1391,10 @@ def _render_corpus_affective_report(
                 [
                     {
                         "Poem": row.title,
+                        "Profile": (
+                            f"{scope_labels[row.analysis_view]} · "
+                            f"{row.weighting.title()}-weighted"
+                        ),
                         "Value": row.value,
                         "Matched Observations": row.observations,
                         "Coverage": row.coverage,
@@ -1432,8 +1425,8 @@ def _render_corpus_affective_report(
         for row in selected_metrics
         if row.metric in _VAD_VOLATILITY_METRICS
         and row.lexicon == lexicon
-        and row.analysis_view == analysis_view
-        and row.weighting == weighting
+        and row.analysis_view in views
+        and row.weighting in weightings
     )
     if volatility:
         with bottom_collapsible_expander(
@@ -1451,6 +1444,10 @@ def _render_corpus_affective_report(
                 [
                     {
                         "Poem": row.title,
+                        "Profile": (
+                            f"{scope_labels[row.analysis_view]} · "
+                            f"{row.weighting.title()}-weighted"
+                        ),
                         "Average Deviation from Poem Mean": row.value,
                         "Matched Observations": row.observations,
                         "Coverage": row.coverage,
@@ -1875,7 +1872,7 @@ def _render_corpus_modules(
             )
             if comparison_rows:
                 st.markdown(
-                    "**Per-poem category-fit and nearest-centroid archetypes**"
+                    "**Per-poem PoetryID archetypes**"
                 )
                 render_dataframe(
                     pd.DataFrame(comparison_rows),
@@ -1884,9 +1881,10 @@ def _render_corpus_modules(
                     height=360,
                 )
                 st.caption(
-                    "Category fit is the primary threshold-based archetype. "
-                    "Nearest centroid is the secondary continuous-distance "
-                    "candidate; the two may differ near a boundary."
+                    "Category Fit is the primary threshold-based archetype. "
+                    "Nearest Centroid is the secondary continuous-distance "
+                    "candidate. Either is descriptive lexical evidence, not a "
+                    "declaration of the poem's emotion or identity."
                 )
 
             by_work_scope: dict[
@@ -2288,6 +2286,9 @@ def _render_completed_corpus_results(
         options=reports,
         key=f"corpus_result_family_{project_id}",
     )
+    profile_state = render_report_profile_controls(
+        f"corpus_{project_id}",
+    )
     selected_text_id = (
         None if scope_id == _WHOLE_CORPUS_SCOPE else scope_id
     )
@@ -2312,6 +2313,7 @@ def _render_completed_corpus_results(
             metrics,
             selected_text_id=selected_text_id,
             state_prefix=state_prefix,
+            profile_selection=profile_state.selection,
         )
         return
     if report_family == "Evidence & Diagnostics":
@@ -2323,8 +2325,16 @@ def _render_completed_corpus_results(
         )
         return
     if report_family == "VerseMap" and selected_text_id is None:
+        st.caption(fixed_profile_notice("versemap"))
         _render_versemap_tab(repository, project_id)
         return
+    fixed_modules = {
+        "Sound & Form": ("pronunciation", "meter", "phonology", "inherited_form"),
+        "Structure": ("structure",),
+        "VerseMap": ("versemap",),
+    }.get(report_family, ())
+    for module_id in fixed_modules:
+        st.caption(fixed_profile_notice(module_id))
     _render_corpus_modules(
         repository,
         project_id,
@@ -2476,6 +2486,10 @@ def _render_analysis_tab(
             ).items():
                 if source_key in preset_state:
                     st.session_state[target_key] = preset_state[source_key]
+            apply_profile_display_defaults(
+                selected_preset,
+                f"corpus_{project_id}",
+            )
             st.rerun()
     render_custom_profile_manager(
         scope_key=f"corpus_{project_id}",
@@ -2560,7 +2574,9 @@ def _render_analysis_tab(
     poetry_id_lexical_dimensions: tuple[str, ...] = ()
     poetry_id_threshold_profile = PoetryIDConfiguration().threshold_profile
     poetry_id_configuration_error = ""
-    meter_defaults = MeterConfiguration(analysis_mode=MeterAnalysisMode.COMPARE_BOTH)
+    meter_defaults = MeterConfiguration(
+        analysis_mode=MeterAnalysisMode.COMPARE_BOTH
+    )
     meter_analysis_mode = MeterAnalysisMode.COMPARE_BOTH
     meter_style_profile = MeterStyleProfile.GENERAL
     meter_interpretation_depth = MeterInterpretationDepth.STANDARD
@@ -2568,8 +2584,12 @@ def _render_analysis_tab(
     meter_irregular_threshold = meter_defaults.irregular_fit_threshold
     meter_ambiguity_margin = meter_defaults.ambiguity_margin_threshold
     meter_maximum_variants = meter_defaults.maximum_line_variants
-    meter_performance_candidate_limit = meter_defaults.performance_candidate_limit
-    meter_realized_alternatives = meter_defaults.retained_realized_alternatives
+    meter_performance_candidate_limit = (
+        meter_defaults.performance_candidate_limit
+    )
+    meter_realized_alternatives = (
+        meter_defaults.retained_realized_alternatives
+    )
     meter_allow_visible_elision = False
     meter_scholar_revisions_text = ""
     with st.expander("Advanced batch methodology"):
@@ -2593,45 +2613,29 @@ def _render_analysis_tab(
         st.markdown("**Proper-noun eligibility**")
         proper_noun_columns = st.columns(4)
         concreteness_exclude_proper_nouns = proper_noun_columns[0].checkbox(
-            "Concreteness: exclude proper nouns", value=False,
+            "Concreteness: exclude proper nouns",
+            value=False,
             key=f"corpus_concreteness_exclude_proper_{project_id}",
             disabled="concreteness" not in selected_modules,
         )
         sensorimotor_exclude_proper_nouns = proper_noun_columns[1].checkbox(
-            "Sensorimotor: exclude proper nouns", value=False,
+            "Sensorimotor: exclude proper nouns",
+            value=False,
             key=f"corpus_sensorimotor_exclude_proper_{project_id}",
             disabled="sensorimotor" not in selected_modules,
         )
         frequency_exclude_proper_nouns = proper_noun_columns[2].checkbox(
-            "Frequency: exclude proper nouns", value=False,
+            "Frequency: exclude proper nouns",
+            value=False,
             key=f"corpus_frequency_exclude_proper_{project_id}",
             disabled="frequency" not in selected_modules,
         )
         aoa_exclude_proper_nouns = proper_noun_columns[3].checkbox(
-            "AoA: exclude proper nouns", value=False,
+            "AoA: exclude proper nouns",
+            value=False,
             key=f"corpus_aoa_exclude_proper_{project_id}",
             disabled="aoa" not in selected_modules,
         )
-        if "frequency" in selected_modules:
-            frequency_content_words_only = st.checkbox(
-                "Frequency: analyze content words only",
-                value=False,
-                key=f"corpus_frequency_content_only_{project_id}",
-                help=(
-                    "Non-default. Retains nouns, verbs, adjectives, and adverbs; "
-                    "other parts of speech remain explicitly not eligible."
-                ),
-            )
-        if "aoa" in selected_modules:
-            aoa_content_words_only = st.checkbox(
-                "Age of acquisition: analyze content words only",
-                value=False,
-                key=f"corpus_aoa_content_only_{project_id}",
-                help=(
-                    "Non-default. The Kuperman source contains many source POS "
-                    "classes, so this is an actual analysis-scope choice."
-                ),
-            )
         if (
             "meter" in selected_modules
             or "inherited_form" in selected_modules
@@ -2674,24 +2678,36 @@ def _render_analysis_tab(
             ]
             meter_threshold_columns = st.columns(4)
             meter_line_match_threshold = meter_threshold_columns[0].number_input(
-                "Meter line-fit threshold", 0.0, 1.0,
-                meter_defaults.line_match_threshold, 0.05,
+                "Meter line-fit threshold",
+                0.0,
+                1.0,
+                meter_defaults.line_match_threshold,
+                0.05,
                 key=f"corpus_meter_line_threshold_{project_id}",
             )
             meter_irregular_threshold = meter_threshold_columns[1].number_input(
-                "Poem candidate-fit threshold", 0.0, 1.0,
-                meter_defaults.irregular_fit_threshold, 0.05,
+                "Poem candidate-fit threshold",
+                0.0,
+                1.0,
+                meter_defaults.irregular_fit_threshold,
+                0.05,
                 key=f"corpus_meter_poem_threshold_{project_id}",
             )
             meter_ambiguity_margin = meter_threshold_columns[2].number_input(
-                "Candidate margin threshold", 0.0, 1.0,
-                meter_defaults.ambiguity_margin_threshold, 0.01,
+                "Candidate margin threshold",
+                0.0,
+                1.0,
+                meter_defaults.ambiguity_margin_threshold,
+                0.01,
                 key=f"corpus_meter_margin_{project_id}",
             )
             meter_maximum_variants = int(
                 meter_threshold_columns[3].number_input(
-                    "Maximum stress paths per line", 1, 4096,
-                    meter_defaults.maximum_line_variants, 1,
+                    "Maximum stress paths per line",
+                    1,
+                    4096,
+                    meter_defaults.maximum_line_variants,
+                    1,
                     key=f"corpus_meter_variants_{project_id}",
                 )
             )
@@ -2735,7 +2751,9 @@ def _render_analysis_tab(
                 value="",
                 key=f"corpus_meter_scholar_revisions_{project_id}",
                 height=100,
-                disabled=(meter_analysis_mode is MeterAnalysisMode.CANDIDATE),
+                disabled=(
+                    meter_analysis_mode is MeterAnalysisMode.CANDIDATE
+                ),
                 placeholder=(
                     "line 2 = iambic pentameter | "
                     "x / x / x / x / x / | reason for the revised reading"
@@ -2783,30 +2801,11 @@ def _render_analysis_tab(
                     ),
                 )
             )
-            poetry_id_weightings = tuple(
-                st.multiselect(
-                    "PoetryID weighting views",
-                    options=["token", "type"],
-                    default=["token", "type"],
-                    key=f"corpus_poetry_id_weightings_{project_id}",
-                )
-            )
-            poetry_id_views = tuple(
-                st.multiselect(
-                    "PoetryID analysis views",
-                    options=["all_matched", "stopwords_excluded"],
-                    default=["all_matched", "stopwords_excluded"],
-                    format_func=lambda value: (
-                        "All matched tokens (including stopwords)"
-                        if value == "all_matched"
-                        else "Stopwords excluded"
-                    ),
-                    key=f"corpus_poetry_id_views_{project_id}",
-                    help=(
-                        "Both views remain separate in every work and corpus "
-                        "comparison. Unmatched vocabulary remains missing."
-                    ),
-                )
+            poetry_id_weightings = ("token", "type")
+            poetry_id_views = (
+                "all_matched",
+                "stopwords_excluded",
+                "content_words",
             )
             character_options = [
                 dimension
@@ -2927,7 +2926,9 @@ def _render_analysis_tab(
             module_configuration = CorpusAnalysisConfiguration(
                 include_concreteness="concreteness" in selected_modules,
                 concreteness_configuration=ConcretenessConfiguration(
-                    exclude_proper_nouns=concreteness_exclude_proper_nouns
+                    exclude_proper_nouns=(
+                        concreteness_exclude_proper_nouns
+                    )
                 ),
                 include_frequency="frequency" in selected_modules,
                 frequency_configuration=FrequencyConfiguration(
@@ -2941,7 +2942,9 @@ def _render_analysis_tab(
                 ),
                 include_sensorimotor="sensorimotor" in selected_modules,
                 sensorimotor_configuration=SensorimotorConfiguration(
-                    exclude_proper_nouns=sensorimotor_exclude_proper_nouns
+                    exclude_proper_nouns=(
+                        sensorimotor_exclude_proper_nouns
+                    )
                 ),
                 include_pronunciation="pronunciation" in selected_modules,
                 include_meter="meter" in selected_modules,
@@ -3453,7 +3456,7 @@ def _render_project_settings_tab(
         "Deleting this project permanently removes only this project's imported "
         "texts, preserved versions, completed analyses, corpus batches, and "
         "quality-control notes, review decisions, and scenario history from the "
-        "VerseVAD project database. Other projects are not affected."
+        "local VerseVAD database. Other projects are not affected."
     )
     confirmation = st.text_input(
         f'Type the exact project title to confirm: "{project.title}"',
@@ -3874,8 +3877,7 @@ def _render_qc_tab(repository: ProjectRepository, project_id: str) -> None:
     st.subheader("Unmatched-Vocabulary Quality Control")
     st.write(
         "These observations did not match a selected lexicon in the latest complete "
-        "batch. Notes persist in the project database by project, work, lexicon, "
-        "and normalized form. "
+        "batch. Notes persist locally by project, work, lexicon, and normalized form. "
         "They document review; they do not alter an analysis score."
     )
     if not rows:
@@ -3965,7 +3967,7 @@ def _render_qc_tab(repository: ProjectRepository, project_id: str) -> None:
             note=note,
             proposed_mapping=mapping,
         )
-        st.success("Quality-control note saved. Analysis results were not changed.")
+        st.success("Quality-control note saved locally. Analysis results were not changed.")
         st.rerun()
 
 
@@ -4111,7 +4113,7 @@ def _render_export_tab(
     module_warnings = repository.list_latest_module_warnings(project_id)
     module_results = repository.list_latest_module_results(project_id)
     module_aggregates = repository.list_latest_module_aggregates(project_id)
-    st.subheader("CSV and Word Research Bundle")
+    st.subheader("Research Export")
     st.write(
         "The ZIP includes machine-readable CSV tables plus a narrative Word "
         "report. It retains collection weightings, work-level results, coverage, "
@@ -4120,29 +4122,100 @@ def _render_export_tab(
     if not metrics and not module_metrics:
         st.info("Complete a corpus analysis before exporting the research bundle.")
         return
-    methodology = repository.latest_methodology(project_id)
-    export_bundle = build_corpus_export_bundle(
-        project,
-        texts,
-        metrics,
-        unmatched,
-        methodology=methodology,
-        review_decisions=tuple(methodology.get("review_decisions", ())),
-        part_of_speech_rows=part_of_speech_rows,
-        module_metrics=module_metrics,
-        module_coverage=module_coverage,
-        module_warnings=module_warnings,
-        module_results=module_results,
-        module_aggregates=module_aggregates,
+    export_mode_label = st.radio(
+        "Export mode",
+        options=("Export Current View", "Export Complete Audit"),
+        horizontal=True,
+        key=f"corpus_export_mode_{project_id}",
     )
-    st.download_button(
-        "Download corpus CSV and Word bundle",
-        data=export_bundle,
-        file_name=f"{_safe_filename(project.title)}_VerseVAD_corpus.zip",
-        mime="application/zip",
+    export_mode = (
+        "current_view"
+        if export_mode_label == "Export Current View"
+        else "complete_audit"
+    )
+    visible_section = str(
+        st.session_state.get(
+            f"corpus_result_family_{project_id}",
+            "Overview",
+        )
+    )
+    if export_mode == "current_view":
+        visible_section = st.selectbox(
+            "Report section to export",
+            options=(
+                "Overview",
+                "Affective Evidence",
+                "Lexical Character, Imagery & Embodiment",
+                "Sound & Form",
+                "Structure",
+                "VerseMap",
+                "Evidence & Diagnostics",
+            ),
+            index=(
+                (
+                    "Overview",
+                    "Affective Evidence",
+                    "Lexical Character, Imagery & Embodiment",
+                    "Sound & Form",
+                    "Structure",
+                    "VerseMap",
+                    "Evidence & Diagnostics",
+                ).index(visible_section)
+                if visible_section in {
+                    "Overview", "Affective Evidence",
+                    "Lexical Character, Imagery & Embodiment", "Sound & Form",
+                    "Structure", "VerseMap", "Evidence & Diagnostics",
+                }
+                else 0
+            ),
+            key=f"corpus_export_section_{project_id}",
+        )
+    profile_state = report_profile_state(f"corpus_{project_id}")
+    prepared_key = f"prepared_corpus_export_{project_id}"
+    signature = (
+        export_mode,
+        visible_section,
+        tuple(profile.id for profile in profile_state.selection.profiles),
+        project.updated_at,
+    )
+    if st.button(
+        "Prepare Export",
         type="primary",
-        key=f"download_corpus_{project_id}",
-    )
+        key=f"prepare_corpus_export_{project_id}",
+    ):
+        methodology = repository.latest_methodology(project_id)
+        with st.spinner("Preparing CSV, Word, and reproducibility files..."):
+            export_bundle = build_corpus_export_bundle(
+                project,
+                texts,
+                metrics,
+                unmatched,
+                methodology=methodology,
+                review_decisions=tuple(methodology.get("review_decisions", ())),
+                part_of_speech_rows=part_of_speech_rows,
+                module_metrics=module_metrics,
+                module_coverage=module_coverage,
+                module_warnings=module_warnings,
+                module_results=module_results,
+                module_aggregates=module_aggregates,
+                profile_selection=profile_state.selection,
+                export_mode=export_mode,
+                report_section=visible_section,
+                active_preset=str(
+                    st.session_state.get(f"corpus_preset_{project_id}", "Custom")
+                ),
+            )
+        st.session_state[prepared_key] = (signature, export_bundle)
+    prepared = st.session_state.get(prepared_key)
+    if prepared and prepared[0] == signature:
+        st.download_button(
+            "Download Prepared Export",
+            data=prepared[1],
+            file_name=f"{_safe_filename(project.title)}_VerseVAD_corpus.zip",
+            mime="application/zip",
+            type="primary",
+            key=f"download_corpus_{project_id}",
+        )
     st.caption(
         "The bundle does not duplicate the full literary texts; it records "
         "text/version IDs, source paths, and SHA-256 hashes."
@@ -4153,27 +4226,13 @@ def render_corpus_workspace(
     preprocessor: TextPreprocessor,
     resource_readiness: ResourceReadiness,
 ) -> None:
-    """Render the local or session-isolated project branch of the application."""
+    """Render the persistent local-project branch of the Streamlit application."""
 
-    cloud_deployment = cloud_deployment_enabled()
-    database_path = (
-        cloud_session_database_path(st.session_state)
-        if cloud_deployment
-        else default_database_path()
-    )
-    repository = _project_repository_for_path(str(database_path))
+    repository = _project_repository_for_path(str(default_database_path()))
     with st.sidebar:
-        if cloud_deployment:
-            st.markdown("### Saved Projects")
-            st.warning(
-                "Projects are private to this browser session and may be erased "
-                "when the session disconnects or the hosted app restarts. Export "
-                "anything you need to retain."
-            )
-        else:
-            st.markdown("### Saved Projects")
-            st.success("Projects, texts, notes, and results stay on this computer.")
-            st.caption(f"Database: {repository.database_path}")
+        st.markdown("### Saved Projects")
+        st.success("Projects, texts, notes, and results stay on this computer.")
+        st.caption(f"Database: {repository.database_path}")
         st.markdown("---")
         st.caption(
             "Corpus results describe lexical evidence. They do not determine a work's emotion or a reader's response."
@@ -4184,12 +4243,8 @@ def render_corpus_workspace(
         "Import a folder as separate works, add metadata, compare complete analysis "
         "batches across affective and optional lexical/prosodic modules, build "
         "versioned review scenarios, and export CSV data with a readable Word report.",
-        kicker=(
-            "Session-isolated corpus research workspace"
-            if cloud_deployment
-            else "Private corpus research workspace"
-        ),
-        status="Session-only" if cloud_deployment else "Persistent",
+        kicker="Private corpus research workspace",
+        status="Persistent",
     )
     project_flash = st.session_state.pop("corpus_project_flash", None)
     if project_flash:
@@ -4203,12 +4258,7 @@ def render_corpus_workspace(
         render_empty_state(
             "No research project yet",
             "Projects keep texts, metadata, immutable analysis runs, review "
-            "scenarios, and exports together "
-            + (
-                "for this browser session."
-                if cloud_deployment
-                else "in the local database."
-            ),
+            "scenarios, and exports together in the local database.",
             "Use Create a research project above to begin.",
         )
         return
@@ -4238,12 +4288,7 @@ def render_corpus_workspace(
     )
     st.caption(
         f"{project.title} · {project.description or 'No project description.'} "
-        + (
-            "Saves remain isolated to this browser session and are not durable; "
-            "completed analysis runs remain immutable while the session is active."
-            if cloud_deployment
-            else "All saves are local and completed analysis runs remain immutable."
-        )
+        "All saves are local and completed analysis runs remain immutable."
     )
     part_of_speech_rows = _corpus_part_of_speech_rows(
         repository,

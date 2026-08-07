@@ -19,10 +19,10 @@
 5. Tokens, types, phrases, lemmas, and matches
 6. Part-of-speech profiles
 7. Coverage and unmatched vocabulary
-8. Stopwords and the two VAD views
+8. Global lexical scopes
 9. Token-weighted and type-weighted statistics
 10. Means, medians, and dispersion
-11. Stopword sensitivity
+11. Comparing report profiles
 12. Cumulative normative lexical load
 13. Top contributors
 14. Emotion, sentiment, and emotion intensity
@@ -56,21 +56,21 @@ For every analysis, read the results in this order:
 2. **Read coverage.** Determine how much eligible vocabulary was represented.
 3. **Read warnings.** Note sparse evidence, lemma reliance, review exclusions, or other methodological cautions.
 4. **Choose one construct.** VAD ratings, emotion associations, sentiment associations, emotion intensities, normative lexical concreteness, corpus-relative lexical frequency, retrospective normative lexical Age of Acquisition, dictionary pronunciation/lexical stress, candidate-meter fit, rhyme/recurring-sound evidence, lexical-style evidence, and PoetryID candidate profiles are different kinds of evidence.
-5. **Choose one analysis view.** Compare all matched observations with stopwords excluded; do not merge them.
+5. **Choose one lexical scope.** All lexical tokens, stopword-excluded, and content words only answer different questions; do not merge them.
 6. **Choose one weighting.** Token weighting answers a repetition-sensitive question; type weighting answers a vocabulary-sensitive question.
 7. **Inspect dispersion and contributors.** A mean alone can conceal mixed ratings or one repeated influential word.
 8. **Inspect the match evidence.** Verify surprising entries, phrases, lemmas, mappings, and unmatched forms in context.
 9. **If analyzing a corpus, compare token- and work-weighted collection profiles.**
 10. **Report the denominator and method with the result.**
 
-> NEVER REPORT A BARE NUMBER: A result such as `valence = 0.62` is incomplete without the lexicon, scale, analysis view, weighting, matched count, coverage, and unit of analysis.
+> NEVER REPORT A BARE NUMBER: A result such as `valence = 0.62` is incomplete without the lexicon, scale, lexical scope, weighting, matched count, coverage, and unit of analysis.
 
 ## Interface Terms Are Not Analytical Terms
 
 **Analyze**, **Collections**, **Explore**, and **Learn** are top-level
 navigation sections. Single Poem, Compare Poems, Other Text, Lexicon Explorer,
-and Saved Projects are implemented hosted workspaces. **Affective Evidence**,
-**Lexical Character**, **Sound & Form**,
+Personal Corpus, and Saved Projects are implemented workspaces. **Affective
+Evidence**, **Lexical Character**, **Sound & Form**,
 **Structure**, **Evidence & Diagnostics**, and **Export & Help** are report
 families used for navigation. A collapsed section retains its result.
 
@@ -78,7 +78,7 @@ families used for navigation. A collapsed section retains its result.
 Emotion**, **Sound and Prosody**, **Formal Analysis**, and
 **Teaching/Introductory** are analysis profiles. A profile is not an
 interpretive claim; the exact effective settings remain visible and recorded.
-A hosted custom profile stores configuration only for the current session.
+A custom profile stores configuration only, never supplied text or results.
 
 **Classic**, **Dark**, **Lavender**, **Ocean**, **Crimson**, and **Forest** are
 appearance preferences. They do not change a score, result ID, coverage value,
@@ -136,7 +136,7 @@ Avoid: “The speaker is powerless.”
 
 ## What a VAD Mean Actually Summarizes
 
-A work-level VAD mean is the arithmetic mean of included lexicon ratings under a declared matching policy, analysis view, and weighting. It describes the center of those matched ratings. It does not summarize words that did not match, and it does not assign unmatched words a neutral value.
+A work-level VAD mean is the arithmetic mean of included lexicon ratings under a declared matching policy, lexical scope, and weighting. It describes the center of those matched ratings. It does not summarize words that did not match, and it does not assign unmatched words a neutral value.
 
 ## Lexical Trajectory
 
@@ -263,9 +263,9 @@ missing rather than becoming age zero.
 The paper describes target selection from base forms used most frequently as
 nouns, verbs, or adjectives. The official supplement nevertheless has numeric
 ratings for polyfunctional spellings such as `the`, `and`, `he`, `of`, and
-`to`. The optional **AoA content words only** scope therefore remains meaningful
-and off by default. It uses the poem occurrence's contextual model tag and
-includes only `NOUN`, `VERB`, `ADJ`, and `ADV`.
+`to`. The global **Content words only** scope therefore remains meaningful. It
+uses the poem occurrence's contextual model tag and includes only `NOUN`,
+`VERB`, `ADJ`, and `ADV`.
 
 When Frequency or Concreteness is enabled too, VerseVAD can show a descriptive
 Spearman rank relationship after collapsing repetitions to unique paired
@@ -344,7 +344,7 @@ sufficiency label, not a statistical confidence interval or probability.
 
 ## Dictionary Pronunciation, Syllables, and Lexical Stress
 
-The optional one-poem Stage 5 module uses exact observed-form pronunciations
+The optional pronunciation module uses exact observed-form pronunciations
 from pinned official CMUdict files. It is not a rating scale and is not
 combined with VAD, emotion, concreteness, frequency, or AoA.
 
@@ -377,12 +377,12 @@ dictionary syllable and lexical-stress evidence for 92% of eligible token
 occurrences; 8 of 10 physical lines were complete.”
 
 Avoid: “The poem is iambic,” “this is the poet's pronunciation,” or “the
-performance stresses these syllables.” Stage 5 supplies North American
+performance stresses these syllables.” The module supplies North American
 dictionary evidence, not meter, rhyme, or definitive performed scansion.
 
 ## Candidate Meter and Fit
 
-The optional one-poem Stage 6 module consumes retained Stage 5 stress evidence
+The optional candidate-meter module consumes retained pronunciation and stress evidence
 without rewriting the pronunciation result. It compares five base patterns:
 iambic `01`, trochaic `10`, anapestic `001`, dactylic `100`, and
 amphibrachic `010`. Each is checked at one through eight feet (monometer
@@ -422,9 +422,9 @@ Avoid: “VerseVAD proved the poem is in iambic pentameter,” “fit 0.91 means
 
 ## Performance-Aware Meter Realization
 
-The separate Stage 14 layer keeps the complete fixed candidate result and adds
-an inspectable contextual reading. Built-in profiles display both layers side
-by side by default, while either can still be selected alone. It can label syllable-level metrical
+The performance-aware layer keeps the complete fixed candidate result and adds
+an inspectable contextual reading. Built-in profiles display both layers by
+default; candidate-only and performance-aware-only modes remain available. It can label syllable-level metrical
 positions, promotion and demotion, substitutions, stress clashes and lapses,
 punctuation-supported caesurae, selected pronunciation paths, alternate
 realizations, stanza recurrence, poem trajectory, and rhythmic organization.
@@ -463,7 +463,7 @@ these syllables."
 
 ## Rhyme and Recurring Phonological Patterns
 
-The optional one-poem Stage 7 module consumes retained Stage 5 phones and
+The optional rhyme and recurring-sound module consumes retained phones and
 stress without rewriting the pronunciation result. CMUdict supplies the
 dictionary evidence; VerseVAD derives the classifications.
 
@@ -482,7 +482,7 @@ The default slant threshold is `0.68`. The conservative minimum across retained
 pronunciation combinations controls the label; the maximum is also reported.
 This is a configurable heuristic, not a probability.
 
-Stage 7 also reports perfect, identical, masculine, feminine, multisyllabic,
+The module also reports perfect, identical, masculine, feminine, multisyllabic,
 eye, and internal-rhyme evidence; exact repeated-line refrains; phonemic
 alliteration from repeated initial consonants; assonance from repeated stressed
 vowels; and consonance from repeated consonants.
@@ -542,8 +542,8 @@ of poetic form.
 
 PoetryID is a dependent interpretation layer over a completed normalized VAD
 summary. It does not tokenize the poem, load a VAD lexicon, match words, or
-calculate VAD again. Every result names its exact VAD source, all-matched or
-stopword-excluded view, token/type weighting, thresholds, and upstream
+calculate VAD again. Every result names its exact VAD source, lexical scope,
+aggregation weighting, thresholds, and upstream
 analysis.
 
 Each normalized dimension is classified as low, moderate, or high. Under the
@@ -683,21 +683,20 @@ auxiliary or copula; they are still verbs in the beginner-facing quantity/share
 profile. The original tag remains in token evidence.
 The detailed model-tag table still reports `VERB` and `AUX` separately.
 
-The optional Frequency and AoA settings **Content words only** use a narrower
-rule than this broad display. They include exact tags `NOUN`, `VERB`, `ADJ`,
-and `ADV` only; `AUX` and `PROPN` are not automatically included. The two
-module settings are recorded separately. Always report which scope was used.
+The global **Content words only** report scope uses a narrower rule than this
+broad display. It includes exact tags `NOUN`, `VERB`, `ADJ`, and `ADV` only;
+`AUX` and `PROPN` are not automatically included. Always report which scope
+was used.
 
 ## VAD by part of speech
 
 In one-text results, the Language Profile can add VAD evidence to the broad
 POS groups without changing the grammatical count/share denominator. Results
-remain separate for every VAD source and for the all-matched and stopword-
-excluded views.
+remain separate for every VAD source and selected global lexical scope.
 
 The **token-weighted POS mean** counts every included matched occurrence in
 the group. The **type-weighted POS mean** counts each distinct matched lexicon
-entry once within that source, view, and group. Repetition can therefore make
+entry once within that source, scope, and group. Repetition can therefore make
 the two means differ. Both are normative lexical VAD means, not measurements
 of the emotion of the grammatical category or poem.
 
@@ -742,18 +741,19 @@ Unmatched vocabulary is a quality-control resource. It can reveal:
 
 A review exclusion says that a published candidate should not contribute to a chosen scenario. The candidate remains auditable. Primary coverage can still identify it as published lexical evidence while separately reporting that the review scenario excluded it from aggregation. Always read coverage together with review-exclusion counts.
 
-# 8. Stopwords and the Two VAD Views
+# 8. Global Lexical Scopes
 
 ## Stopword
 
-A **stopword** is a common function word selected for exclusion from the secondary content-focused aggregate under the active policy. Examples in general-purpose lists can include articles, prepositions, pronouns, auxiliaries, and conjunctions.
+A **stopword** is a form selected for exclusion from the recorded
+stopword-excluded scope. Examples in general-purpose lists can include
+articles, prepositions, pronouns, auxiliaries, and conjunctions.
 
-“Stopword” does not mean meaningless. Function words can be central to rhythm, voice, negation, syntax, deixis, and style. That is why VerseVAD preserves:
-
-- **All Matched Observations:** every included lexicon match.
-- **Stopwords Excluded:** the same matches after the recorded stopword policy removes selected observations from the secondary aggregate.
-
-The all-matched result is never destroyed.
+“Stopword” does not mean meaningless. Function words can be central to rhythm,
+voice, negation, syntax, deixis, and style. VerseVAD therefore retains evidence
+once and supports three report scopes: **All lexical tokens**,
+**Stopword-excluded**, and **Content words only** (`NOUN`, `VERB`, `ADJ`, and
+`ADV`). Scope changes do not repeat tokenization or lookup.
 
 ## Protected Words
 
@@ -761,15 +761,20 @@ VerseVAD protects a documented set of negations, modals, comparatives, and inten
 
 ## Custom Stopword
 
-A **custom stopword** is a word the user deliberately adds to the active stopword list for a specific analytical purpose. For example, adding `raven` would make matches to `raven` absent from the stopword-excluded aggregate while preserving them in the all-matched result and audit.
+A **custom stopword** is a word the user deliberately adds to the active
+stopword list for a specific analytical purpose. For example, adding `raven`
+would exclude it from the stopword-excluded aggregate while preserving it in
+the all-lexical result and audit.
 
 This is a methodological decision, not a declaration that the word is universally unimportant.
 
-## Content-Focused Coverage
+## Scope-Relative Coverage
 
-`content_coverage = matched eligible non-stopword token positions / eligible non-stopword token positions`
+`coverage = matched eligible positions / eligible positions in the selected scope`
 
-Content-focused coverage belongs to the stopword-excluded view. It should not be substituted silently for ordinary coverage.
+Excluded stopwords and excluded non-content words are outside the selected
+denominator and are not unmatched. A complete matched expression is preserved
+when it intersects the selected scope.
 
 # 9. Token-Weighted and Type-Weighted Statistics
 
@@ -845,21 +850,17 @@ Work-level dispersion is not:
 
 Lexicon Explorer may show a **source-provided standard deviation** for one Warriner entry. That value describes participant variation around that entry's source mean. It is a different quantity from dispersion across the matched entries in one poem.
 
-# 11. Stopword Sensitivity
+# 11. Comparing Report Profiles
 
-**Stopword sensitivity** reports how much a statistic changes when moving from all matched observations to the stopword-excluded view.
+VerseVAD presents selected scope/weighting combinations directly rather than
+adding a redundant sensitivity score. A researcher may calculate a contrast
+from two explicitly named rows:
 
-`sensitivity = stopwords_excluded_value - all_matched_value`
+`profile difference = comparison profile value - reference profile value`
 
-| Sign | Meaning |
-|---|---|
-| Positive | The stopword-excluded statistic is higher |
-| Negative | The stopword-excluded statistic is lower |
-| Near zero | That statistic changes little under this policy |
-
-Use the signed result, its absolute size, the active stopword policy, and both underlying values.
-
-There is no universal threshold at which a difference becomes “robust,” “significant,” or “important.” Stopword sensitivity is a descriptive comparison, not an inferential test.
+The sign indicates direction. There is no universal threshold at which such a
+difference becomes robust, significant, or important. The same lexicon,
+metric, scale, phrase policy, and other settings must be held constant.
 
 # 12. Cumulative Normative Lexical Load
 
@@ -1076,7 +1077,7 @@ recalculates TTR, MATTR, HD-D, and MTLD under one configuration. It does not
 average work-level diversity values and call that pooled.
 
 PoetryID profile prevalence is calculated only within one compatible VAD
-source, analysis view, weighting, and threshold configuration. Its map counts,
+source, lexical scope, weighting, and threshold configuration. Its map counts,
 continuous work positions, and token/type differences do not create one
 corpus-wide emotional identity.
 
@@ -1088,7 +1089,7 @@ means a source row exists but its numeric rating is missing.
 
 # 16. Review Decisions and Scenarios
 
-Phase 5 review tools let a scholar document and test explicit alternatives without overwriting the baseline.
+Review scenarios let a scholar document and test explicit alternatives without overwriting the baseline.
 
 ## Flag
 
@@ -1176,13 +1177,16 @@ For `0.8, 0.8, 0.2`:
 
 Interpretation: above-midpoint distance outweighs below-midpoint distance by 0.3, while total off-midpoint distance is 0.9. The numbers are lexical sums, not a measured reader response.
 
-## Example D: Stopword Sensitivity
+## Example D: Comparing Lexical Scopes
 
-Suppose all-matched token-weighted arousal is `0.48` and stopwords-excluded arousal is `0.54`.
+Suppose All lexical tokens / Token-weighted arousal is `0.48` and Stopword-excluded / Token-weighted arousal is `0.54`.
 
-`sensitivity = 0.54 - 0.48 = +0.06`
+`scope difference = 0.54 - 0.48 = +0.06`
 
-Interpretation: under this recorded stopword policy, the content-focused arousal mean is 0.06 higher on the normalized scale. The calculation alone does not establish whether that difference is substantively important.
+Interpretation: under this recorded stopword policy, the stopword-excluded
+arousal mean is 0.06 higher on the normalized scale. This is a researcher-made
+contrast between two report profiles, not a separate VerseVAD metric or an
+inferential test.
 
 ## Example E: Corpus Weighting
 
@@ -1198,7 +1202,7 @@ Interpretation: the long work dominates the token-weighted profile. The work-wei
 
 Better report:
 
-“Using NRC VAD v2.1 on the normalized 0-to-1 scale, the all-matched token-weighted mean normative valence was 0.61 across 84 included observations, with 78% lexical-token coverage. The type-weighted mean was 0.54, indicating that repetition shifted the occurrence-sensitive profile upward. Population SD was 0.19. The largest above-midpoint contributors were `bright` and `love`; the strongest below-midpoint contributor was `death`. These are normative lexical patterns rather than a determination of the poem's emotional state.”
+“Using NRC VAD v2.1 on the normalized 0-to-1 scale, the All lexical tokens / Token-weighted mean normative valence was 0.61 across 84 included observations, with 78% lexical-token coverage. The All lexical tokens / Type-weighted mean was 0.54, indicating that repetition shifted the occurrence-sensitive profile upward. Population SD was 0.19. The largest above-midpoint contributors were `bright` and `love`; the strongest below-midpoint contributor was `death`. These are normative lexical patterns rather than a determination of the poem's emotional state.”
 
 Incomplete report:
 
@@ -1329,10 +1333,11 @@ Include these elements for every numeric claim:
 - exact lexicon or research resource and version;
 - original or normalized scale;
 - construct: VAD, emotion association, sentiment association, emotion intensity, normative lexical concreteness, corpus-relative lexical frequency, retrospective normative lexical Age of Acquisition, dictionary pronunciation/syllable/lexical-stress evidence, or candidate-meter fit;
-- analysis view when applicable: all matched or stopwords excluded;
+- lexical scope when applicable: all lexical tokens, stopword-excluded, or
+  content words only;
 - weighting: token, type, token-weighted collection, or work-weighted collection;
 - phrase policy when relevant;
-- Frequency or AoA scope when relevant: all lexical tokens or contextual content words only;
+- report-profile scope and weighting for every compatible lexical metric;
 - pronunciation override configuration and complete-line denominator when relevant;
 - meter configuration, nearest-candidate kind, analyzable-line denominator,
   and fit threshold when relevant;
@@ -1350,7 +1355,13 @@ Include these elements for every numeric claim:
 
 ## Reporting Template
 
-“Using **[lexicon or resource and version]**, **[text or collection]** had **[statistic] = [value]** for **[construct/dimension]** on the **[scale]**, using **[analysis view or optional-module scope when applicable]** and **[weighting]** across **[matched count/denominator]**, with **[coverage]** coverage. **[Dispersion, contributors, response evidence, relationship, sensitivity, PoetryID boundary/neighbor evidence, or corpus divergence]**. The result describes matched lexical evidence and is interpreted alongside the text.”
+“Using **[lexicon or resource and version]**, **[text or collection]** had
+**[statistic] = [value]** for **[construct/dimension]** on the **[scale]**,
+using **[lexical scope or fixed profile]** and **[weighting when applicable]**
+across **[matched count/denominator]**, with **[coverage]** coverage.
+**[Dispersion, contributors, response evidence, profile contrast, PoetryID
+boundary/neighbor evidence, or corpus divergence]**. The result describes
+matched lexical evidence and is interpreted alongside the text.”
 
 # 19. Quick-Reference Glossary
 
@@ -1359,7 +1370,7 @@ Include these elements for every numeric claim:
 | Affective lexicon | A source list connecting words or phrases to ratings or associations |
 | Age of Acquisition rating | Adult retrospective source estimate, in years, of when a listed word was learned well enough to understand |
 | Analysis run | One immutable calculation tied to exact inputs and methods |
-| Analysis view | All matched observations or stopwords excluded |
+| Lexical scope | All lexical tokens, stopword-excluded, or content words only |
 | Additional module result | Generic persisted result from the VADER, readability, concreteness, frequency, AoA, pronunciation, meter, rhyme/sound, lexical-style, or PoetryID engine |
 | AoA orientation band | Configurable early/middle/later VerseVAD display aid, not a source-validated category |
 | Arousal | Normative activation or energy associated with a lexical item |
@@ -1368,7 +1379,7 @@ Include these elements for every numeric claim:
 | Concreteness orientation band | Configurable VerseVAD display aid, not a validated source-paper category |
 | Concreteness rating | Source-supplied 1-5 normative rating from abstract/language-based toward concrete/experience-based |
 | Complete pronunciation line | Physical line whose every eligible lexical token has resolved syllable and lexical-stress evidence |
-| Content words only | Optional Frequency or AoA contextual scope limited to exact model tags NOUN, VERB, ADJ, and ADV; off by default |
+| Content words only | Global contextual report scope limited to exact model tags NOUN, VERB, ADJ, and ADV |
 | Coverage | Share of eligible lexical token positions represented by matches |
 | Corpus-relative frequency | Frequency evidence tied to a named corpus rather than a universal property of a word |
 | Equal-work module mean | Arithmetic mean of compatible eligible work-level module values |
@@ -1391,7 +1402,7 @@ Include these elements for every numeric claim:
 | Meter fit | Configured 0-1 stress-alignment similarity; not a probability |
 | Meter line coverage | Analyzable eligible physical lines divided by all eligible physical lines |
 | Declared meter style profile | Scholar-selected versioned realization weights; never an inferred period, movement, author, or tradition |
-| Performance-aware realization | Separate contextual reranking and annotated reading above the unchanged fixed candidate layer; built-in profiles compare both by default; not performed scansion |
+| Performance-aware realization | Optional contextual reranking and annotated reading above the unchanged fixed candidate layer; not performed scansion |
 | Rhythmic organization | Rule-based accentual-syllabic, accentual, syllabic, locally metrical, mixed, no-stable-pattern, or insufficient-evidence description |
 | Median | Middle sorted value |
 | MTLD | Mean forward/reverse sequential factor-length estimate at a configured TTR threshold |
@@ -1420,7 +1431,7 @@ Include these elements for every numeric claim:
 | Source value | Original value published by one lexicon |
 | Source-unrated AoA entry | A source word row whose mean is unavailable; retained in the audit with no numeric age |
 | Stopword | Common function word selected for exclusion from the secondary aggregate |
-| Stopword sensitivity | Stopwords-excluded result minus all-matched result |
+| Scope contrast | A descriptive comparison between two explicitly named lexical scopes, such as All lexical tokens and Stopword-excluded; not a separate metric |
 | Surface form | Exact form in the preserved text |
 | Token | One occurrence in the text |
 | Token-weighted | Every included occurrence contributes |

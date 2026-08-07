@@ -274,7 +274,7 @@ RESOURCE_DOWNLOAD_PAGES = {
     "cmudict-phone-inventory": "https://github.com/cmusphinx/cmudict",
     "cmudict-symbol-inventory": "https://github.com/cmusphinx/cmudict",
     "versemap": (
-        "https://github.com/nickybennett/VerseVAD/blob/main/"
+        "https://github.com/VerseVAD/VerseVAD/blob/main/"
         "docs/versemap-reference-corpus.md"
     ),
 }
@@ -1959,33 +1959,55 @@ def lexical_trajectory_views(
     )
     if result is None or workspace.poem_document is None:
         return ()
-    if analysis_view not in {"All matched tokens", "Stopwords excluded"}:
+    if analysis_view not in {
+        "All matched tokens",
+        "Stopwords excluded",
+        "Content words only",
+    }:
         raise ValueError(f"Unknown lexical-trajectory analysis view: {analysis_view}")
-    stopwords_excluded = analysis_view == "Stopwords excluded"
+    from versevad.analysis_profiles import (
+        LexicalScope,
+        phrase_adjusted_eligible_ids,
+        scoped_token_ids,
+    )
+
+    scope = {
+        "All matched tokens": LexicalScope.ALL_LEXICAL,
+        "Stopwords excluded": LexicalScope.STOPWORD_EXCLUDED,
+        "Content words only": LexicalScope.CONTENT_WORDS,
+    }[analysis_view]
+    active_stopwords = (
+        tuple(result.stopword_policy.active_words)
+        if result.stopword_policy is not None
+        else ()
+    )
+    eligible_token_ids = phrase_adjusted_eligible_ids(
+        scoped_token_ids(
+            result.tokens,
+            scope,
+            active_stopwords=active_stopwords,
+        ),
+        (
+            match.token_ids
+            for match in result.matches
+            if len(match.token_ids) > 1 and match.included
+        ),
+    )
     vad_by_line: dict[int, list] = {}
     for match in result.matches:
-        included = (
-            match.included_in_stopword_view
-            if stopwords_excluded
-            else match.included
+        included = match.included and set(match.token_ids).issubset(
+            eligible_token_ids
         )
         if not included or match.normalized_scores is None:
             continue
         vad_by_line.setdefault(match.line_number, []).append(match.normalized_scores)
 
-    eligible_token_ids: set[str] | None = None
-    if stopwords_excluded and result.stopword_policy is not None:
-        eligible_token_ids = stopword_eligible_token_ids(
-            result.tokens,
-            result.matches,
-            result.stopword_policy,
-        )
     concreteness_by_line: dict[int, list[float]] = {}
     if workspace.concreteness is not None:
         for row in workspace.concreteness.token_audit:
             if not row.included or row.rating is None:
                 continue
-            if eligible_token_ids is not None and row.token_id not in eligible_token_ids:
+            if row.token_id not in eligible_token_ids:
                 continue
             concreteness_by_line.setdefault(row.line_number, []).append(row.rating)
 
@@ -4124,7 +4146,7 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
             rows.append(
                 {
                     "section": "Candidate meter and rhythmic regularity",
-                    "lexicon": "Stage 5 pronunciation evidence",
+                    "lexicon": "VerseVAD pronunciation evidence",
                     "analysis_view": meter.configuration.scenario_id,
                     "metric": metric,
                     "value": value if value is not None else "",
@@ -5044,14 +5066,89 @@ def csv_reading_guide() -> bytes:
     return _csv_bytes(fields, rows)
 
 
-def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
+def _build_detailed_export_zip(
+    workspace: WorkspaceAnalysis,
+    *,
+    profile_selection=None,
+    export_mode: str = "complete_audit",
+    visible_section: str = "",
+    workspace_label: str = "Single Poem",
+    active_annotation_scope: str = "",
+    active_preset: str = "",
+) -> bytes:
     """Create the complete audit bundle temporarily and return an in-memory ZIP."""
+
+    from versevad.analysis_profiles import (
+        ALL_COMPATIBLE_PROFILES,
+        AnalysisProfile,
+        ProfileSelection,
+    )
+    from versevad.exports.reproducibility import (
+        build_file_inventory,
+        build_reproducibility_readme,
+        methods_appendix_paragraphs,
+    )
+    from versevad.workspace_profiles import workspace_profile_metrics
+
+    if export_mode not in {"current_view", "complete_audit"}:
+        raise ValueError(f"Unknown export mode: {export_mode}")
+    selection = profile_selection or ProfileSelection(
+        scopes=tuple(profile[0] for profile in ALL_COMPATIBLE_PROFILES),
+        weightings=tuple(profile[1] for profile in ALL_COMPATIBLE_PROFILES),
+    )
+    selected_profiles = frozenset(selection.profiles)
+
+    def profile_csv(profiles: frozenset[AnalysisProfile]) -> bytes:
+        rows = []
+        for item in workspace_profile_metrics(workspace):
+            if item.profile not in profiles:
+                continue
+            coverage = item.coverage
+            rows.append(
+                {
+                    "profile_id": item.profile.id,
+                    "scope": item.profile.scope.value,
+                    "weighting": item.profile.weighting.value,
+                    "module_id": item.module_id,
+                    "source_id": item.source_id,
+                    "source": item.source_label,
+                    "metric_id": item.metric_id,
+                    "metric": item.metric_label,
+                    "value": item.value,
+                    "population_standard_deviation": item.population_standard_deviation,
+                    "cumulative_value": item.cumulative_value,
+                    "observation_count": item.observation_count,
+                    "eligible_token_count": coverage.eligible_token_count,
+                    "matched_token_count": coverage.matched_token_count,
+                    "unmatched_token_count": coverage.unmatched_token_count,
+                    "token_coverage": coverage.token_coverage,
+                    "eligible_type_count": coverage.eligible_type_count,
+                    "matched_type_count": coverage.matched_type_count,
+                    "unmatched_type_count": coverage.unmatched_type_count,
+                    "type_coverage": coverage.type_coverage,
+                    "excluded_stopword_count": coverage.excluded_stopword_count,
+                    "excluded_non_content_count": coverage.excluded_non_content_count,
+                    "phrase_match_count": coverage.phrase_match_count,
+                    "type_identity_rule": coverage.type_identity_rule,
+                    "unit": item.unit,
+                }
+            )
+        fields = tuple(rows[0]) if rows else (
+            "profile_id",
+            "scope",
+            "weighting",
+            "module_id",
+            "source_id",
+            "metric_id",
+            "value",
+        )
+        return _csv_bytes(fields, rows)
 
     with TemporaryDirectory(prefix="versevad-export-") as temporary:
         directory = Path(temporary)
         paths = (
             export_phase2_csv(workspace.results, workspace.comparison, directory)
-            if workspace.results
+            if workspace.results and export_mode == "complete_audit"
             else ()
         )
         export_files = {
@@ -5074,24 +5171,121 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
             (workspace.inherited_form, export_inherited_form_bundle),
             (workspace.versemap, export_versemap_bundle),
         )
+        section_modules = {
+            "Affective Evidence": {"vader_sentiment", "poetry_id"},
+            "Lexical Character, Imagery & Embodiment": {
+                "readability",
+                "lexical_style",
+                "concreteness",
+                "frequency",
+                "aoa",
+                "sensorimotor",
+            },
+            "Sound & Form": {"pronunciation", "meter", "phonology", "inherited_form"},
+            "Structure": {"lexical_style"},
+            "VerseMap": {"versemap"},
+        }
+        included_module_names: set[str] = set()
         for result, exporter in optional_results:
-            if result is not None:
+            module_name = (
+                result.module_result.module_name if result is not None else ""
+            )
+            include_module = export_mode == "complete_audit" or (
+                not visible_section
+                or module_name in section_modules.get(visible_section, set())
+            )
+            if result is not None and include_module:
                 export_files.update(exporter(result, text_title=title))
-        if workspace.poem_document is not None:
+                included_module_names.add(module_name)
+        if workspace.poem_document is not None and (
+            export_mode == "complete_audit" or visible_section == "Structure"
+        ):
             export_files.update(
                 export_poem_document_csv_bundle(workspace.poem_document)
             )
-        if vad_part_of_speech_views(workspace):
+        if vad_part_of_speech_views(workspace) and export_mode == "complete_audit":
             export_files["vad_by_part_of_speech.csv"] = (
                 vad_part_of_speech_csv(workspace)
             )
-        if any(result.vad_summary is not None for result in workspace.results):
+        if (
+            any(result.vad_summary is not None for result in workspace.results)
+            and export_mode == "complete_audit"
+        ):
             export_files["lexical_trajectory.csv"] = lexical_trajectory_csv(
                 workspace
             )
-        summary_csv = scholar_summary_csv(workspace)
-        export_files["scholar_summary.csv"] = summary_csv
+        export_files["profile_metrics_selected.csv"] = profile_csv(selected_profiles)
+        if export_mode == "complete_audit":
+            export_files["profile_metrics_all_compatible.csv"] = profile_csv(
+                frozenset(
+                    AnalysisProfile(scope, weighting)
+                    for scope, weighting in ALL_COMPATIBLE_PROFILES
+                )
+            )
+        summary_csv = (
+            scholar_summary_csv(workspace)
+            if export_mode == "complete_audit"
+            else export_files["profile_metrics_selected.csv"]
+        )
+        if export_mode == "complete_audit":
+            export_files["scholar_summary.csv"] = summary_csv
         export_files["csv_reading_guide.csv"] = csv_reading_guide()
+        selected_ids = ", ".join(profile.id for profile in selection.profiles)
+        included_profiles = (
+            selection.profiles
+            if export_mode == "current_view"
+            else tuple(
+                AnalysisProfile(scope, weighting)
+                for scope, weighting in ALL_COMPATIBLE_PROFILES
+            )
+        )
+        first_result = workspace.results[0] if workspace.results else None
+        resources = tuple(
+            f"{result.lexicon_metadata.display_name}; version {result.lexicon_metadata.version}; "
+            f"adapter {result.lexicon_metadata.adapter_version}; source SHA-256 {result.lexicon_validation.source_sha256}"
+            for result in workspace.results
+        )
+        preprocessing = (
+            (
+                f"Recipe {first_result.preprocessing.recipe_id}; pipeline "
+                f"{first_result.preprocessing.pipeline_name} "
+                f"{first_result.preprocessing.pipeline_version}; disabled components: "
+                f"{', '.join(first_result.preprocessing.disabled_components) or 'none'}."
+            ),
+            "Unicode and lookup whitespace normalization are applied to a separate processing representation; original source text and formal lineation remain unchanged.",
+        ) if first_result is not None else ()
+        export_files["REPRODUCIBILITY_README.txt"] = build_reproducibility_readme(
+            export_mode=export_mode,
+            workspace=workspace_label,
+            report_section=visible_section,
+            analysis_id=workspace.document.text_version_id,
+            title=workspace.document.title,
+            source_sha256=workspace.document.text_sha256,
+            visible_profiles=selection.profiles,
+            included_profiles=included_profiles,
+            active_annotation_scope=active_annotation_scope,
+            active_preset=active_preset,
+            preprocessing=preprocessing,
+            resources=resources,
+            overrides=(
+                "Pronunciation and meter overrides are recorded in their module manifests when supplied.",
+            ),
+            included_fixed_modules=tuple(
+                module_id
+                for source_module, fixed_ids in {
+                    "vader_sentiment": ("vader",),
+                    "readability": ("traditional_readability", "vv_pre"),
+                    "pronunciation": ("pronunciation",),
+                    "meter": ("meter",),
+                    "phonology": ("phonology",),
+                    "inherited_form": ("inherited_form",),
+                    "versemap": ("versemap",),
+                    "lexical_style": ("structure",),
+                }.items()
+                if source_module in included_module_names
+                for module_id in fixed_ids
+            ),
+        )
         warning_messages = [
             warning
             for result in workspace.results
@@ -5134,8 +5328,19 @@ def _build_detailed_export_zip(workspace: WorkspaceAnalysis) -> bytes:
                 text_id=workspace.document.text_id,
                 result_id=workspace.document.text_version_id,
                 warnings=tuple(dict.fromkeys(warning_messages)),
+                methods_reproducibility=methods_appendix_paragraphs(
+                    included_profiles,
+                    source_sha256=workspace.document.text_sha256,
+                ),
             )
         )
+        export_files["FILE_INVENTORY.txt"] = b""
+        for _attempt in range(3):
+            export_files["FILE_INVENTORY.txt"] = build_file_inventory(
+                export_files,
+                export_mode=export_mode,
+                profile_ids=selected_ids,
+            )
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, mode="w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for filename, content in export_files.items():
@@ -5147,6 +5352,12 @@ def detailed_export_zip(
     workspace: WorkspaceAnalysis,
     *,
     use_cache: bool = True,
+    profile_selection=None,
+    export_mode: str = "complete_audit",
+    visible_section: str = "",
+    workspace_label: str = "Single Poem",
+    active_annotation_scope: str = "",
+    active_preset: str = "",
 ) -> bytes:
     """Return a bounded cached export for an immutable completed analysis."""
 
@@ -5170,10 +5381,29 @@ def detailed_export_zip(
         _module_result_id(workspace.poetry_id),
         _module_result_id(workspace.inherited_form),
         _module_result_id(workspace.versemap),
+        export_mode,
+        visible_section,
+        workspace_label,
+        active_annotation_scope,
+        active_preset,
+        tuple(
+            profile.id
+            for profile in (
+                profile_selection.profiles if profile_selection is not None else ()
+            )
+        ),
     )
     content, _lookup = EXPORT_CACHE.get_or_compute(
         key,
-        lambda: _build_detailed_export_zip(workspace),
+        lambda: _build_detailed_export_zip(
+            workspace,
+            profile_selection=profile_selection,
+            export_mode=export_mode,
+            visible_section=visible_section,
+            workspace_label=workspace_label,
+            active_annotation_scope=active_annotation_scope,
+            active_preset=active_preset,
+        ),
         enabled=use_cache,
         validator=lambda value: (
             isinstance(value, bytes)

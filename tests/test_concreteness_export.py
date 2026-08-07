@@ -142,5 +142,6 @@ def test_concreteness_only_workspace_and_full_bundle(
             "VerseVAD_analysis_report.docx",
         }
         assert not any(name.startswith("phase2_") for name in names)
-        assert not any(name.endswith((".json", ".txt", ".xlsx")) for name in names)
+        assert not any(name.endswith((".json", ".xlsx")) for name in names)
+        assert {"REPRODUCIBILITY_README.txt", "FILE_INVENTORY.txt"} <= names
         assert bundle.read("concreteness_report.docx").startswith(b"PK")

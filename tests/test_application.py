@@ -652,7 +652,8 @@ def test_detailed_download_starts_with_friendly_files_and_retains_audit(
         assert "processing_tokens.csv" in names
         assert "processing_configuration.csv" in names
         assert "vad_by_part_of_speech.csv" in names
-        assert not any(name.endswith((".json", ".txt", ".xlsx")) for name in names)
+        assert not any(name.endswith((".json", ".xlsx")) for name in names)
+        assert {"REPRODUCIBILITY_README.txt", "FILE_INVENTORY.txt"} <= names
         source = _csv_rows(bundle.read("processing_source.csv"))[0]
         assert source["original_text"] == "Fear joy dark night."
         configuration = _csv_rows(

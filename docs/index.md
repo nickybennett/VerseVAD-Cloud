@@ -44,8 +44,9 @@ the current release rather than its implementation history.
   and [secondary lexical dimensions](VerseVAD_Poetic_Archetype_Framework_Expanded_with_Secondary_Lexical_Dimensions.docx)
   — the research framework behind PoetryID.
 
-Always report the selected lexicon, token/type weighting, stopword treatment,
-eligible denominator, match coverage, and important warnings. A normative
+Always report the selected lexicon, lexical scope, token/type weighting,
+eligible denominator, match coverage, fixed-profile ID where applicable, and
+important warnings. A normative
 lexical score is evidence about matched vocabulary, not a direct measurement
 of a poem's emotion, meaning, quality, author, speaker, or reader.
 

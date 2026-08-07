@@ -20,6 +20,7 @@ from versevad.adapters.subtlex_us import (
     SubtlexUsValidation,
 )
 from versevad.analysis.statistics import descriptive_statistics
+from versevad.analysis_profiles import CONTENT_WORD_POS_TAGS
 from versevad.core.documents import StructuralUnitKind
 from versevad.core.modules import (
     ModuleCoverage,
@@ -85,7 +86,7 @@ SUBTLEX_US_SPEC = ResourceSpec(
     license_notice=SUBTLEX_US_LICENSE_NOTICE,
 )
 
-CONTENT_WORD_POS = frozenset({"NOUN", "VERB", "ADJ", "ADV"})
+CONTENT_WORD_POS = CONTENT_WORD_POS_TAGS
 
 
 class FrequencyModuleError(RuntimeError):
@@ -109,6 +110,7 @@ class FrequencyConfiguration:
     moderately_common_below: float = 5.0
     very_common_min: float = 6.0
     exclude_proper_nouns: bool = False
+    # Legacy field: report scope no longer restricts retained evidence.
     content_words_only: bool = False
     enable_lemma_fallback: bool = True
     minimum_matched_tokens: int = 3
@@ -150,11 +152,7 @@ class FrequencyConfiguration:
 
     @property
     def scope_label(self) -> str:
-        return (
-            "Content words only (NOUN, VERB, ADJ, ADV)"
-            if self.content_words_only
-            else "All lexicon-eligible word tokens"
-        )
+        return "All lexicon-eligible word tokens; report scope is selected later"
 
 
 @dataclass(frozen=True)
@@ -396,15 +394,6 @@ def _ineligible_reason(
         return (
             "Excluded by the configured proper-name policy because names can "
             "inflate subtitle-corpus counts."
-        )
-    if (
-        configuration.content_words_only
-        and token.part_of_speech not in CONTENT_WORD_POS
-    ):
-        return (
-            "Excluded by the optional content-word-only scope. Eligible model "
-            "tags are NOUN, VERB, ADJ, and ADV; auxiliaries and function-word "
-            "tags remain outside this denominator."
         )
     return None
 
@@ -849,11 +838,11 @@ def _warnings(
     if configuration.content_words_only:
         warnings.append(
             ModuleWarning(
-                code="content_words_only_scope",
+                code="legacy_content_scope_migrated",
                 message=(
-                    "The optional content-word-only scope is active. Only "
-                    "model-tagged NOUN, VERB, ADJ, and ADV tokens contribute; "
-                    "function words, auxiliaries, and punctuation are excluded."
+                    "A legacy content-word setting was retained as provenance. "
+                    "The completed result still retains all lexical evidence; "
+                    "Content words only is now selected in report controls."
                 ),
                 severity=WarningSeverity.INFORMATION,
             )
@@ -1073,25 +1062,16 @@ class FrequencyModule:
             license_notice=self.resource_spec.license_notice,
             adapter_version=SubtlexUsAdapter.adapter_version,
         )
-        if config.content_words_only:
-            inclusion_policy = (
-                "Only model-tagged NOUN, VERB, ADJ, and ADV word tokens; "
-                "function words, auxiliaries, punctuation, pure numeric literals, "
-                "and alphabetically spelled NUM tokens are outside this explicit "
-                "content-word scope."
+        inclusion_policy = (
+            "All ordinary lexical tokens plus alphabetically spelled "
+            "number-like tokens; punctuation and pure numeric literals excluded; "
+            + (
+                "model-tagged proper nouns excluded by explicit configuration."
+                if config.exclude_proper_nouns
+                else "model-tagged proper nouns included by default."
             )
-        else:
-            inclusion_policy = (
-                "All ordinary lexical tokens plus alphabetically spelled "
-                "number-like tokens; punctuation and pure numeric literals excluded; "
-                + (
-                    "model-tagged proper nouns excluded by explicit configuration."
-                    if config.exclude_proper_nouns
-                    else (
-                        "model-tagged proper nouns included by default."
-                    )
-                )
-            )
+            + " Scope and weighting are applied later from retained evidence."
+        )
         lookup_policy = (
             "Exact normalized observed word form first; "
             + (

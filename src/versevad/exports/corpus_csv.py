@@ -22,6 +22,19 @@ from versevad.db import (
     UnmatchedQcRecord,
 )
 from versevad.exports.docx_report import REPORT_PROFILES, build_narrative_report
+from versevad.exports.reproducibility import (
+    build_file_inventory,
+    build_reproducibility_readme,
+    methods_appendix_paragraphs,
+)
+from versevad.analysis_profiles import (
+    SCOPE_ORDER,
+    WEIGHTING_ORDER,
+    AnalysisProfile,
+    LexicalScope,
+    ProfileSelection,
+)
+from versevad.module_capabilities import CapabilityCategory, MODULE_CAPABILITIES
 
 CORPUS_EXPORT_API_VERSION = 1
 _FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
@@ -134,9 +147,80 @@ def build_corpus_export_bundle(
     module_results: Sequence[CorpusModuleResultRecord] = (),
     module_aggregates: Sequence[CorpusModuleAggregateRecord] = (),
     module_warnings: Sequence[CorpusModuleWarningRecord] = (),
+    profile_selection: ProfileSelection | None = None,
+    export_mode: str = "complete_audit",
+    report_section: str = "",
+    active_preset: str = "",
 ) -> bytes:
     """Return a ZIP containing only CSV data and a narrative DOCX report."""
 
+    if export_mode not in {"current_view", "complete_audit"}:
+        raise ValueError(f"Unknown export mode: {export_mode}")
+    selection = profile_selection or ProfileSelection()
+    view_ids = {
+        LexicalScope.ALL_LEXICAL: "all_matched",
+        LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+        LexicalScope.CONTENT_WORDS: "content_words",
+    }
+    included_profiles = (
+        selection.profiles
+        if export_mode == "current_view"
+        else tuple(
+            AnalysisProfile(scope, weighting)
+            for scope in SCOPE_ORDER
+            for weighting in WEIGHTING_ORDER
+        )
+    )
+    exported_metrics = tuple(metrics)
+    if export_mode == "current_view":
+        selected_views = {view_ids[scope] for scope in selection.scopes}
+        selected_weightings = {
+            weighting.value.casefold() for weighting in selection.weightings
+        }
+        exported_metrics = tuple(
+            row
+            for row in metrics
+            if row.analysis_view in selected_views
+            and row.weighting in selected_weightings
+        )
+        if report_section == "Overview":
+            exported_metrics = tuple(
+                row for row in exported_metrics if row.metric == "vad_mean"
+            )
+        elif report_section not in {"Affective Evidence", "Evidence & Diagnostics", ""}:
+            exported_metrics = ()
+    selected_module_names = {
+        "Affective Evidence": {
+            "poetry_id", "vader_sentiment",
+        },
+        "Lexical Character, Imagery & Embodiment": {
+            "concreteness", "frequency", "aoa", "sensorimotor",
+        },
+        "Sound & Form": {
+            "pronunciation", "meter", "performance_meter", "phonology",
+            "inherited_form",
+        },
+        "Structure": {"lexical_style"},
+        "VerseMap": {"versemap"},
+        "Evidence & Diagnostics": None,
+        "Overview": {"poetry_id", "vader_sentiment", "readability", "versemap"},
+    }.get(report_section, None)
+    if export_mode == "current_view" and selected_module_names is not None:
+        module_metrics = tuple(
+            row for row in module_metrics if row.module_name in selected_module_names
+        )
+        module_coverage = tuple(
+            row for row in module_coverage if row.module_name in selected_module_names
+        )
+        module_results = tuple(
+            row for row in module_results if row.module_name in selected_module_names
+        )
+        module_warnings = tuple(
+            row for row in module_warnings if row.module_name in selected_module_names
+        )
+        module_aggregates = tuple(
+            row for row in module_aggregates if row.module_name in selected_module_names
+        )
     bundle: dict[str, bytes] = {}
     project_row = {key: _value(value) for key, value in asdict(project).items()}
     bundle["corpus_project.csv"] = _csv_bytes(
@@ -153,7 +237,7 @@ def build_corpus_export_bundle(
     _add_records(
         bundle,
         "corpus_vad_metrics.csv",
-        metrics,
+        exported_metrics,
         record_type=CorpusMetricRecord,
     )
     _add_records(
@@ -206,7 +290,7 @@ def build_corpus_export_bundle(
         methodology_rows,
     )
 
-    profiles = corpus_vad_profiles(metrics, total_works=len(texts))
+    profiles = corpus_vad_profiles(exported_metrics, total_works=len(texts))
     profile_rows = [
         {
             key: _value(value)
@@ -235,7 +319,7 @@ def build_corpus_export_bundle(
         {
             "section": "collection overview",
             "metric": "VAD metric records",
-            "value": str(len(metrics)),
+            "value": str(len(exported_metrics)),
             "unit_or_scale": "records",
             "denominator": "",
             "note": "Each record retains its source, view, weighting, and scale.",
@@ -336,7 +420,54 @@ def build_corpus_export_bundle(
         text_title=project.title,
         text_id=project.project_id,
         warnings=warning_messages,
+        methods_reproducibility=methods_appendix_paragraphs(
+            included_profiles,
+            source_sha256="; ".join(text.text_sha256 for text in texts),
+        ),
     )
+    selected_ids = ", ".join(profile.id for profile in included_profiles)
+    fixed_modules = tuple(
+        sorted(
+            {
+                row.module_name
+                for row in module_results
+                if row.module_name in MODULE_CAPABILITIES
+                and MODULE_CAPABILITIES[row.module_name].category
+                is CapabilityCategory.FIXED_PROFILE
+            }
+        )
+    )
+    bundle["REPRODUCIBILITY_README.txt"] = build_reproducibility_readme(
+        export_mode=export_mode,
+        workspace="Saved Projects",
+        report_section=report_section,
+        analysis_id=project.project_id,
+        title=project.title,
+        author=project.researcher,
+        source_sha256="; ".join(text.text_sha256 for text in texts),
+        visible_profiles=selection.profiles,
+        included_profiles=included_profiles,
+        active_preset=active_preset,
+        resources=tuple(
+            dict.fromkeys(
+                [row.lexicon for row in metrics]
+                + [f"{row.module_name} {row.module_version}" for row in module_results]
+            )
+        ),
+        context=(
+            f"Corpus: {project.title}; {len(texts)} works.",
+            "Works remain separate; collection summaries do not concatenate poem texts.",
+        ),
+        included_fixed_modules=fixed_modules,
+        export_timestamp=project.updated_at,
+    )
+    bundle["FILE_INVENTORY.txt"] = b""
+    for _attempt in range(3):
+        bundle["FILE_INVENTORY.txt"] = build_file_inventory(
+            bundle,
+            export_mode=export_mode,
+            profile_ids=selected_ids,
+        )
 
     archive = io.BytesIO()
     with zipfile.ZipFile(

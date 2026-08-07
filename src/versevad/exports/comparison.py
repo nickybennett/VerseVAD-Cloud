@@ -4,6 +4,15 @@ from __future__ import annotations
 
 import csv
 import io
+import zipfile
+
+from versevad.analysis_profiles import (
+    SCOPE_ORDER,
+    WEIGHTING_ORDER,
+    AnalysisProfile,
+    LexicalScope,
+    ProfileSelection,
+)
 
 from versevad.comparison import (
     PoemComparison,
@@ -12,9 +21,30 @@ from versevad.comparison import (
     comparison_set_rows,
 )
 from versevad.exports.docx_report import build_narrative_report_from_summary_csv
+from versevad.exports.reproducibility import (
+    build_file_inventory,
+    build_reproducibility_readme,
+    methods_appendix_paragraphs,
+)
+from versevad.module_capabilities import CapabilityCategory, MODULE_CAPABILITIES
 
 
 COMPARISON_EXPORT_API_VERSION = 1
+
+
+def _dashboard_section(metric_id: str) -> str:
+    prefix = metric_id.split(".", 1)[0]
+    if prefix in {"vad", "emotion", "emotion_intensity", "poetry_id", "vader"}:
+        return "Affective Evidence"
+    if prefix in {"concreteness", "frequency", "rarity", "aoa", "readability", "sensorimotor"}:
+        return "Lexical Character, Imagery & Embodiment"
+    if prefix in {"pronunciation", "meter", "phonology", "inherited_form"}:
+        return "Sound & Form"
+    if prefix in {"lexical_style", "word_length", "pos"}:
+        return "Structure"
+    if prefix == "versemap":
+        return "VerseMap"
+    return "Evidence & Diagnostics"
 
 
 def export_poem_comparison_csv(
@@ -144,6 +174,9 @@ def export_poem_comparison_set_csv(
     *,
     analysis_view: str = "all_matched",
     weighting: str = "token",
+    report_section: str = "",
+    include_configurable: bool = True,
+    include_fixed: bool = True,
 ) -> bytes:
     """Export a long-form two-to-ten-poem comparison without pairwise deltas."""
 
@@ -177,6 +210,26 @@ def export_poem_comparison_set_csv(
         analysis_view=analysis_view,
         weighting=weighting,
     ):
+        configurable = (
+            row.analysis_view in {"all_matched", "stopwords_excluded", "content_words"}
+            and row.weighting in {"token", "type"}
+        )
+        if report_section:
+            if report_section == "Overview":
+                if not (
+                    row.metric_id.endswith(".mean")
+                    or row.metric_id.endswith(".category_fit")
+                    or row.metric_id.endswith(".nearest_centroid")
+                ):
+                    continue
+            elif report_section != "Evidence & Diagnostics" and (
+                _dashboard_section(row.metric_id) != report_section
+            ):
+                continue
+        if configurable and not include_configurable:
+            continue
+        if not configurable and not include_fixed:
+            continue
         for position, poem_value in enumerate(row.values, start=1):
             writer.writerow(
                 {
@@ -226,6 +279,9 @@ def export_poem_comparison_set_docx(
     *,
     analysis_view: str = "all_matched",
     weighting: str = "token",
+    report_section: str = "",
+    include_configurable: bool = True,
+    include_fixed: bool = True,
 ) -> bytes:
     """Build a readable set-comparison report backed by the long-form CSV."""
 
@@ -233,13 +289,13 @@ def export_poem_comparison_set_docx(
         comparison_set,
         analysis_view=analysis_view,
         weighting=weighting,
+        report_section=report_section,
+        include_configurable=include_configurable,
+        include_fixed=include_fixed,
     )
     titles = [
         analysis.request.title or f"Poem {index}"
-        for index, analysis in enumerate(
-            comparison_set.analyses,
-            start=1,
-        )
+        for index, analysis in enumerate(comparison_set.analyses, start=1)
     ]
     return build_narrative_report_from_summary_csv(
         "compare_poems",
@@ -256,7 +312,156 @@ def export_poem_comparison_set_docx(
             f"{analysis_view.replace('_', ' ')}; shared weighting: "
             f"{weighting} weighted.",
         ),
+        methods_reproducibility=methods_appendix_paragraphs(
+            (
+                AnalysisProfile(
+                    next(
+                        scope
+                        for scope, view in {
+                            LexicalScope.ALL_LEXICAL: "all_matched",
+                            LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+                            LexicalScope.CONTENT_WORDS: "content_words",
+                        }.items()
+                        if view == analysis_view
+                    ),
+                    next(
+                        item
+                        for item in WEIGHTING_ORDER
+                        if item.value.casefold() == weighting
+                    ),
+                ),
+            ) if include_configurable else (),
+            source_sha256="; ".join(
+                analysis.document.text_sha256 for analysis in comparison_set.analyses
+            ),
+        ),
     )
+
+
+def export_poem_comparison_set_bundle(
+    comparison_set: PoemComparisonSet,
+    *,
+    selection: ProfileSelection,
+    export_mode: str,
+    visible_section: str = "",
+) -> bytes:
+    """Package selected or complete comparison profiles with an inventory."""
+
+    if export_mode not in {"current_view", "complete_audit"}:
+        raise ValueError(f"Unknown export mode: {export_mode}")
+    profiles = (
+        selection.profiles
+        if export_mode == "current_view"
+        else tuple(
+            AnalysisProfile(scope, weighting)
+            for scope in SCOPE_ORDER
+            for weighting in WEIGHTING_ORDER
+        )
+    )
+    view_ids = {
+        LexicalScope.ALL_LEXICAL: "all_matched",
+        LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+        LexicalScope.CONTENT_WORDS: "content_words",
+    }
+    files: dict[str, bytes] = {}
+    for profile in profiles:
+        stem = profile.id.casefold()
+        view = view_ids[profile.scope]
+        weighting = profile.weighting.value.casefold()
+        files[f"comparison_{stem}.csv"] = export_poem_comparison_set_csv(
+            comparison_set,
+            analysis_view=view,
+            weighting=weighting,
+            report_section=(visible_section if export_mode == "current_view" else ""),
+            include_fixed=False,
+        )
+        files[f"comparison_{stem}.docx"] = export_poem_comparison_set_docx(
+            comparison_set,
+            analysis_view=view,
+            weighting=weighting,
+            report_section=(visible_section if export_mode == "current_view" else ""),
+            include_fixed=False,
+        )
+    first_profile = profiles[0] if profiles else AnalysisProfile(
+        LexicalScope.STOPWORD_EXCLUDED,
+        WEIGHTING_ORDER[0],
+    )
+    fixed_view = view_ids[first_profile.scope]
+    fixed_weighting = first_profile.weighting.value.casefold()
+    fixed_rows = comparison_set_rows(
+        comparison_set,
+        analysis_view=fixed_view,
+        weighting=fixed_weighting,
+    )
+    fixed_csv = export_poem_comparison_set_csv(
+        comparison_set,
+        analysis_view=fixed_view,
+        weighting=fixed_weighting,
+        report_section=(visible_section if export_mode == "current_view" else ""),
+        include_configurable=False,
+        include_fixed=True,
+    )
+    if len(fixed_csv.decode("utf-8-sig").splitlines()) > 1:
+        files["comparison_fixed_profiles.csv"] = fixed_csv
+        files["comparison_fixed_profiles.docx"] = export_poem_comparison_set_docx(
+            comparison_set,
+            analysis_view=fixed_view,
+            weighting=fixed_weighting,
+            report_section=(visible_section if export_mode == "current_view" else ""),
+            include_configurable=False,
+            include_fixed=True,
+        )
+    selected_ids = ", ".join(profile.id for profile in profiles)
+    first_analysis = comparison_set.analyses[0]
+    files["REPRODUCIBILITY_README.txt"] = build_reproducibility_readme(
+        export_mode=export_mode,
+        workspace="Compare Poems",
+        report_section=visible_section,
+        analysis_id=comparison_set.comparison_set_id,
+        title="; ".join(
+            analysis.request.title or f"Poem {position}"
+            for position, analysis in enumerate(comparison_set.analyses, start=1)
+        ),
+        source_sha256="; ".join(
+            analysis.document.text_sha256 for analysis in comparison_set.analyses
+        ),
+        visible_profiles=selection.profiles,
+        included_profiles=profiles,
+        active_preset="shared comparison profile",
+        preprocessing=(
+            "Every poem used the same retained preprocessing and analytical configuration.",
+            "Poem texts were not concatenated; within-poem statistics remain distinct.",
+        ),
+        resources=tuple(
+            result.lexicon_metadata.display_name
+            for result in first_analysis.results
+        ),
+        context=(
+            f"Comparison contains {len(comparison_set.analyses)} poems.",
+            "Ranges are descriptive maximum-minus-minimum values, not significance tests.",
+        ),
+        included_fixed_modules=tuple(
+            module_id
+            for module_id, capability in MODULE_CAPABILITIES.items()
+            if capability.category is CapabilityCategory.FIXED_PROFILE
+            and any(
+                row.metric_id.startswith(module_id + ".")
+                for row in fixed_rows
+            )
+        ),
+    )
+    files["FILE_INVENTORY.txt"] = b""
+    for _attempt in range(3):
+        files["FILE_INVENTORY.txt"] = build_file_inventory(
+            files,
+            export_mode=export_mode,
+            profile_ids=selected_ids,
+        )
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+        for filename, content in files.items():
+            bundle.writestr(filename, content)
+    return archive.getvalue()
 
 
 __all__ = [
@@ -265,4 +470,5 @@ __all__ = [
     "export_poem_comparison_docx",
     "export_poem_comparison_set_csv",
     "export_poem_comparison_set_docx",
+    "export_poem_comparison_set_bundle",
 ]

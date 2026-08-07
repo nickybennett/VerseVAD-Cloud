@@ -1,4 +1,4 @@
-"""Shared Streamlit controls for reproducible stopword-sensitivity settings."""
+"""Shared controls for the reproducible list used by canonical lexical scope."""
 
 from __future__ import annotations
 
@@ -40,9 +40,9 @@ def render_stopword_settings(key_prefix: str) -> StopwordUiSettings:
     additions_key = f"{key_prefix}_custom_stopword_additions"
     removals_key = f"{key_prefix}_custom_stopword_removals"
     mode_labels = {
-        "Include all matched words": StopwordMode.ALL_MATCHED,
-        "Exclude standard stopwords": StopwordMode.STANDARD,
-        "Use custom stopword list": StopwordMode.CUSTOM,
+        "No active stopword exclusions": StopwordMode.ALL_MATCHED,
+        "Use VerseVAD standard stopword list": StopwordMode.STANDARD,
+        "Use a customized stopword list": StopwordMode.CUSTOM,
     }
     st.session_state.setdefault(mode_key, StopwordMode.STANDARD.value)
     current_mode = StopwordMode(st.session_state[mode_key])
@@ -54,6 +54,15 @@ def render_stopword_settings(key_prefix: str) -> StopwordUiSettings:
             if mode == current_mode
         ),
     )
+    legacy_labels = {
+        "Include all matched words": "No active stopword exclusions",
+        "Exclude standard stopwords": "Use VerseVAD standard stopword list",
+        "Use custom stopword list": "Use a customized stopword list",
+    }
+    if st.session_state.get(mode_label_key) in legacy_labels:
+        st.session_state[mode_label_key] = legacy_labels[
+            st.session_state[mode_label_key]
+        ]
     st.session_state.setdefault(
         protected_key,
         "\n".join(DEFAULT_PROTECTED_WORDS),
@@ -66,19 +75,19 @@ def render_stopword_settings(key_prefix: str) -> StopwordUiSettings:
         key=f"{key_prefix}_restore_stopwords",
     ):
         st.session_state[mode_key] = StopwordMode.STANDARD.value
-        st.session_state[mode_label_key] = "Exclude standard stopwords"
+        st.session_state[mode_label_key] = "Use VerseVAD standard stopword list"
         st.session_state[protected_key] = "\n".join(DEFAULT_PROTECTED_WORDS)
         st.session_state[additions_key] = ""
         st.session_state[removals_key] = ""
         st.rerun()
 
     selected_label = st.selectbox(
-        "Secondary-view policy",
+        "Stopword-list resource",
         options=list(mode_labels),
         key=mode_label_key,
         help=(
-            "The complete all-matched analysis is always preserved. This setting "
-            "controls only the parallel sensitivity view."
+            "This records the list used by the post-analysis Stopword-excluded "
+            "scope. It does not restrict the evidence retained by the analysis."
         ),
     )
     selected_mode = mode_labels[selected_label]
@@ -110,7 +119,7 @@ def render_stopword_settings(key_prefix: str) -> StopwordUiSettings:
             imported_words = _split_words(imported_text)
             st.session_state[additions_key] = "\n".join(imported_words)
             st.session_state[mode_key] = StopwordMode.CUSTOM.value
-            st.session_state[mode_label_key] = "Use custom stopword list"
+            st.session_state[mode_label_key] = "Use a customized stopword list"
             st.rerun()
         except (UnicodeDecodeError, ValueError) as error:
             st.error(f"The custom stopword file was not applied: {error}")

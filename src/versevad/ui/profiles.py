@@ -9,8 +9,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping
 
+from versevad.analysis_profiles import (
+    DEFAULT_SCOPES,
+    DEFAULT_WEIGHTINGS,
+    canonical_scopes,
+    canonical_weightings,
+    LexicalScope,
+    AggregationWeighting,
+)
 
-CUSTOM_PROFILE_VERSION = 1
+
+CUSTOM_PROFILE_VERSION = 2
 COMPARISON_PROFILE_SETTING_KEYS = (
     "phrase_policy_label",
     "minimum_matches",
@@ -27,13 +36,11 @@ COMPARISON_PROFILE_SETTING_KEYS = (
     "frequency_moderate_below",
     "frequency_very_common_min",
     "frequency_exclude_proper",
-    "frequency_content_words_only",
     "frequency_lemma_fallback",
     "frequency_coverage_warning",
     "aoa_early_max",
     "aoa_later_min",
     "aoa_exclude_proper",
-    "aoa_content_words_only",
     "aoa_lemma_fallback",
     "aoa_coverage_warning",
     "lexical_style_mattr_window",
@@ -102,13 +109,11 @@ PROFILE_WIDGET_KEYS = frozenset(
         "frequency_moderate_below",
         "frequency_very_common_min",
         "frequency_exclude_proper",
-        "frequency_content_words_only",
         "frequency_lemma_fallback",
         "frequency_coverage_warning",
         "aoa_early_max",
         "aoa_later_min",
         "aoa_exclude_proper",
-        "aoa_content_words_only",
         "aoa_lemma_fallback",
         "aoa_coverage_warning",
         "lexical_style_mattr_window",
@@ -116,8 +121,6 @@ PROFILE_WIDGET_KEYS = frozenset(
         "lexical_style_mtld_threshold",
         "lexical_style_short_warning",
         "poetry_id_sources",
-        "poetry_id_weightings",
-        "poetry_id_views",
         "poetry_id_lexical_dimensions",
         "poetry_id_custom_thresholds",
         "poetry_id_valence_low",
@@ -147,8 +150,6 @@ PROFILE_WIDGET_KEYS = frozenset(
         "phonological_sound_repetitions",
         "phonological_coverage_warning",
         "phonological_maximum_pairs",
-        "show_all_matched_results",
-        "show_stopword_excluded_results",
     }
 )
 
@@ -161,15 +162,42 @@ class CustomAnalysisProfile:
     description: str
     base_profile: str
     settings: Mapping[str, Any]
+    initial_display_scopes: tuple[str, ...]
+    initial_display_weightings: tuple[str, ...]
+    legacy_profile_provenance: Mapping[str, Any]
     created_at: str
     updated_at: str
 
     def to_dict(self) -> dict[str, Any]:
+        module_selection = {
+            key: value
+            for key, value in self.settings.items()
+            if key == "selected_lexicons" or key.startswith("include_")
+        }
+        calculation_settings = {
+            key: value
+            for key, value in self.settings.items()
+            if key not in module_selection
+        }
+        from versevad.module_capabilities import MODULE_CAPABILITIES
+
         return {
             "name": self.name,
             "description": self.description,
             "base_profile": self.base_profile,
             "settings": dict(self.settings),
+            "module_selection": module_selection,
+            "calculation_settings": calculation_settings,
+            "display_defaults": {
+                "lexical_scopes": list(self.initial_display_scopes),
+                "aggregation_weightings": list(self.initial_display_weightings),
+            },
+            "legacy_profile_provenance": dict(self.legacy_profile_provenance),
+            "fixed_profile_rules": {
+                module_id: capability.fixed_profile_id
+                for module_id, capability in MODULE_CAPABILITIES.items()
+                if capability.fixed_profile_id
+            },
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -243,14 +271,112 @@ def _profile_from_payload(
 ) -> CustomAnalysisProfile | None:
     settings = payload.get("settings")
     if not isinstance(settings, Mapping):
+        modules = payload.get("module_selection")
+        calculations = payload.get("calculation_settings")
+        if isinstance(modules, Mapping) and isinstance(calculations, Mapping):
+            settings = {**modules, **calculations}
+    if not isinstance(settings, Mapping):
         return None
     created_at = str(payload.get("created_at") or "")
     updated_at = str(payload.get("updated_at") or created_at)
+    display_defaults = payload.get("display_defaults")
+    legacy_provenance = payload.get("legacy_profile_provenance")
+    if not isinstance(legacy_provenance, Mapping):
+        legacy_provenance = {}
+    if not isinstance(display_defaults, Mapping):
+        legacy_scope_keys = {
+            key: value
+            for key, value in settings.items()
+            if key in {
+                "exclude_stopwords",
+                "include_stopwords",
+                "content_words_only",
+                "frequency_content_words_only",
+                "aoa_content_words_only",
+                "concreteness_content_words_only",
+                "sensorimotor_content_words_only",
+                "emotion_content_words_only",
+                "weighting",
+                "frequency_weighting",
+                "aoa_weighting",
+            }
+        }
+        if legacy_scope_keys:
+            migrated_scopes: list[str] = []
+            if any(
+                bool(value)
+                for key, value in legacy_scope_keys.items()
+                if "content_words" in key
+            ):
+                migrated_scopes.append(LexicalScope.CONTENT_WORDS.value)
+            if bool(legacy_scope_keys.get("exclude_stopwords")):
+                migrated_scopes.append(LexicalScope.STOPWORD_EXCLUDED.value)
+            if legacy_scope_keys.get("include_stopwords") is True or any(
+                value is False
+                for key, value in legacy_scope_keys.items()
+                if "content_words" in key
+            ):
+                migrated_scopes.append(LexicalScope.ALL_LEXICAL.value)
+            migrated_weightings = [
+                AggregationWeighting.TYPE.value
+                if any(
+                    str(value).casefold().startswith("type")
+                    for key, value in legacy_scope_keys.items()
+                    if "weighting" in key
+                )
+                else AggregationWeighting.TOKEN.value
+            ]
+            display_defaults = {
+                "lexical_scopes": migrated_scopes
+                or [LexicalScope.STOPWORD_EXCLUDED.value],
+                "aggregation_weightings": migrated_weightings,
+            }
+            legacy_provenance = {
+                **dict(legacy_provenance),
+                "scope_weighting_fields": dict(legacy_scope_keys),
+                "migration_rule": (
+                    "Conflicting legacy module scopes become multiple initial "
+                    "display scopes; TYPE is selected when any legacy weighting "
+                    "requested type, otherwise TOKEN. Legacy fields no longer "
+                    "restrict retained evidence."
+                ),
+            }
+    if not isinstance(display_defaults, Mapping):
+        display_defaults = {}
+    try:
+        display_scopes = tuple(
+            scope.value
+            for scope in canonical_scopes(
+                display_defaults.get(
+                    "lexical_scopes",
+                    tuple(scope.value for scope in DEFAULT_SCOPES),
+                )
+            )
+        ) or tuple(scope.value for scope in DEFAULT_SCOPES)
+    except (TypeError, ValueError):
+        display_scopes = tuple(scope.value for scope in DEFAULT_SCOPES)
+    try:
+        display_weightings = tuple(
+            weighting.value
+            for weighting in canonical_weightings(
+                display_defaults.get(
+                    "aggregation_weightings",
+                    tuple(weighting.value for weighting in DEFAULT_WEIGHTINGS),
+                )
+            )
+        ) or tuple(weighting.value for weighting in DEFAULT_WEIGHTINGS)
+    except (TypeError, ValueError):
+        display_weightings = tuple(
+            weighting.value for weighting in DEFAULT_WEIGHTINGS
+        )
     return CustomAnalysisProfile(
         name=name,
         description=str(payload.get("description") or ""),
         base_profile=str(payload.get("base_profile") or "Custom"),
         settings=normalize_profile_settings(settings),
+        initial_display_scopes=display_scopes,
+        initial_display_weightings=display_weightings,
+        legacy_profile_provenance=dict(legacy_provenance),
         created_at=created_at,
         updated_at=updated_at,
     )
@@ -308,6 +434,8 @@ def save_custom_profile(
     *,
     description: str = "",
     base_profile: str = "Custom",
+    initial_display_scopes: tuple[str, ...] | list[str] | None = None,
+    initial_display_weightings: tuple[str, ...] | list[str] | None = None,
     path: Path | str | None = None,
 ) -> CustomAnalysisProfile:
     clean_name = " ".join(name.split())
@@ -319,11 +447,28 @@ def save_custom_profile(
     profiles = load_custom_profiles(profile_path)
     now = datetime.now(UTC).isoformat(timespec="seconds")
     existing = profiles.get(clean_name)
+    scopes = tuple(
+        scope.value
+        for scope in canonical_scopes(
+            initial_display_scopes
+            or tuple(scope.value for scope in DEFAULT_SCOPES)
+        )
+    )
+    weightings = tuple(
+        weighting.value
+        for weighting in canonical_weightings(
+            initial_display_weightings
+            or tuple(weighting.value for weighting in DEFAULT_WEIGHTINGS)
+        )
+    )
     profile = CustomAnalysisProfile(
         name=clean_name,
         description=description.strip(),
         base_profile=base_profile,
         settings=snapshot_profile_settings(settings),
+        initial_display_scopes=scopes,
+        initial_display_weightings=weightings,
+        legacy_profile_provenance={},
         created_at=existing.created_at if existing else now,
         updated_at=now,
     )
@@ -339,6 +484,8 @@ def update_custom_profile(
     *,
     description: str = "",
     base_profile: str = "Custom",
+    initial_display_scopes: tuple[str, ...] | list[str] | None = None,
+    initial_display_weightings: tuple[str, ...] | list[str] | None = None,
     path: Path | str | None = None,
 ) -> CustomAnalysisProfile:
     """Update or rename one saved profile while preserving its creation time."""
@@ -359,11 +506,26 @@ def update_custom_profile(
             "Another custom analysis profile already uses that name."
         )
     now = datetime.now(UTC).isoformat(timespec="seconds")
+    scopes = tuple(
+        scope.value
+        for scope in canonical_scopes(
+            initial_display_scopes or existing.initial_display_scopes
+        )
+    )
+    weightings = tuple(
+        weighting.value
+        for weighting in canonical_weightings(
+            initial_display_weightings or existing.initial_display_weightings
+        )
+    )
     updated = CustomAnalysisProfile(
         name=clean_name,
         description=description.strip(),
         base_profile=base_profile,
         settings=snapshot_profile_settings(settings),
+        initial_display_scopes=scopes,
+        initial_display_weightings=weightings,
+        legacy_profile_provenance=existing.legacy_profile_provenance,
         created_at=existing.created_at,
         updated_at=now,
     )

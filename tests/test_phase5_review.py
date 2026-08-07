@@ -172,8 +172,8 @@ def test_schema_four_migration_creates_a_verified_version_three_backup(
             ((1,), (2,), (3,)),
         )
     repository = ProjectRepository(database_path)
-    assert repository.schema_version() == 4
-    backup_path = tmp_path / "legacy.pre-v4.sqlite3"
+    assert repository.schema_version() == 5
+    backup_path = tmp_path / "legacy.pre-v5.sqlite3"
     assert backup_path.is_file()
     with sqlite3.connect(backup_path) as backup:
         assert backup.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
@@ -213,7 +213,7 @@ def test_same_scope_conflicting_review_mappings_are_rejected(preprocessor) -> No
 
 def test_scenario_decisions_are_versioned_revocable_and_restorable(tmp_path) -> None:
     repository = ProjectRepository(tmp_path / "versevad.sqlite3")
-    assert repository.schema_version() == 4
+    assert repository.schema_version() == 5
     project = repository.create_project("Review project")
     text = repository.import_texts(
         project.project_id,

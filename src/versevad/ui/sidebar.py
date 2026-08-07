@@ -149,6 +149,10 @@ def render_context_sidebar(workspace: str) -> None:
         render_analysis_management_sidebar,
         render_research_notes_sidebar,
     )
+    from versevad.ui.workspace_state import (
+        clear_workspace_state,
+        workspace_has_session_work,
+    )
 
     analytical = {
         "Single Poem",
@@ -190,6 +194,25 @@ def render_context_sidebar(workspace: str) -> None:
                         "This reference workspace does not change analytical "
                         "results or upload text to an external service."
                     )
+            if workspace in {"Reference Corpora", "Corpus Browser"}:
+                with st.popover("Clear Workspace", width="stretch"):
+                    st.warning(
+                        "Clear this workspace? Temporary selections, filters, "
+                        "and displayed records in this workspace will be removed "
+                        "for the current session. Stored corpora and other "
+                        "workspaces will not be affected."
+                    )
+                    if st.button(
+                        "Confirm Clear Workspace",
+                        type="primary",
+                        width="stretch",
+                        disabled=not workspace_has_session_work(
+                            st.session_state, workspace
+                        ),
+                        key=f"confirm_reference_clear__{workspace}",
+                    ):
+                        clear_workspace_state(st.session_state, workspace)
+                        st.rerun()
             return
 
         if workspace not in {"Lexicon Explorer", "Analysis Library"}:
@@ -225,8 +248,9 @@ def render_context_sidebar(workspace: str) -> None:
                     )
                 else:
                     st.caption(
-                        "Text processing, weighting, stopword treatment, enabled "
-                        "modules, and advanced settings are shown in context."
+                        "Text processing, stopword-list resource, enabled modules, "
+                        "and advanced model settings are shown in context. Scope "
+                        "and weighting are post-analysis report controls."
                     )
             with st.expander("Comparison Resources", expanded=False):
                 if workspace == "VerseMap":
@@ -247,6 +271,27 @@ def render_context_sidebar(workspace: str) -> None:
                 render_research_notes_sidebar(workspace)
             with st.expander("Analysis Management", expanded=False):
                 render_analysis_management_sidebar(workspace)
+                with st.popover("Clear Workspace", width="stretch"):
+                    has_work = workspace_has_session_work(
+                        st.session_state,
+                        workspace,
+                    )
+                    st.warning(
+                        "Clear this workspace? Unsaved work, edited source text, "
+                        "temporary notes, filters, cached report data, and "
+                        "annotation selections in this workspace will be removed "
+                        "for the current session. Other workspaces and saved "
+                        "analyses will not be affected."
+                    )
+                    if st.button(
+                        "Confirm Clear Workspace",
+                        type="primary",
+                        width="stretch",
+                        disabled=not has_work,
+                        key=f"confirm_sidebar_clear__{workspace}",
+                    ):
+                        clear_workspace_state(st.session_state, workspace)
+                        st.rerun()
             with st.expander("Export", expanded=False):
                 st.caption(
                     "Open the workspace's Export report section after analysis "

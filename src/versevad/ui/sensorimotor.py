@@ -32,6 +32,8 @@ def render_sensorimotor(
     result: SensorimotorAnalysisResult | None,
     *,
     state_key_prefix: str,
+    analysis_view: str = "Stopwords excluded",
+    weighting: str = "token",
 ) -> None:
     """Render one completed result without rerunning the full report page."""
 
@@ -49,25 +51,10 @@ def render_sensorimotor(
         "effectors. They expose possibilities for close reading; they do not "
         "declare what the poem depicts, what its author intended, or what a reader feels."
     )
-    controls = st.columns(2)
-    analysis_view = controls[0].selectbox(
-        "Token scope",
-        options=("All matched tokens", "Stopwords excluded"),
-        key=f"{state_key_prefix}_view",
-        help=(
-            "The secondary view removes configured stopwords while preserving "
-            "published multiword concepts intact. Both views retain repeated words."
-        ),
-    )
-    weighting = controls[1].selectbox(
-        "Weighting",
-        options=("token", "type"),
-        format_func=lambda value: f"{value.title()} weighted",
-        key=f"{state_key_prefix}_weighting",
-        help=(
-            "Token weighting preserves repetition. Type weighting gives each "
-            "distinct matched Lancaster entry one observation."
-        ),
+    st.caption(
+        f"Detailed evidence follows the global {analysis_view} / "
+        f"{weighting.title()}-weighted profile. Change it with the controls "
+        "beneath Report Section."
     )
     profile = result.profile(analysis_view, weighting)
 

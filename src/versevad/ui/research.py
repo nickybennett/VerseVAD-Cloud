@@ -78,6 +78,12 @@ _SINGLE_TEXT_STATE_KEYS = frozenset(
         "one_poem_custom_stopword_additions",
         "one_poem_custom_stopword_removals",
         "interactive_annotation_settings",
+        "single_poem_report_profiles_scopes",
+        "single_poem_report_profiles_weightings",
+        "single_poem_report_profiles_annotation_scope",
+        "other_text_report_profiles_scopes",
+        "other_text_report_profiles_weightings",
+        "other_text_report_profiles_annotation_scope",
         *PROFILE_WIDGET_KEYS,
     }
 )
@@ -96,6 +102,9 @@ _COMPARE_STATE_KEYS = frozenset(
         "compare_versemap_reference_corpus",
         "compare_config_pronunciation_overrides",
         "compare_config_meter_scholar_revisions",
+        "compare_poems_report_profiles_scopes",
+        "compare_poems_report_profiles_weightings",
+        "compare_poems_report_profiles_annotation_scope",
         *(f"compare_config_{key}" for key in COMPARISON_PROFILE_SETTING_KEYS),
     }
 )
@@ -881,6 +890,9 @@ def restore_library_revision(
         }
     else:
         st.session_state.pop("_historical_analysis", None)
+    from versevad.ui.workspace_state import adopt_current_state_for_workspace
+
+    adopt_current_state_for_workspace(st.session_state, workspace)
     st.session_state["_pending_workspace_switch"] = workspace
     return workspace
 
@@ -1340,11 +1352,14 @@ def render_analysis_library_workspace() -> None:
                 st.write(f"- {warning}")
     open_columns = st.columns(2)
     if selected_revision.storage_mode != "results_only":
-        if open_columns[0].button(
-            "Open historical result",
-            type="primary",
-            width="stretch",
-        ):
+        from versevad.ui.workspace_state import workspace_has_session_work
+
+        replacing = workspace_has_session_work(
+            st.session_state,
+            selected_item.workspace_id,
+        )
+
+        def _open_selected_revision() -> None:
             try:
                 restore_library_revision(selected_item, selected_revision)
                 from versevad.ui.navigation import switch_to_workspace
@@ -1352,6 +1367,28 @@ def render_analysis_library_workspace() -> None:
                 switch_to_workspace(selected_item.workspace_id)
             except ResearchLibraryError as error:
                 st.error(str(error))
+
+        if replacing:
+            with open_columns[0].popover("Open historical result", width="stretch"):
+                st.warning(
+                    "Loading this saved analysis will replace the current "
+                    f"unsaved work in {selected_item.workspace_id}. Other "
+                    "workspaces will not be affected."
+                )
+                if st.button(
+                    "Continue and open",
+                    type="primary",
+                    width="stretch",
+                    key=f"confirm_open_saved__{selected_revision.revision_id}",
+                ):
+                    _open_selected_revision()
+        elif open_columns[0].button(
+            "Open historical result",
+            type="primary",
+            width="stretch",
+            key=f"open_saved__{selected_revision.revision_id}",
+        ):
+            _open_selected_revision()
     elif selected_revision.artifact_bundle:
         open_columns[0].download_button(
             "Download retained reports",
