@@ -143,3 +143,35 @@ def test_text_workspace_state_is_isolated_and_clear_is_targeted() -> None:
     assert "poem_text" not in state
     activate_workspace_state(state, "Other Text")
     assert state["poem_text"] == "other text"
+
+
+def test_text_workspace_upload_widget_is_never_restored() -> None:
+    upload = object()
+    state: dict[str, object] = {}
+    activate_workspace_state(state, "Single Poem")
+    state["poem_text"] = "single poem"
+    state["uploaded_poem"] = upload
+
+    activate_workspace_state(state, "Lexicon Explorer")
+    assert "uploaded_poem" not in state
+
+    activate_workspace_state(state, "Single Poem")
+    assert state["poem_text"] == "single poem"
+    assert "uploaded_poem" not in state
+
+
+def test_text_workspace_ignores_legacy_vaulted_upload_widget() -> None:
+    state: dict[str, object] = {
+        "_versevad_workspace_state": {
+            "Single Poem": {
+                "poem_text": "restored poem",
+                "uploaded_poem": object(),
+            }
+        },
+        "_versevad_active_workspace_state": "Lexicon Explorer",
+    }
+
+    activate_workspace_state(state, "Single Poem")
+
+    assert state["poem_text"] == "restored poem"
+    assert "uploaded_poem" not in state

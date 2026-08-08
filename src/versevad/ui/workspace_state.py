@@ -24,7 +24,6 @@ _TEXT_WORKSPACE_KEYS = frozenset(PROFILE_WIDGET_KEYS).union(
         "text_author",
         "text_year",
         "text_source_notes",
-        "uploaded_poem",
         "upload_signature",
         "workspace",
         "analysis_request_hash",
@@ -43,6 +42,12 @@ _TEXT_WORKSPACE_KEYS = frozenset(PROFILE_WIDGET_KEYS).union(
         "_pronunciation_resolution_error",
     }
 )
+
+# Streamlit upload widgets are transient browser controls: their values may be
+# read while the widget exists, but must never be assigned through
+# ``st.session_state``.  Keep them under workspace ownership for transition and
+# clear operations without placing them in the restorable workspace vault.
+_TEXT_WORKSPACE_TRANSIENT_KEYS = frozenset({"uploaded_poem"})
 
 _WORKSPACE_PREFIXES = {
     "Single Poem": ("single_poem_report_profiles_", "one_poem_"),
@@ -73,6 +78,12 @@ def _owned_keys(workspace_id: str) -> frozenset[str]:
     return frozenset()
 
 
+def _transient_keys(workspace_id: str) -> frozenset[str]:
+    if workspace_id in {"Single Poem", "Other Text"}:
+        return _TEXT_WORKSPACE_TRANSIENT_KEYS
+    return frozenset()
+
+
 def workspace_owned_session_keys(
     session_state: MutableMapping[str, object],
     workspace_id: str,
@@ -80,6 +91,7 @@ def workspace_owned_session_keys(
     """Return current temporary keys owned by one workspace."""
 
     keys = set(_owned_keys(workspace_id))
+    keys.update(_transient_keys(workspace_id))
     keys.update(_WORKSPACE_EXACT_KEYS.get(workspace_id, ()))
     prefixes = _WORKSPACE_PREFIXES.get(workspace_id, ())
     keys.update(
@@ -157,15 +169,22 @@ def activate_workspace_state(
                 for key in previous_keys
                 if key in session_state
             }
-    transition_keys = _owned_keys(str(previous or "")).union(
-        _owned_keys(workspace_id)
+    transition_keys = (
+        _owned_keys(str(previous or ""))
+        .union(_owned_keys(workspace_id))
+        .union(_transient_keys(str(previous or "")))
+        .union(_transient_keys(workspace_id))
     )
     for key in transition_keys:
         session_state.pop(key, None)
     restored = vault.get(workspace_id, {})
     if isinstance(restored, dict):
         for key, value in restored.items():
-            session_state[key] = deepcopy(value)
+            # The ownership check also protects already-open sessions whose
+            # vault was populated by an older VerseVAD version that captured a
+            # file-uploader value.
+            if key in _owned_keys(workspace_id):
+                session_state[key] = deepcopy(value)
     session_state[_ACTIVE_KEY] = workspace_id
 
 
