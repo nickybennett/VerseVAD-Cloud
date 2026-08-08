@@ -373,11 +373,13 @@ documented conservative apostrophe or possessive fallbacks. An exact form is
 never replaced by a lemma. Unmatched and ineligible tokens have missing
 frequency values rather than zero.
 
-The token-weighted median Zipf value is the primary summary. The module also
-reports the mean, population standard deviation, inclusive quartiles, IQR,
+The selected-profile mean Zipf value is the primary dashboard summary. The
+median remains a secondary, skew-resistant reference. The module also reports
+population standard deviation, inclusive quartiles, IQR,
 range, configurable bands, token and unique observed-form-type coverage,
 physical-line/stanza/POS summaries, term rankings, and a complete audit.
-Repetition contributes repeatedly. Empty denominators remain missing.
+Token weighting retains repetition; type weighting gives each documented type
+identity one contribution. Empty denominators remain missing.
 
 Zipf is logarithmic: about one point represents a tenfold corpus-frequency
 difference. The default rare-to-very-common bands are configurable VerseVAD

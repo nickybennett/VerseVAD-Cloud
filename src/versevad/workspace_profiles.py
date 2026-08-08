@@ -24,7 +24,7 @@ from versevad.profile_aggregation import (
 )
 
 
-WORKSPACE_PROFILE_ROWS_VERSION = "workspace-profile-rows-v1"
+WORKSPACE_PROFILE_ROWS_VERSION = "workspace-profile-rows-v2"
 _PROFILE_CACHE: OrderedDict[tuple[str, ...], tuple["WorkspaceProfileMetric", ...]] = OrderedDict()
 _PROFILE_CACHE_LOCK = RLock()
 _PROFILE_CACHE_LIMIT = 16
@@ -39,7 +39,12 @@ class WorkspaceProfileMetric:
     metric_label: str
     profile: AnalysisProfile
     value: float | None
+    median: float | None
     population_standard_deviation: float | None
+    first_quartile: float | None
+    third_quartile: float | None
+    minimum: float | None
+    maximum: float | None
     cumulative_value: float | None
     value_per_100_observations: float | None
     above_midpoint_load: float | None
@@ -89,9 +94,14 @@ def _rows_from_summaries(
             metric_label=metric_label,
             profile=profile,
             value=summary.statistics.mean,
+            median=summary.statistics.median,
             population_standard_deviation=(
                 summary.statistics.population_standard_deviation
             ),
+            first_quartile=summary.statistics.first_quartile,
+            third_quartile=summary.statistics.third_quartile,
+            minimum=summary.statistics.minimum,
+            maximum=summary.statistics.maximum,
             cumulative_value=summary.cumulative_value,
             value_per_100_observations=summary.value_per_100_observations,
             above_midpoint_load=(
@@ -197,7 +207,12 @@ def _affect_category_rows(
                     metric_label=f"{category.title()} association",
                     profile=profile,
                     value=proportion,
+                    median=None,
                     population_standard_deviation=None,
+                    first_quartile=None,
+                    third_quartile=None,
+                    minimum=None,
+                    maximum=None,
                     cumulative_value=float(summary.statistics.count),
                     value_per_100_observations=(
                         float(summary.statistics.count)

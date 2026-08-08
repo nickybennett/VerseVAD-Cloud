@@ -1741,10 +1741,10 @@ def test_interface_runs_optional_frequency_profile_and_content_scope_if_present(
         heading.value == "SUBTLEX-US Lexical Frequency & Rarity"
         for heading in app.subheader
     )
-    median_metric = next(
-        metric for metric in app.metric if metric.label == "Median Zipf (primary)"
+    mean_metric = next(
+        metric for metric in app.metric if metric.label == "Mean Zipf (primary)"
     )
-    assert median_metric.value != "—"
+    assert mean_metric.value != "—"
     assert next(
         field for field in app.multiselect if field.label == "Lexical scope"
     ).value == ["Content words only"]

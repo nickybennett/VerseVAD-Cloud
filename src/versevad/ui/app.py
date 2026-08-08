@@ -154,8 +154,6 @@ from versevad.application import (
     decode_uploaded_text,
     detailed_export_zip,
     detailed_part_of_speech_views,
-    emotion_association_views,
-    emotion_intensity_views,
     installed_resource_readiness,
     lexical_trajectory_views,
     match_views,
@@ -163,7 +161,6 @@ from versevad.application import (
     part_of_speech_views,
     run_workspace_analysis,
     scholar_summary_csv,
-    sentiment_association_views,
     unmatched_views,
     vad_contributor_views,
     vad_cumulative_views,
@@ -218,7 +215,15 @@ from versevad.ui.inherited_form import render_inherited_form
 from versevad.ui.interactive_annotation import render_interactive_annotation
 from versevad.analysis_profiles import LexicalScope
 from versevad.ui.profile_controls import render_report_profile_controls
-from versevad.ui.profile_tables import render_configurable_profile_table
+from versevad.ui.profile_tables import (
+    primary_profile_metric,
+    render_configurable_profile_table,
+    selected_profile_metrics,
+)
+from versevad.ui.profile_details import (
+    continuous_profile_detail,
+    select_detail_profile,
+)
 from versevad.module_capabilities import fixed_profile_notice
 from versevad.ui.versemap import render_versemap
 from versevad.ui.sensorimotor import render_sensorimotor
@@ -1877,9 +1882,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 disabled=not include_frequency,
             )
             st.caption(
-                "Median Zipf is primary. Each one-point increase represents "
-                "roughly ten times greater corpus frequency. The configurable "
-                "bands are orientation aids rather than universal categories."
+                "Mean Zipf is the primary report value; median remains a useful "
+                "secondary check when rare terms skew the distribution. Each "
+                "one-point increase represents roughly ten times greater corpus "
+                "frequency. The configurable bands are orientation aids rather "
+                "than universal categories."
             )
             st.markdown("**Age of Acquisition settings**")
             aoa_threshold_columns = st.columns(2)
@@ -3908,6 +3915,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
             st.info("This text contains no eligible lexical tokens to profile.")
 
     with lexical_style_tab:
+        render_configurable_profile_table(
+            workspace,
+            profile_state.selection,
+            module_ids=("word_length",),
+            heading="Selected Word-Length Profiles",
+        )
         lexical_style = workspace.lexical_style
         if lexical_style is None:
             st.info(
@@ -3918,6 +3931,21 @@ if workspace_page in {"Single Poem", "Other Text"}:
         else:
             summary = lexical_style.summary
             configuration = lexical_style.configuration
+            word_length_detail = continuous_profile_detail(
+                workspace,
+                profile_state.selection,
+                module_id="word_length",
+                metric_id="mean_word_length",
+                audit_rows=lexical_style.token_audit,
+                value_attribute="alphabetic_character_count",
+                key=f"{report_state_key}_word_length_detail_profile",
+                type_identity_attributes=("normalized_surface_type",),
+            )
+            word_length_profile = (
+                word_length_detail.metric
+                if word_length_detail is not None
+                else None
+            )
             st.subheader("Lexical Diversity")
             st.write(
                 "These measures use normalized observed surface forms. Lemmas "
@@ -3963,45 +3991,76 @@ if workspace_page in {"Single Poem", "Other Text"}:
             word_length_columns = st.columns(4)
             word_length_columns[0].metric(
                 "Mean letters",
-                _decimal(summary.mean_alphabetic_characters_per_token),
+                _decimal(
+                    word_length_profile.value
+                    if word_length_profile is not None
+                    else summary.mean_alphabetic_characters_per_token
+                ),
             )
             word_length_columns[1].metric(
                 "Median letters",
-                _decimal(summary.median_alphabetic_characters_per_token),
+                _decimal(
+                    word_length_profile.median
+                    if word_length_profile is not None
+                    else summary.median_alphabetic_characters_per_token
+                ),
             )
             word_length_columns[2].metric(
                 "Minimum",
-                _decimal(summary.minimum_alphabetic_characters),
+                _decimal(
+                    word_length_profile.minimum
+                    if word_length_profile is not None
+                    else summary.minimum_alphabetic_characters
+                ),
             )
             word_length_columns[3].metric(
                 "Maximum",
-                _decimal(summary.maximum_alphabetic_characters),
+                _decimal(
+                    word_length_profile.maximum
+                    if word_length_profile is not None
+                    else summary.maximum_alphabetic_characters
+                ),
             )
+            if word_length_profile is not None:
+                st.caption(
+                    f"Word-length detail profile: **{word_length_profile.profile.label}**."
+                )
             st.caption(
                 "Word length counts Unicode alphabetic characters in each "
                 "included lexical-token surface. It does not count punctuation "
                 "marks, bytes, or syllables."
             )
-            length_frame = _frame(
-                lexical_style.word_length_distribution,
-                {
-                    "alphabetic_character_count": "Alphabetic characters",
-                    "token_count": "Token count",
-                    "token_proportion": "Token proportion",
-                },
+            selected_lengths = (
+                word_length_detail.values
+                if word_length_detail is not None
+                else ()
+            )
+            length_counts = {
+                length: selected_lengths.count(length)
+                for length in sorted(set(selected_lengths))
+            }
+            length_frame = pd.DataFrame(
+                [
+                    {
+                        "Alphabetic characters": length,
+                        "Retained observations": count,
+                        "Proportion": count / len(selected_lengths),
+                    }
+                    for length, count in length_counts.items()
+                ]
             )
             if not length_frame.empty:
                 st.bar_chart(
                     rounded_display_data(
                         length_frame.set_index("Alphabetic characters")[
-                            ["Token count"]
+                            ["Retained observations"]
                         ]
                     ),
                     height=260,
                 )
                 render_dataframe(
                     length_frame.style.format(
-                        {"Token proportion": lambda value: _percentage(value)}
+                        {"Proportion": lambda value: _percentage(value)}
                     ),
                     hide_index=True,
                     width="stretch",
@@ -4064,18 +4123,36 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Every preserved physical line remains visible. Blank stanza "
                 "separators therefore appear with word count zero."
             )
-            line_frame = _frame(
-                lexical_style.line_summaries,
-                {
-                    "ordinal": "Line",
-                    "source_text": "Source text",
-                    "is_blank": "Blank separator",
-                    "word_count": "Word count (lexical tokens)",
-                    "normalized_surface_type_count": "Surface types",
-                    "surface_type_token_ratio": "Line TTR",
-                    "mean_alphabetic_characters_per_token": "Mean letters",
-                    "median_alphabetic_characters_per_token": "Median letters",
-                },
+            line_length_details = {
+                int(group.ordinal): group
+                for group in (
+                    word_length_detail.line_summaries
+                    if word_length_detail is not None
+                    else ()
+                )
+            }
+            line_frame = pd.DataFrame(
+                [
+                    {
+                        "Line": group.ordinal,
+                        "Source text": group.source_text,
+                        "Blank separator": group.is_blank,
+                        "Word count (lexical tokens)": group.word_count,
+                        "Surface types": group.normalized_surface_type_count,
+                        "Line TTR": group.surface_type_token_ratio,
+                        "Mean letters": (
+                            line_length_details[group.ordinal].statistics.mean
+                            if group.ordinal in line_length_details
+                            else None
+                        ),
+                        "Median letters": (
+                            line_length_details[group.ordinal].statistics.median
+                            if group.ordinal in line_length_details
+                            else None
+                        ),
+                    }
+                    for group in lexical_style.line_summaries
+                ]
             )
             render_dataframe(
                 line_frame.style.format(
@@ -4091,17 +4168,35 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
 
             st.subheader("Words by Stanza")
-            stanza_frame = _frame(
-                lexical_style.stanza_summaries,
-                {
-                    "ordinal": "Stanza",
-                    "line_count": "Nonblank lines",
-                    "word_count": "Word count (lexical tokens)",
-                    "normalized_surface_type_count": "Surface types",
-                    "surface_type_token_ratio": "Stanza TTR",
-                    "mean_alphabetic_characters_per_token": "Mean letters",
-                    "median_alphabetic_characters_per_token": "Median letters",
-                },
+            stanza_length_details = {
+                int(group.ordinal): group
+                for group in (
+                    word_length_detail.stanza_summaries
+                    if word_length_detail is not None
+                    else ()
+                )
+            }
+            stanza_frame = pd.DataFrame(
+                [
+                    {
+                        "Stanza": group.ordinal,
+                        "Nonblank lines": group.line_count,
+                        "Word count (lexical tokens)": group.word_count,
+                        "Surface types": group.normalized_surface_type_count,
+                        "Stanza TTR": group.surface_type_token_ratio,
+                        "Mean letters": (
+                            stanza_length_details[group.ordinal].statistics.mean
+                            if group.ordinal in stanza_length_details
+                            else None
+                        ),
+                        "Median letters": (
+                            stanza_length_details[group.ordinal].statistics.median
+                            if group.ordinal in stanza_length_details
+                            else None
+                        ),
+                    }
+                    for group in lexical_style.stanza_summaries
+                ]
             )
             render_dataframe(
                 stanza_frame.style.format(
@@ -4140,7 +4235,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
             module_ids=("sensorimotor",),
             heading="Selected Sensorimotor Profiles",
         )
-        sensorimotor_primary = profile_state.selection.profiles[0]
+        sensorimotor_primary = select_detail_profile(
+            profile_state.selection,
+            key=f"{report_state_key}_sensorimotor_detail_profile",
+        )
         if sensorimotor_primary.scope is LexicalScope.CONTENT_WORDS:
             st.info(
                 "The selected Content words only profile is reported in the "
@@ -4178,6 +4276,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.warning(concreteness_status.message)
         else:
             summary = concreteness.summary
+            detail = continuous_profile_detail(
+                workspace,
+                profile_state.selection,
+                module_id="concreteness",
+                metric_id="concreteness_mean",
+                audit_rows=concreteness.token_audit,
+                value_attribute="rating",
+                key=f"{report_state_key}_concreteness_detail_profile",
+            )
+            profile_metric = detail.metric if detail is not None else None
             st.subheader("Normative Lexical Concreteness")
             st.write(
                 "These values summarize matched Brysbaert, Warriner, and "
@@ -4188,36 +4296,82 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "comprehensibility."
             )
             headline = st.columns(6)
-            headline[0].metric("Mean", _decimal(summary.statistics.mean))
-            headline[1].metric("Median", _decimal(summary.statistics.median))
+            headline[0].metric(
+                "Mean",
+                _decimal(
+                    profile_metric.value
+                    if profile_metric is not None
+                    else summary.statistics.mean
+                ),
+            )
+            headline[1].metric(
+                "Median",
+                _decimal(
+                    profile_metric.median
+                    if profile_metric is not None
+                    else summary.statistics.median
+                ),
+            )
             headline[2].metric(
                 "Population SD",
-                _decimal(summary.statistics.population_standard_deviation),
+                _decimal(
+                    profile_metric.population_standard_deviation
+                    if profile_metric is not None
+                    else summary.statistics.population_standard_deviation
+                ),
             )
             headline[3].metric(
                 "IQR",
-                _decimal(summary.interquartile_range),
+                _decimal(
+                    (
+                        profile_metric.third_quartile
+                        - profile_metric.first_quartile
+                    )
+                    if profile_metric is not None
+                    and profile_metric.first_quartile is not None
+                    and profile_metric.third_quartile is not None
+                    else summary.interquartile_range
+                ),
             )
             headline[4].metric(
                 "Rated-token coverage",
-                _percentage(summary.token_coverage),
+                _percentage(
+                    profile_metric.coverage.token_coverage
+                    if profile_metric is not None
+                    else summary.token_coverage
+                ),
             )
             headline[5].metric(
                 "Unique-word coverage",
-                _percentage(summary.unique_type_coverage),
+                _percentage(
+                    profile_metric.coverage.type_coverage
+                    if profile_metric is not None
+                    else summary.unique_type_coverage
+                ),
             )
+            if profile_metric is not None:
+                st.caption(f"Detailed profile: **{profile_metric.profile.label}**.")
             st.caption(
-                f"{summary.rated_token_count:,} of "
-                f"{summary.eligible_token_count:,} eligible token occurrences "
-                f"and {summary.rated_unique_type_count:,} of "
-                f"{summary.eligible_unique_type_count:,} unique normalized "
+                f"{(profile_metric.coverage.matched_token_count if profile_metric is not None else summary.rated_token_count):,} of "
+                f"{(profile_metric.coverage.eligible_token_count if profile_metric is not None else summary.eligible_token_count):,} eligible token occurrences "
+                f"and {(profile_metric.coverage.matched_type_count if profile_metric is not None else summary.rated_unique_type_count):,} of "
+                f"{(profile_metric.coverage.eligible_type_count if profile_metric is not None else summary.eligible_unique_type_count):,} unique normalized "
                 "surface types were rated. Unmatched values remain missing."
             )
 
             band_columns = st.columns(2)
+            selected_values = detail.values if detail is not None else ()
             band_columns[0].metric(
                 f"Rating >= {summary.highly_concrete_min:g}",
-                _percentage(summary.highly_concrete_proportion),
+                _percentage(
+                    sum(
+                        value >= summary.highly_concrete_min
+                        for value in selected_values
+                    )
+                    / len(selected_values)
+                    if selected_values
+                    else None
+                ),
                 help=(
                     "Configurable VerseVAD orientation band among rated token "
                     "occurrences; not a category defined by the source paper."
@@ -4225,7 +4379,15 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
             band_columns[1].metric(
                 f"Rating <= {summary.highly_abstract_max:g}",
-                _percentage(summary.highly_abstract_proportion),
+                _percentage(
+                    sum(
+                        value <= summary.highly_abstract_max
+                        for value in selected_values
+                    )
+                    / len(selected_values)
+                    if selected_values
+                    else None
+                ),
                 help=(
                     "Configurable VerseVAD orientation band among rated token "
                     "occurrences; not a category defined by the source paper."
@@ -4247,11 +4409,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         else:
                             st.warning(warning.message)
 
-            rated_lines = [
-                group
-                for group in concreteness.line_summaries
-                if group.statistics.mean is not None
-            ]
+            rated_lines = list(detail.line_summaries) if detail is not None else []
             st.subheader("Physical-Line Profile")
             if rated_lines:
                 line_frame = pd.DataFrame(
@@ -4260,10 +4418,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                             "Line": group.ordinal,
                             "Mean normative concreteness": group.statistics.mean,
                             "Median": group.statistics.median,
-                            "Rated tokens": group.rated_token_count,
-                            "Eligible tokens": group.eligible_token_count,
-                            "Coverage": group.token_coverage,
-                            "Text": group.source_text,
+                            "Retained observations": group.observation_count,
                         }
                         for group in rated_lines
                     ]
@@ -4283,7 +4438,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                                 value
                             ),
                             "Median": lambda value: _decimal(value),
-                            "Coverage": lambda value: _percentage(value),
                         }
                     ),
                     hide_index=True,
@@ -4302,11 +4456,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         "Population SD": (
                             group.statistics.population_standard_deviation
                         ),
-                        "Rated tokens": group.rated_token_count,
-                        "Eligible tokens": group.eligible_token_count,
-                        "Coverage": group.token_coverage,
+                        "Retained observations": group.observation_count,
                     }
-                    for group in concreteness.stanza_summaries
+                    for group in (
+                        detail.stanza_summaries if detail is not None else ()
+                    )
                 ]
             )
             if not stanza_frame.empty:
@@ -4316,7 +4470,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                             "Mean": lambda value: _decimal(value),
                             "Median": lambda value: _decimal(value),
                             "Population SD": lambda value: _decimal(value),
-                            "Coverage": lambda value: _percentage(value),
                         }
                     ),
                     hide_index=True,
@@ -4329,14 +4482,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
             pos_frame = pd.DataFrame(
                 [
                     {
-                        "Universal POS tag": group.label,
+                        "Universal POS tag": group.ordinal,
                         "Mean": group.statistics.mean,
                         "Median": group.statistics.median,
-                        "Rated tokens": group.rated_token_count,
-                        "Eligible tokens": group.eligible_token_count,
-                        "Coverage": group.token_coverage,
+                        "Retained observations": group.observation_count,
                     }
-                    for group in concreteness.part_of_speech_summaries
+                    for group in (
+                        detail.part_of_speech_summaries
+                        if detail is not None
+                        else ()
+                    )
                 ]
             )
             if not pos_frame.empty:
@@ -4345,7 +4500,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         {
                             "Mean": lambda value: _decimal(value),
                             "Median": lambda value: _decimal(value),
-                            "Coverage": lambda value: _percentage(value),
                         }
                     ),
                     hide_index=True,
@@ -4358,40 +4512,35 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
 
             st.subheader("Matched Term Extremes")
+            selected_term_rows: dict[str, dict[str, object]] = {}
+            for observation in detail.observations if detail is not None else ():
+                term_row = selected_term_rows.setdefault(
+                    observation.source_term,
+                    {
+                        "Term": observation.source_term,
+                        "Rating": observation.value,
+                        "Retained observations": 0,
+                    },
+                )
+                term_row["Retained observations"] = int(
+                    term_row["Retained observations"]
+                ) + 1
+            ranked_concreteness = sorted(
+                selected_term_rows.values(),
+                key=lambda row: float(row["Rating"]),
+            )
             concrete_column, abstract_column = st.columns(2)
             with concrete_column:
                 st.markdown("**Highest source ratings**")
                 render_dataframe(
-                    pd.DataFrame(
-                        [
-                            {
-                                "Term": term.source_term,
-                                "Rating": term.rating,
-                                "Rated token occurrences": (
-                                    term.rated_token_occurrences
-                                ),
-                            }
-                            for term in concreteness.most_concrete_terms
-                        ]
-                    ),
+                    pd.DataFrame(list(reversed(ranked_concreteness[-10:]))),
                     hide_index=True,
                     width="stretch",
                 )
             with abstract_column:
                 st.markdown("**Lowest source ratings**")
                 render_dataframe(
-                    pd.DataFrame(
-                        [
-                            {
-                                "Term": term.source_term,
-                                "Rating": term.rating,
-                                "Rated token occurrences": (
-                                    term.rated_token_occurrences
-                                ),
-                            }
-                            for term in concreteness.most_abstract_terms
-                        ]
-                    ),
+                    pd.DataFrame(ranked_concreteness[:10]),
                     hide_index=True,
                     width="stretch",
                 )
@@ -4483,12 +4632,23 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.warning(frequency_status.message)
         else:
             summary = frequency.summary
-            statistics = summary.statistics
+            detail = continuous_profile_detail(
+                workspace,
+                profile_state.selection,
+                module_id="frequency",
+                metric_id="frequency_mean",
+                audit_rows=frequency.token_audit,
+                value_attribute="zipf_value",
+                key=f"{report_state_key}_frequency_detail_profile",
+            )
+            profile_metric = detail.metric if detail is not None else None
+            statistics = detail.statistics if detail is not None else summary.statistics
             st.subheader("SUBTLEX-US Lexical Frequency & Rarity")
             st.markdown(
                 '<div class="versevad-callout"><strong>Primary reading:</strong> '
-                "Median Zipf describes the central corpus-relative frequency "
-                "among matched eligible token occurrences. The scale is "
+                "Mean Zipf describes the average corpus-relative frequency "
+                "for the selected scope and weighting. Median Zipf remains a "
+                "secondary, skew-resistant reference. The scale is "
                 "logarithmic: one Zipf point is roughly a tenfold frequency "
                 "difference. It does not measure difficulty, sophistication, "
                 "accessibility, or literary quality.</div>",
@@ -4496,38 +4656,102 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
             metric_columns = st.columns(5)
             metric_columns[0].metric(
-                "Median Zipf (primary)", _decimal(statistics.median)
+                "Mean Zipf (primary)",
+                _decimal(
+                    profile_metric.value
+                    if profile_metric is not None
+                    else statistics.mean
+                ),
             )
-            metric_columns[1].metric("Mean Zipf", _decimal(statistics.mean))
+            metric_columns[1].metric(
+                "Median Zipf",
+                _decimal(
+                    profile_metric.median
+                    if profile_metric is not None
+                    else statistics.median
+                ),
+            )
             metric_columns[2].metric(
-                "Interquartile range", _decimal(summary.interquartile_range)
+                "Interquartile range",
+                _decimal(
+                    (
+                        profile_metric.third_quartile
+                        - profile_metric.first_quartile
+                    )
+                    if profile_metric is not None
+                    and profile_metric.first_quartile is not None
+                    and profile_metric.third_quartile is not None
+                    else summary.interquartile_range
+                ),
             )
             metric_columns[3].metric(
-                "Matched-token coverage", _percentage(summary.token_coverage)
+                "Matched-token coverage",
+                _percentage(
+                    profile_metric.coverage.token_coverage
+                    if profile_metric is not None
+                    else summary.token_coverage
+                ),
             )
             metric_columns[4].metric(
                 "Unique-word coverage",
-                _percentage(summary.unique_type_coverage),
+                _percentage(
+                    profile_metric.coverage.type_coverage
+                    if profile_metric is not None
+                    else summary.unique_type_coverage
+                ),
             )
             st.caption(
-                f"Active scope: **{summary.scope_label}**. "
-                f"{summary.matched_token_count:,} of "
-                f"{summary.eligible_token_count:,} eligible token occurrences "
+                f"Active profile: **{profile_metric.profile.label if profile_metric is not None else summary.scope_label}**. "
+                f"{(profile_metric.coverage.matched_token_count if profile_metric is not None else summary.matched_token_count):,} of "
+                f"{(profile_metric.coverage.eligible_token_count if profile_metric is not None else summary.eligible_token_count):,} eligible token occurrences "
                 "matched. Unmatched words remain missing rather than Zipf zero."
             )
 
             st.markdown("**Configured Zipf distribution**")
+            selected_zipf_values = detail.values if detail is not None else ()
+            frequency_band_definitions = (
+                ("Rare", None, frequency.configuration.rare_below),
+                (
+                    "Uncommon",
+                    frequency.configuration.rare_below,
+                    frequency.configuration.uncommon_below,
+                ),
+                (
+                    "Moderately common",
+                    frequency.configuration.uncommon_below,
+                    frequency.configuration.moderately_common_below,
+                ),
+                (
+                    "Common",
+                    frequency.configuration.moderately_common_below,
+                    frequency.configuration.very_common_min,
+                ),
+                ("Very common", frequency.configuration.very_common_min, None),
+            )
             render_dataframe(
                 pd.DataFrame(
                     [
                         {
-                            "Band": band.label,
-                            "Lower bound": band.lower_bound,
-                            "Upper bound": band.upper_bound,
-                            "Matched tokens": band.token_count,
-                            "Proportion": band.proportion,
+                            "Band": label,
+                            "Lower bound": lower,
+                            "Upper bound": upper,
+                            "Retained observations": sum(
+                                (lower is None or value >= lower)
+                                and (upper is None or value < upper)
+                                for value in selected_zipf_values
+                            ),
+                            "Proportion": (
+                                sum(
+                                    (lower is None or value >= lower)
+                                    and (upper is None or value < upper)
+                                    for value in selected_zipf_values
+                                )
+                                / len(selected_zipf_values)
+                                if selected_zipf_values
+                                else None
+                            ),
                         }
-                        for band in summary.bands
+                        for label, lower, upper in frequency_band_definitions
                     ]
                 ).style.format(
                     {
@@ -4564,32 +4788,25 @@ if workspace_page in {"Single Poem", "Other Text"}:
             line_rows = [
                 {
                     "Line": group.ordinal,
-                    "Text": group.source_text,
-                    "Eligible tokens": group.eligible_token_count,
-                    "Matched tokens": group.matched_token_count,
-                    "Coverage": group.token_coverage,
-                    "Median Zipf": group.statistics.median,
+                    "Retained observations": group.observation_count,
                     "Mean Zipf": group.statistics.mean,
+                    "Median Zipf": group.statistics.median,
                 }
-                for group in frequency.line_summaries
+                for group in (detail.line_summaries if detail is not None else ())
             ]
             render_dataframe(
                 pd.DataFrame(
                     line_rows,
                     columns=[
                         "Line",
-                        "Text",
-                        "Eligible tokens",
-                        "Matched tokens",
-                        "Coverage",
-                        "Median Zipf",
+                        "Retained observations",
                         "Mean Zipf",
+                        "Median Zipf",
                     ],
                 ).style.format(
                     {
-                        "Coverage": lambda value: _percentage(value),
-                        "Median Zipf": lambda value: _decimal(value),
                         "Mean Zipf": lambda value: _decimal(value),
+                        "Median Zipf": lambda value: _decimal(value),
                     }
                 ),
                 hide_index=True,
@@ -4599,14 +4816,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 stanza_rows = [
                     {
                         "Stanza": group.ordinal,
-                        "Text": group.source_text,
-                        "Eligible tokens": group.eligible_token_count,
-                        "Matched tokens": group.matched_token_count,
-                        "Coverage": group.token_coverage,
-                        "Median Zipf": group.statistics.median,
+                        "Retained observations": group.observation_count,
                         "Mean Zipf": group.statistics.mean,
+                        "Median Zipf": group.statistics.median,
                     }
-                    for group in frequency.stanza_summaries
+                    for group in (
+                        detail.stanza_summaries if detail is not None else ()
+                    )
                 ]
                 st.markdown("**Stanzas**")
                 render_dataframe(
@@ -4614,18 +4830,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         stanza_rows,
                         columns=[
                             "Stanza",
-                            "Text",
-                            "Eligible tokens",
-                            "Matched tokens",
-                            "Coverage",
-                            "Median Zipf",
+                            "Retained observations",
                             "Mean Zipf",
+                            "Median Zipf",
                         ],
                     ).style.format(
                         {
-                            "Coverage": lambda value: _percentage(value),
-                            "Median Zipf": lambda value: _decimal(value),
                             "Mean Zipf": lambda value: _decimal(value),
+                            "Median Zipf": lambda value: _decimal(value),
                         }
                     ),
                     hide_index=True,
@@ -4633,14 +4845,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
                 pos_rows = [
                     {
-                        "POS": group.label,
-                        "Eligible tokens": group.eligible_token_count,
-                        "Matched tokens": group.matched_token_count,
-                        "Coverage": group.token_coverage,
-                        "Median Zipf": group.statistics.median,
+                        "POS": group.ordinal,
+                        "Retained observations": group.observation_count,
                         "Mean Zipf": group.statistics.mean,
+                        "Median Zipf": group.statistics.median,
                     }
-                    for group in frequency.part_of_speech_summaries
+                    for group in (
+                        detail.part_of_speech_summaries
+                        if detail is not None
+                        else ()
+                    )
                 ]
                 st.markdown("**Part of speech**")
                 render_dataframe(
@@ -4648,17 +4862,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         pos_rows,
                         columns=[
                             "POS",
-                            "Eligible tokens",
-                            "Matched tokens",
-                            "Coverage",
-                            "Median Zipf",
+                            "Retained observations",
                             "Mean Zipf",
+                            "Median Zipf",
                         ],
                     ).style.format(
                         {
-                            "Coverage": lambda value: _percentage(value),
-                            "Median Zipf": lambda value: _decimal(value),
                             "Mean Zipf": lambda value: _decimal(value),
+                            "Median Zipf": lambda value: _decimal(value),
                         }
                     ),
                     hide_index=True,
@@ -4669,24 +4880,45 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "is active, only NOUN, VERB, ADJ, and ADV are eligible."
                 )
 
+            selected_frequency_terms: dict[str, dict[str, object]] = {}
+            for observation in detail.observations if detail is not None else ():
+                term_row = selected_frequency_terms.setdefault(
+                    observation.source_term,
+                    {
+                        "Term": observation.source_term,
+                        "Zipf": observation.value,
+                        "Retained observations": 0,
+                        "Frequency per million": getattr(
+                            observation.source_row,
+                            "frequency_per_million",
+                            None,
+                        ),
+                        "Model POS in poem": set(),
+                    },
+                )
+                term_row["Retained observations"] = int(
+                    term_row["Retained observations"]
+                ) + 1
+                term_row["Model POS in poem"].add(observation.part_of_speech)
+            ranked_frequency = sorted(
+                selected_frequency_terms.values(),
+                key=lambda row: float(row["Zipf"]),
+            )
+            frequency_rank_frame = [
+                {
+                    **row,
+                    "Model POS in poem": " | ".join(
+                        sorted(row["Model POS in poem"])
+                    ),
+                }
+                for row in ranked_frequency
+            ]
             low_column, high_column = st.columns(2)
             with low_column:
                 st.markdown("**Lowest-frequency represented terms**")
                 render_dataframe(
-                    pd.DataFrame(
-                        [
-                            {
-                                "Term": term.source_term,
-                                "Zipf": term.zipf_value,
-                                "Token occurrences": (
-                                    term.matched_token_occurrences
-                                ),
-                                "Frequency per million": (
-                                    term.frequency_per_million
-                                ),
-                            }
-                            for term in frequency.lowest_frequency_terms
-                        ]
+                    pd.DataFrame(frequency_rank_frame[:10]).drop(
+                        columns=["Model POS in poem"], errors="ignore"
                     ),
                     hide_index=True,
                     width="stretch",
@@ -4695,42 +4927,18 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.markdown("**Highest-frequency represented terms**")
                 render_dataframe(
                     pd.DataFrame(
-                        [
-                            {
-                                "Term": term.source_term,
-                                "Zipf": term.zipf_value,
-                                "Token occurrences": (
-                                    term.matched_token_occurrences
-                                ),
-                                "Frequency per million": (
-                                    term.frequency_per_million
-                                ),
-                            }
-                            for term in frequency.highest_frequency_terms
-                        ]
-                    ),
+                        list(reversed(frequency_rank_frame[-10:]))
+                    ).drop(columns=["Model POS in poem"], errors="ignore"),
                     hide_index=True,
                     width="stretch",
                 )
             with st.expander(
-                f"Rare-word tail ({len(frequency.rare_word_tail):,} represented terms)"
+                f"Rare-word tail ({min(len(frequency_rank_frame), frequency.configuration.rare_tail_count):,} represented terms)"
             ):
                 render_dataframe(
                     pd.DataFrame(
-                        [
-                            {
-                                "Term": term.source_term,
-                                "Zipf": term.zipf_value,
-                                "Token occurrences": (
-                                    term.matched_token_occurrences
-                                ),
-                                "Model POS in poem": " | ".join(
-                                    term.part_of_speech_tags
-                                ),
-                            }
-                            for term in frequency.rare_word_tail
-                        ]
-                    ),
+                        frequency_rank_frame[: frequency.configuration.rare_tail_count]
+                    ).drop(columns=["Frequency per million"], errors="ignore"),
                     hide_index=True,
                     width="stretch",
                 )
@@ -4801,7 +5009,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
         render_configurable_profile_table(
             workspace,
             profile_state.selection,
-            module_ids=("aoa", "word_length"),
+            module_ids=("aoa",),
             heading="Selected Lexical Accessibility Profiles",
         )
         readability = workspace.readability
@@ -5090,7 +5298,17 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.warning(aoa_status.message)
         else:
             summary = aoa.summary
-            stats = summary.statistics
+            detail = continuous_profile_detail(
+                workspace,
+                profile_state.selection,
+                module_id="aoa",
+                metric_id="aoa_mean",
+                audit_rows=aoa.token_audit,
+                value_attribute="mean_age",
+                key=f"{report_state_key}_aoa_detail_profile",
+            )
+            stats = detail.statistics if detail is not None else summary.statistics
+            profile_metric = detail.metric if detail is not None else None
             st.subheader("Normative Lexical Age of Acquisition")
             st.write(
                 "Kuperman ratings are retrospective estimates, in years, of "
@@ -5105,37 +5323,58 @@ if workspace_page in {"Single Poem", "Other Text"}:
             metric_columns = st.columns(5)
             metric_columns[0].metric(
                 "Mean normative AoA",
-                _decimal(stats.mean),
+                _decimal(
+                    profile_metric.value
+                    if profile_metric is not None
+                    else stats.mean
+                ),
             )
             metric_columns[1].metric(
                 "Median normative AoA",
-                _decimal(stats.median),
+                _decimal(
+                    profile_metric.median
+                    if profile_metric is not None
+                    else stats.median
+                ),
             )
             metric_columns[2].metric(
                 "Matched-token coverage",
-                _percentage(summary.token_coverage),
+                _percentage(
+                    profile_metric.coverage.token_coverage
+                    if profile_metric is not None
+                    else summary.token_coverage
+                ),
             )
-            early_band = next(
-                band
-                for band in summary.bands
-                if band.band_id == "early_acquired"
+            selected_aoa_values = detail.values if detail is not None else ()
+            early_band_share = (
+                sum(
+                    value <= aoa.configuration.early_acquired_max
+                    for value in selected_aoa_values
+                )
+                / len(selected_aoa_values)
+                if selected_aoa_values
+                else None
             )
-            later_band = next(
-                band
-                for band in summary.bands
-                if band.band_id == "later_acquired"
+            later_band_share = (
+                sum(
+                    value >= aoa.configuration.later_acquired_min
+                    for value in selected_aoa_values
+                )
+                / len(selected_aoa_values)
+                if selected_aoa_values
+                else None
             )
             metric_columns[3].metric(
                 "Early-band share",
-                _percentage(early_band.proportion),
+                _percentage(early_band_share),
             )
             metric_columns[4].metric(
                 "Later-band share",
-                _percentage(later_band.proportion),
+                _percentage(later_band_share),
             )
             st.caption(
-                f"Scope: {summary.scope_label}. Values are token-weighted over "
-                f"{summary.matched_token_count:,} matched occurrences. "
+                f"Active profile: {profile_metric.profile.label if profile_metric is not None else summary.scope_label}. "
+                f"Values use {(profile_metric.observation_count if profile_metric is not None else summary.matched_token_count):,} retained observations. "
                 f"Early means <= {aoa.configuration.early_acquired_max:g}; "
                 f"later means >= {aoa.configuration.later_acquired_min:g}. "
                 "These bands are configurable orientation aids."
@@ -5146,19 +5385,89 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 pd.DataFrame(
                     [
                         {
-                            "Mean": stats.mean,
-                            "Median": stats.median,
-                            "Population SD": stats.population_standard_deviation,
-                            "Q1": stats.first_quartile,
-                            "Q3": stats.third_quartile,
-                            "IQR": summary.interquartile_range,
-                            "Minimum": stats.minimum,
-                            "Maximum": stats.maximum,
+                            "Mean": (
+                                profile_metric.value
+                                if profile_metric is not None
+                                else stats.mean
+                            ),
+                            "Median": (
+                                profile_metric.median
+                                if profile_metric is not None
+                                else stats.median
+                            ),
+                            "Population SD": (
+                                profile_metric.population_standard_deviation
+                                if profile_metric is not None
+                                else stats.population_standard_deviation
+                            ),
+                            "Q1": (
+                                profile_metric.first_quartile
+                                if profile_metric is not None
+                                else stats.first_quartile
+                            ),
+                            "Q3": (
+                                profile_metric.third_quartile
+                                if profile_metric is not None
+                                else stats.third_quartile
+                            ),
+                            "IQR": (
+                                profile_metric.third_quartile
+                                - profile_metric.first_quartile
+                                if profile_metric is not None
+                                and profile_metric.first_quartile is not None
+                                and profile_metric.third_quartile is not None
+                                else summary.interquartile_range
+                            ),
+                            "Minimum": (
+                                profile_metric.minimum
+                                if profile_metric is not None
+                                else stats.minimum
+                            ),
+                            "Maximum": (
+                                profile_metric.maximum
+                                if profile_metric is not None
+                                else stats.maximum
+                            ),
                             "Minimum source numeric responses": (
-                                summary.minimum_source_numeric_responses
+                                min(
+                                    (
+                                        getattr(
+                                            observation.source_row,
+                                            "source_numeric_response_count",
+                                            None,
+                                        )
+                                        for observation in (
+                                            detail.observations
+                                            if detail is not None
+                                            else ()
+                                        )
+                                        if getattr(
+                                            observation.source_row,
+                                            "source_numeric_response_count",
+                                            None,
+                                        )
+                                        is not None
+                                    ),
+                                    default=None,
+                                )
                             ),
                             "Low-response tokens (<5)": (
-                                summary.low_response_token_count
+                                sum(
+                                    (
+                                        getattr(
+                                            observation.source_row,
+                                            "source_numeric_response_count",
+                                            5,
+                                        )
+                                        or 0
+                                    )
+                                    < 5
+                                    for observation in (
+                                        detail.observations
+                                        if detail is not None
+                                        else ()
+                                    )
+                                )
                             ),
                         }
                     ]
@@ -5186,13 +5495,64 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 pd.DataFrame(
                     [
                         {
-                            "Band": band.label,
-                            "Lower": band.lower_bound,
-                            "Upper": band.upper_bound,
-                            "Matched tokens": band.token_count,
-                            "Proportion": band.proportion,
+                            "Band": label,
+                            "Lower": lower,
+                            "Upper": upper,
+                            "Retained observations": sum(
+                                (
+                                    lower is None
+                                    or value > lower
+                                    or (lower_inclusive and value == lower)
+                                )
+                                and (
+                                    upper is None
+                                    or value < upper
+                                    or (upper_inclusive and value == upper)
+                                )
+                                for value in selected_aoa_values
+                            ),
+                            "Proportion": (
+                                sum(
+                                    (
+                                        lower is None
+                                        or value > lower
+                                        or (lower_inclusive and value == lower)
+                                    )
+                                    and (
+                                        upper is None
+                                        or value < upper
+                                        or (upper_inclusive and value == upper)
+                                    )
+                                    for value in selected_aoa_values
+                                )
+                                / len(selected_aoa_values)
+                                if selected_aoa_values
+                                else None
+                            ),
                         }
-                        for band in summary.bands
+                        for label, lower, upper, lower_inclusive, upper_inclusive in (
+                            (
+                                "Early acquired",
+                                None,
+                                aoa.configuration.early_acquired_max,
+                                False,
+                                True,
+                            ),
+                            (
+                                "Middle band",
+                                aoa.configuration.early_acquired_max,
+                                aoa.configuration.later_acquired_min,
+                                False,
+                                False,
+                            ),
+                            (
+                                "Later acquired",
+                                aoa.configuration.later_acquired_min,
+                                None,
+                                True,
+                                False,
+                            ),
+                        )
                     ]
                 ).style.format(
                     {"Proportion": lambda value: _percentage(value)}
@@ -5244,18 +5604,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     [
                         {
                             "Line": group.ordinal,
-                            "Text": group.source_text,
-                            "Eligible tokens": group.eligible_token_count,
-                            "Matched tokens": group.matched_token_count,
-                            "Coverage": group.token_coverage,
+                            "Retained observations": group.observation_count,
                             "Mean normative AoA": group.statistics.mean,
                             "Median normative AoA": group.statistics.median,
                         }
-                        for group in aoa.line_summaries
+                        for group in (
+                            detail.line_summaries if detail is not None else ()
+                        )
                     ]
                 ).style.format(
                     {
-                        "Coverage": lambda value: _percentage(value),
                         "Mean normative AoA": lambda value: _decimal(value),
                         "Median normative AoA": lambda value: _decimal(value),
                     }
@@ -5265,10 +5623,18 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
             with st.expander("Stanza and part-of-speech summaries"):
                 for heading, groups, first_column in (
-                    ("Stanzas", aoa.stanza_summaries, "Stanza"),
+                    (
+                        "Stanzas",
+                        detail.stanza_summaries if detail is not None else (),
+                        "Stanza",
+                    ),
                     (
                         "Model part of speech",
-                        aoa.part_of_speech_summaries,
+                        (
+                            detail.part_of_speech_summaries
+                            if detail is not None
+                            else ()
+                        ),
                         "POS",
                     ),
                 ):
@@ -5278,16 +5644,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
                             first_column: (
                                 group.ordinal
                                 if first_column == "Stanza"
-                                else group.label
+                                else group.ordinal
                             ),
-                            "Text": (
-                                group.source_text
-                                if first_column == "Stanza"
-                                else ""
-                            ),
-                            "Eligible tokens": group.eligible_token_count,
-                            "Matched tokens": group.matched_token_count,
-                            "Coverage": group.token_coverage,
+                            "Retained observations": group.observation_count,
                             "Mean normative AoA": group.statistics.mean,
                             "Median normative AoA": group.statistics.median,
                         }
@@ -5296,7 +5655,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     render_dataframe(
                         pd.DataFrame(rows).style.format(
                             {
-                                "Coverage": lambda value: _percentage(value),
                                 "Mean normative AoA": lambda value: _decimal(
                                     value
                                 ),
@@ -5314,40 +5672,50 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "paper's source-selection label."
                 )
 
+            selected_aoa_terms: dict[str, dict[str, object]] = {}
+            for observation in detail.observations if detail is not None else ():
+                term_row = selected_aoa_terms.setdefault(
+                    observation.source_term,
+                    {
+                        "Term": observation.source_term,
+                        "Mean age": observation.value,
+                        "Source SD": getattr(
+                            observation.source_row,
+                            "source_rating_standard_deviation",
+                            None,
+                        ),
+                        "Numeric responses": getattr(
+                            observation.source_row,
+                            "source_numeric_response_count",
+                            None,
+                        ),
+                        "Retained observations": 0,
+                    },
+                )
+                term_row["Retained observations"] = int(
+                    term_row["Retained observations"]
+                ) + 1
+            ranked_aoa_terms = sorted(
+                selected_aoa_terms.values(),
+                key=lambda row: float(row["Mean age"]),
+            )
             early_column, late_column = st.columns(2)
             for column, heading, terms in (
                 (
                     early_column,
                     "Earliest-acquired represented terms",
-                    aoa.earliest_acquired_terms,
+                    ranked_aoa_terms[:10],
                 ),
                 (
                     late_column,
                     "Latest-acquired represented terms",
-                    aoa.latest_acquired_terms,
+                    list(reversed(ranked_aoa_terms[-10:])),
                 ),
             ):
                 with column:
                     st.markdown(f"**{heading}**")
                     render_dataframe(
-                        pd.DataFrame(
-                            [
-                                {
-                                    "Term": term.source_term,
-                                    "Mean age": term.mean_age,
-                                    "Source SD": (
-                                        term.source_rating_standard_deviation
-                                    ),
-                                    "Numeric responses": (
-                                        term.source_numeric_response_count
-                                    ),
-                                    "Token occurrences": (
-                                        term.matched_token_occurrences
-                                    ),
-                                }
-                                for term in terms
-                            ]
-                        ),
+                        pd.DataFrame(terms),
                         hide_index=True,
                         width="stretch",
                     )
@@ -6398,9 +6766,39 @@ if workspace_page in {"Single Poem", "Other Text"}:
             module_ids=("emotion_association", "emotion_intensity"),
             heading="Selected Emotion Profiles",
         )
-        associations = emotion_association_views(workspace)
-        sentiments = sentiment_association_views(workspace)
-        intensities = emotion_intensity_views(workspace)
+        emotion_profile_rows = selected_profile_metrics(
+            workspace,
+            profile_state.selection,
+            module_ids=("emotion_association", "emotion_intensity"),
+        )
+        associations = tuple(
+            row
+            for row in emotion_profile_rows
+            if row.module_id == "emotion_association"
+            and row.metric_id.removesuffix("_association")
+            in {
+                "anger",
+                "anticipation",
+                "disgust",
+                "fear",
+                "joy",
+                "sadness",
+                "surprise",
+                "trust",
+            }
+        )
+        sentiments = tuple(
+            row
+            for row in emotion_profile_rows
+            if row.module_id == "emotion_association"
+            and row.metric_id.removesuffix("_association")
+            in {"positive", "negative"}
+        )
+        intensities = tuple(
+            row
+            for row in emotion_profile_rows
+            if row.module_id == "emotion_intensity"
+        )
         if not associations and not sentiments and not intensities:
             st.info(
                 "NRC Emotion or NRC Emotion Intensity was not selected. "
@@ -6506,30 +6904,32 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "fear, joy, sadness, surprise, and trust in NRC Emotion. One token may "
                 "belong to several categories, so rates do not sum to 100%."
             )
-            association_frame = _frame(
-                associations,
-                {
-                    "category": "Category",
-                    "token_count": "Token count",
-                    "unique_types": "Unique types",
-                    "rate_per_lexical_token": "Rate per lexical token",
-                    "rate_among_emotion_bearing_tokens": "Rate among emotion-bearing tokens",
-                    "top_terms": "Top contributors",
-                },
+            association_frame = pd.DataFrame(
+                [
+                    {
+                        "Source": row.source_label,
+                        "Profile": row.profile.label,
+                        "Category": row.metric_id.removesuffix(
+                            "_association"
+                        ).title(),
+                        "Association proportion": row.value,
+                        "Associated observations": row.observation_count,
+                        "Eligible tokens": row.coverage.eligible_token_count,
+                    }
+                    for row in associations
+                ]
             )
-            st.bar_chart(
-                rounded_display_data(
-                    association_frame.set_index("Category")[
-                        ["Rate per lexical token"]
-                    ]
-                ),
-                height=300,
-            )
+            if len(profile_state.selection.profiles) == 1:
+                st.bar_chart(
+                    rounded_display_data(
+                        association_frame.set_index("Category")[["Association proportion"]]
+                    ),
+                    height=300,
+                )
             render_dataframe(
                 association_frame.style.format(
                     {
-                        "Rate per lexical token": lambda value: _percentage(value),
-                        "Rate among emotion-bearing tokens": lambda value: _percentage(value),
+                        "Association proportion": lambda value: _percentage(value),
                     }
                 ),
                 hide_index=True,
@@ -6542,30 +6942,32 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "them separately from the eight emotion categories. One token may have "
                 "more than one source association, and these rates need not sum to 100%."
             )
-            sentiment_frame = _frame(
-                sentiments,
-                {
-                    "category": "Sentiment",
-                    "token_count": "Token count",
-                    "unique_types": "Unique types",
-                    "rate_per_lexical_token": "Rate per lexical token",
-                    "rate_among_emotion_bearing_tokens": "Rate among association-bearing tokens",
-                    "top_terms": "Top contributors",
-                },
+            sentiment_frame = pd.DataFrame(
+                [
+                    {
+                        "Source": row.source_label,
+                        "Profile": row.profile.label,
+                        "Sentiment": row.metric_id.removesuffix(
+                            "_association"
+                        ).title(),
+                        "Association proportion": row.value,
+                        "Associated observations": row.observation_count,
+                        "Eligible tokens": row.coverage.eligible_token_count,
+                    }
+                    for row in sentiments
+                ]
             )
-            st.bar_chart(
-                rounded_display_data(
-                    sentiment_frame.set_index("Sentiment")[
-                        ["Rate per lexical token"]
-                    ]
-                ),
-                height=220,
-            )
+            if len(profile_state.selection.profiles) == 1:
+                st.bar_chart(
+                    rounded_display_data(
+                        sentiment_frame.set_index("Sentiment")[["Association proportion"]]
+                    ),
+                    height=220,
+                )
             render_dataframe(
                 sentiment_frame.style.format(
                     {
-                        "Rate per lexical token": lambda value: _percentage(value),
-                        "Rate among association-bearing tokens": lambda value: _percentage(value),
+                        "Association proportion": lambda value: _percentage(value),
                     }
                 ),
                 hide_index=True,
@@ -6577,26 +6979,28 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Prevalence asks how often category-scored vocabulary occurs. Mean "
                 "intensity asks how strong the supplied ratings are only among those matches."
             )
-            intensity_frame = _frame(
-                intensities,
-                {
-                    "category": "Category",
-                    "token_count": "Matched occurrences",
-                    "distinct_pairs": "Distinct word-category pairs",
-                    "prevalence_per_lexical_token": "Prevalence per lexical token",
-                    "mean_matched_intensity": "Mean matched intensity",
-                    "median_matched_intensity": "Median",
-                    "maximum_matched_intensity": "Maximum",
-                    "top_terms": "Top contributors",
-                },
+            intensity_frame = pd.DataFrame(
+                [
+                    {
+                        "Source": row.source_label,
+                        "Profile": row.profile.label,
+                        "Category": row.metric_id.removesuffix(
+                            "_intensity"
+                        ).title(),
+                        "Mean matched intensity": row.value,
+                        "Median matched intensity": row.median,
+                        "Maximum matched intensity": row.maximum,
+                        "Matched observations": row.observation_count,
+                    }
+                    for row in intensities
+                ]
             )
             render_dataframe(
                 intensity_frame.style.format(
                     {
-                        "Prevalence per lexical token": lambda value: _percentage(value),
                         "Mean matched intensity": lambda value: _decimal(value),
-                        "Median": lambda value: _decimal(value),
-                        "Maximum": lambda value: _decimal(value),
+                        "Median matched intensity": lambda value: _decimal(value),
+                        "Maximum matched intensity": lambda value: _decimal(value),
                     }
                 ),
                 hide_index=True,

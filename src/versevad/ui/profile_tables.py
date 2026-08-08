@@ -28,6 +28,30 @@ def selected_profile_metrics(
     )
 
 
+def primary_profile_metric(
+    workspace: WorkspaceAnalysis,
+    selection: ProfileSelection,
+    *,
+    module_id: str,
+    metric_id: str | None = None,
+):
+    """Return the first currently selected row for a dashboard detail."""
+
+    rows = selected_profile_metrics(
+        workspace,
+        selection,
+        module_ids=(module_id,),
+    )
+    return next(
+        (
+            row
+            for row in rows
+            if metric_id is None or row.metric_id == metric_id
+        ),
+        None,
+    )
+
+
 def _height(length: int, maximum: int = 480) -> int:
     return min(maximum, 76 + 35 * length)
 
@@ -50,8 +74,13 @@ def render_configurable_profile_table(
                 "Source": row.source_label,
                 "Metric": row.metric_label,
                 "Profile": row.profile.label,
-                "Value": row.value,
+                "Primary Value": row.value,
+                "Median": row.median,
                 "Within-Text SD": row.population_standard_deviation,
+                "First Quartile": row.first_quartile,
+                "Third Quartile": row.third_quartile,
+                "Minimum": row.minimum,
+                "Maximum": row.maximum,
                 "Cumulative Lexical Load": row.cumulative_value,
                 "Load per 100 Observations": row.value_per_100_observations,
                 "Above-Midpoint Load": row.above_midpoint_load,
@@ -99,19 +128,57 @@ def render_configurable_profile_table(
             for row in rows
         ]
     )
-    primary = frame[["Source", "Metric", "Profile", "Value", "Observations", "Unit"]]
+    primary = frame[
+        [
+            "Source",
+            "Metric",
+            "Profile",
+            "Primary Value",
+            "Median",
+            "Observations",
+            "Unit",
+        ]
+    ]
     render_dataframe(
-        primary.style.format({"Value": "{:.3f}"}, na_rep="—"),
+        primary.style.format(
+            {"Primary Value": "{:.3f}", "Median": "{:.3f}"},
+            na_rep="—",
+        ),
         hide_index=True,
         width="stretch",
         height=_height(len(primary)),
     )
+    st.caption(
+        "Primary Value is the selected-profile mean for continuous lexical "
+        "metrics and the documented proportion for categorical association "
+        "metrics. Median is secondary and appears only where it is defined."
+    )
     with st.expander("Within-Text Dispersion", expanded=False):
         dispersion = frame[
-            ["Source", "Metric", "Profile", "Within-Text SD", "Observations", "Unit"]
+            [
+                "Source",
+                "Metric",
+                "Profile",
+                "Within-Text SD",
+                "First Quartile",
+                "Third Quartile",
+                "Minimum",
+                "Maximum",
+                "Observations",
+                "Unit",
+            ]
         ]
         render_dataframe(
-            dispersion.style.format({"Within-Text SD": "{:.3f}"}, na_rep="—"),
+            dispersion.style.format(
+                {
+                    "Within-Text SD": "{:.3f}",
+                    "First Quartile": "{:.3f}",
+                    "Third Quartile": "{:.3f}",
+                    "Minimum": "{:.3f}",
+                    "Maximum": "{:.3f}",
+                },
+                na_rep="—",
+            ),
             hide_index=True,
             width="stretch",
             height=_height(len(dispersion), 420),
@@ -231,4 +298,8 @@ def render_configurable_profile_table(
     )
 
 
-__all__ = ["render_configurable_profile_table", "selected_profile_metrics"]
+__all__ = [
+    "primary_profile_metric",
+    "render_configurable_profile_table",
+    "selected_profile_metrics",
+]

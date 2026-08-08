@@ -896,8 +896,9 @@ def _module_metrics(
                 f"{summary.matched_token_count} matched eligible token occurrences"
             ),
             note=(
-                "Median is the primary summary because unusually rare terms can "
-                "pull the mean downward."
+                "Median is retained as a secondary skew-resistant summary; the "
+                "dashboard presents the mean first for consistency across lexical "
+                "metrics."
                 if metric_id == "frequency.median_zipf"
                 else ""
             ),

@@ -326,7 +326,7 @@ def test_proper_names_are_included_by_default_and_can_be_excluded(
     assert excluded.summary.eligible_token_count == 1
 
 
-def test_repetition_weights_tokens_and_median_is_primary(
+def test_repetition_weights_tokens_and_median_is_secondary(
     tmp_path: Path,
     preprocessor,
 ) -> None:
@@ -358,7 +358,7 @@ def test_repetition_weights_tokens_and_median_is_primary(
         if metric.metric_id == "frequency.median_zipf"
         and metric.scope == "document"
     )
-    assert "primary" in median_metric.note
+    assert "secondary" in median_metric.note
 
 
 def test_all_common_vocabulary_has_no_rare_tail(
