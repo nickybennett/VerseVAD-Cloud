@@ -3007,22 +3007,57 @@ class ProjectRepository:
         ).fetchall()
         return tuple(row["run_id"] for row in rows)
 
-    def list_latest_metrics(self, project_id: str) -> tuple[CorpusMetricRecord, ...]:
+    def list_latest_metrics(
+        self,
+        project_id: str,
+        *,
+        text_id: str | None = None,
+        analysis_views: Sequence[str] | None = None,
+        weightings: Sequence[str] | None = None,
+        metrics: Sequence[str] | None = None,
+    ) -> tuple[CorpusMetricRecord, ...]:
         self.initialize()
         with self._connect() as connection:
             run_ids = self._visible_run_ids(connection, project_id)
             if not run_ids:
                 return ()
-            return self._metrics_for_run_ids(connection, run_ids)
+            return self._metrics_for_run_ids(
+                connection,
+                run_ids,
+                text_id=text_id,
+                analysis_views=analysis_views,
+                weightings=weightings,
+                metrics=metrics,
+            )
 
     @staticmethod
     def _metrics_for_run_ids(
         connection: sqlite3.Connection,
         run_ids: Sequence[str],
+        *,
+        text_id: str | None = None,
+        analysis_views: Sequence[str] | None = None,
+        weightings: Sequence[str] | None = None,
+        metrics: Sequence[str] | None = None,
     ) -> tuple[CorpusMetricRecord, ...]:
         if not run_ids:
             return ()
         placeholders = ",".join("?" for _ in run_ids)
+        clauses = [f"r.run_id IN ({placeholders})"]
+        parameters: list[object] = list(run_ids)
+        if text_id is not None:
+            clauses.append("r.text_id = ?")
+            parameters.append(text_id)
+        for column, values in (
+            ("m.analysis_view", analysis_views),
+            ("m.weighting", weightings),
+            ("m.metric", metrics),
+        ):
+            selected = tuple(values or ())
+            if selected:
+                value_placeholders = ",".join("?" for _ in selected)
+                clauses.append(f"{column} IN ({value_placeholders})")
+                parameters.extend(selected)
         rows = connection.execute(
             f"""
             SELECT r.run_id, r.text_id, r.text_version_id, t.title, t.author,
@@ -3034,11 +3069,11 @@ class ProjectRepository:
             FROM analysis_runs r
             JOIN analysis_metrics m ON m.run_id = r.run_id
             JOIN texts t ON t.text_id = r.text_id
-            WHERE r.run_id IN ({placeholders})
+            WHERE {' AND '.join(clauses)}
             ORDER BY t.title COLLATE NOCASE, m.lexicon_display_name, m.metric,
                      m.dimension, m.category, m.weighting, m.scale
             """,
-            tuple(run_ids),
+            tuple(parameters),
         ).fetchall()
         return tuple(CorpusMetricRecord(**dict(row)) for row in rows)
 
@@ -3103,10 +3138,23 @@ class ProjectRepository:
     def _module_results_for_run_ids(
         connection: sqlite3.Connection,
         run_ids: Sequence[str],
+        *,
+        text_id: str | None = None,
+        module_names: Sequence[str] | None = None,
     ) -> tuple[CorpusModuleResultRecord, ...]:
         if not run_ids:
             return ()
         placeholders = ",".join("?" for _ in run_ids)
+        clauses = [f"r.run_id IN ({placeholders})"]
+        parameters: list[object] = list(run_ids)
+        if text_id is not None:
+            clauses.append("r.text_id = ?")
+            parameters.append(text_id)
+        selected_modules = tuple(module_names or ())
+        if selected_modules:
+            module_placeholders = ",".join("?" for _ in selected_modules)
+            clauses.append(f"mr.module_name IN ({module_placeholders})")
+            parameters.extend(selected_modules)
         rows = connection.execute(
             f"""
             SELECT mr.module_result_row_id, r.run_id, r.text_id,
@@ -3119,10 +3167,10 @@ class ProjectRepository:
             FROM analysis_runs r
             JOIN module_results mr ON mr.run_id = r.run_id
             JOIN texts t ON t.text_id = r.text_id
-            WHERE r.run_id IN ({placeholders})
+            WHERE {' AND '.join(clauses)}
             ORDER BY t.title COLLATE NOCASE, mr.module_name
             """,
-            tuple(run_ids),
+            tuple(parameters),
         ).fetchall()
         materialized = []
         for row in rows:
@@ -3136,12 +3184,17 @@ class ProjectRepository:
     def list_latest_module_results(
         self,
         project_id: str,
+        *,
+        text_id: str | None = None,
+        module_names: Sequence[str] | None = None,
     ) -> tuple[CorpusModuleResultRecord, ...]:
         self.initialize()
         with self._connect() as connection:
             return self._module_results_for_run_ids(
                 connection,
                 self._visible_run_ids(connection, project_id),
+                text_id=text_id,
+                module_names=module_names,
             )
 
     def _validated_batch_run_ids(
@@ -3195,10 +3248,28 @@ class ProjectRepository:
     def _module_metrics_for_run_ids(
         connection: sqlite3.Connection,
         run_ids: Sequence[str],
+        *,
+        text_id: str | None = None,
+        module_names: Sequence[str] | None = None,
+        scopes: Sequence[str] | None = None,
     ) -> tuple[CorpusModuleMetricRecord, ...]:
         if not run_ids:
             return ()
         placeholders = ",".join("?" for _ in run_ids)
+        clauses = [f"r.run_id IN ({placeholders})"]
+        parameters: list[object] = list(run_ids)
+        if text_id is not None:
+            clauses.append("r.text_id = ?")
+            parameters.append(text_id)
+        for column, values in (
+            ("mr.module_name", module_names),
+            ("mm.scope", scopes),
+        ):
+            selected = tuple(values or ())
+            if selected:
+                value_placeholders = ",".join("?" for _ in selected)
+                clauses.append(f"{column} IN ({value_placeholders})")
+                parameters.extend(selected)
         rows = connection.execute(
             f"""
             SELECT r.run_id, r.text_id, r.text_version_id, t.title, t.author,
@@ -3213,11 +3284,11 @@ class ProjectRepository:
             JOIN module_metrics mm
               ON mm.module_result_row_id = mr.module_result_row_id
             JOIN texts t ON t.text_id = r.text_id
-            WHERE r.run_id IN ({placeholders})
+            WHERE {' AND '.join(clauses)}
             ORDER BY t.title COLLATE NOCASE, mr.module_name, mm.scope,
                      mm.scope_id, mm.metric_id
             """,
-            tuple(run_ids),
+            tuple(parameters),
         ).fetchall()
         materialized = []
         for row in rows:
@@ -3229,12 +3300,19 @@ class ProjectRepository:
     def list_latest_module_metrics(
         self,
         project_id: str,
+        *,
+        text_id: str | None = None,
+        module_names: Sequence[str] | None = None,
+        scopes: Sequence[str] | None = None,
     ) -> tuple[CorpusModuleMetricRecord, ...]:
         self.initialize()
         with self._connect() as connection:
             return self._module_metrics_for_run_ids(
                 connection,
                 self._visible_run_ids(connection, project_id),
+                text_id=text_id,
+                module_names=module_names,
+                scopes=scopes,
             )
 
     def list_module_metrics_for_batch(
@@ -3257,10 +3335,28 @@ class ProjectRepository:
     def _module_coverage_for_run_ids(
         connection: sqlite3.Connection,
         run_ids: Sequence[str],
+        *,
+        text_id: str | None = None,
+        module_names: Sequence[str] | None = None,
+        scopes: Sequence[str] | None = None,
     ) -> tuple[CorpusModuleCoverageRecord, ...]:
         if not run_ids:
             return ()
         placeholders = ",".join("?" for _ in run_ids)
+        clauses = [f"r.run_id IN ({placeholders})"]
+        parameters: list[object] = list(run_ids)
+        if text_id is not None:
+            clauses.append("r.text_id = ?")
+            parameters.append(text_id)
+        for column, values in (
+            ("mr.module_name", module_names),
+            ("mc.scope", scopes),
+        ):
+            selected = tuple(values or ())
+            if selected:
+                value_placeholders = ",".join("?" for _ in selected)
+                clauses.append(f"{column} IN ({value_placeholders})")
+                parameters.extend(selected)
         rows = connection.execute(
             f"""
             SELECT r.run_id, r.text_id, r.text_version_id, t.title,
@@ -3273,10 +3369,10 @@ class ProjectRepository:
             JOIN module_coverage mc
               ON mc.module_result_row_id = mr.module_result_row_id
             JOIN texts t ON t.text_id = r.text_id
-            WHERE r.run_id IN ({placeholders})
+            WHERE {' AND '.join(clauses)}
             ORDER BY t.title COLLATE NOCASE, mr.module_name, mc.coverage_id
             """,
-            tuple(run_ids),
+            tuple(parameters),
         ).fetchall()
         materialized = []
         for row in rows:
@@ -3290,12 +3386,19 @@ class ProjectRepository:
     def list_latest_module_coverage(
         self,
         project_id: str,
+        *,
+        text_id: str | None = None,
+        module_names: Sequence[str] | None = None,
+        scopes: Sequence[str] | None = None,
     ) -> tuple[CorpusModuleCoverageRecord, ...]:
         self.initialize()
         with self._connect() as connection:
             return self._module_coverage_for_run_ids(
                 connection,
                 self._visible_run_ids(connection, project_id),
+                text_id=text_id,
+                module_names=module_names,
+                scopes=scopes,
             )
 
     def list_module_coverage_for_batch(
@@ -3318,10 +3421,23 @@ class ProjectRepository:
     def _module_warnings_for_run_ids(
         connection: sqlite3.Connection,
         run_ids: Sequence[str],
+        *,
+        text_id: str | None = None,
+        module_names: Sequence[str] | None = None,
     ) -> tuple[CorpusModuleWarningRecord, ...]:
         if not run_ids:
             return ()
         placeholders = ",".join("?" for _ in run_ids)
+        clauses = [f"r.run_id IN ({placeholders})"]
+        parameters: list[object] = list(run_ids)
+        if text_id is not None:
+            clauses.append("r.text_id = ?")
+            parameters.append(text_id)
+        selected_modules = tuple(module_names or ())
+        if selected_modules:
+            module_placeholders = ",".join("?" for _ in selected_modules)
+            clauses.append(f"mr.module_name IN ({module_placeholders})")
+            parameters.extend(selected_modules)
         rows = connection.execute(
             f"""
             SELECT r.run_id, r.text_id, r.text_version_id, t.title,
@@ -3332,22 +3448,27 @@ class ProjectRepository:
             JOIN module_warnings mw
               ON mw.module_result_row_id = mr.module_result_row_id
             JOIN texts t ON t.text_id = r.text_id
-            WHERE r.run_id IN ({placeholders})
+            WHERE {' AND '.join(clauses)}
             ORDER BY t.title COLLATE NOCASE, mr.module_name, mw.code
             """,
-            tuple(run_ids),
+            tuple(parameters),
         ).fetchall()
         return tuple(CorpusModuleWarningRecord(**dict(row)) for row in rows)
 
     def list_latest_module_warnings(
         self,
         project_id: str,
+        *,
+        text_id: str | None = None,
+        module_names: Sequence[str] | None = None,
     ) -> tuple[CorpusModuleWarningRecord, ...]:
         self.initialize()
         with self._connect() as connection:
             return self._module_warnings_for_run_ids(
                 connection,
                 self._visible_run_ids(connection, project_id),
+                text_id=text_id,
+                module_names=module_names,
             )
 
     def list_module_warnings_for_batch(

@@ -270,10 +270,9 @@ def _render_versemap_tab(
         "VerseMap Standard Profile 1.0. Distances are descriptive and are not "
         "authorship, influence, quality, or meaning claims."
     )
-    metrics = tuple(
-        row
-        for row in repository.list_latest_module_metrics(project_id)
-        if row.module_name == "versemap"
+    metrics = repository.list_latest_module_metrics(
+        project_id,
+        module_names=("versemap",),
     )
     if not metrics:
         st.info(
@@ -890,12 +889,10 @@ def _render_texts_tab(repository: ProjectRepository, project_id: str) -> None:
             or text.collection == collection_filter
         )
     ]
-    completed_text_ids = {
-        row.text_id for row in repository.list_latest_metrics(project_id)
-    } | {
-        row.text_id
-        for row in repository.list_latest_module_results(project_id)
-    }
+    completed_batches = repository.list_completed_batches(project_id)
+    completed_text_ids = (
+        set(completed_batches[0].text_ids) if completed_batches else set()
+    )
     warning_text_ids = {
         row.text_id
         for row in repository.list_latest_module_warnings(project_id)
@@ -1195,13 +1192,20 @@ _CORPUS_REPORT_MODULES = {
     "Lexical Character, Imagery & Embodiment": (
         "concreteness",
         "frequency",
+        "lexical_frequency",
         "aoa",
+        "age_of_acquisition",
+        "readability",
         "sensorimotor",
+        "sensorimotor_imagery_and_embodiment",
     ),
     "Sound & Form": (
         "pronunciation",
+        "pronunciation_prosody_foundation",
         "meter",
+        "candidate_meter_and_rhythmic_regularity",
         "phonology",
+        "rhyme_and_phonological_patterns",
         "inherited_form",
     ),
     "Structure": ("lexical_style",),
@@ -1211,11 +1215,24 @@ _CORPUS_REPORT_MODULES = {
 _CORPUS_MODULE_LABELS = {
     "concreteness": "Concreteness",
     "frequency": "Frequency & Rarity",
+    "lexical_frequency": "Frequency & Rarity",
     "aoa": "Acquisition & Readability",
+    "age_of_acquisition": "Age of Acquisition",
+    "readability": "Readability",
     "sensorimotor": "Sensorimotor Imagery & Embodiment",
+    "sensorimotor_imagery_and_embodiment": (
+        "Sensorimotor Imagery & Embodiment"
+    ),
     "pronunciation": "Pronunciation, Syllables & Stress",
+    "pronunciation_prosody_foundation": (
+        "Pronunciation, Syllables & Stress"
+    ),
     "meter": "Candidate Meter & Rhythmic Regularity",
+    "candidate_meter_and_rhythmic_regularity": (
+        "Candidate Meter & Rhythmic Regularity"
+    ),
     "phonology": "Rhyme & Recurring Sound",
+    "rhyme_and_phonological_patterns": "Rhyme & Recurring Sound",
     "inherited_form": "Inherited Form Analysis",
     "lexical_style": "Lexical & Structural Measures",
     "poetry_id": "PoetryID",
@@ -1285,46 +1302,6 @@ def _corpus_metric_family(metric_id: str) -> str:
     if identifier.startswith("inherited_form."):
         return "Inherited Form"
     return "Summary Metrics"
-
-
-def _corpus_result_scope_options(
-    texts,
-    metrics,
-    module_metrics,
-) -> tuple[tuple[str, str], ...]:
-    """Return Whole Corpus plus only poems represented in the latest batch."""
-
-    analyzed_ids = {row.text_id for row in metrics} | {
-        row.text_id for row in module_metrics
-    }
-    return (
-        (_WHOLE_CORPUS_SCOPE, "Whole Corpus"),
-        *(
-            (text.text_id, text.title)
-            for text in texts
-            if text.text_id in analyzed_ids
-        ),
-    )
-
-
-def _available_corpus_report_families(
-    metrics,
-    module_metrics,
-    coverage,
-    warnings,
-) -> tuple[str, ...]:
-    """Expose only report families backed by the latest completed batch."""
-
-    available = []
-    if metrics:
-        available.append("Affective Evidence")
-    module_names = {row.module_name for row in module_metrics}
-    for family, family_modules in _CORPUS_REPORT_MODULES.items():
-        if module_names.intersection(family_modules):
-            available.append(family)
-    if coverage or warnings:
-        available.append("Evidence & Diagnostics")
-    return tuple(available)
 
 
 def _render_corpus_affective_report(
@@ -1712,6 +1689,7 @@ def _render_corpus_modules(
     aggregates,
     *,
     allowed_modules: tuple[str, ...] | None = None,
+    selected_module_override: str | None = None,
     selected_text_id: str | None = None,
     state_prefix: str = "corpus_results",
 ) -> None:
@@ -1725,15 +1703,17 @@ def _render_corpus_modules(
     if not available_modules:
         st.info("No compatible module results are available for this selection.")
         return
-    selected_module = st.selectbox(
-        "Analysis",
-        options=available_modules,
-        format_func=lambda value: _CORPUS_MODULE_LABELS.get(
-            value,
-            value.replace("_", " ").title(),
-        ),
-        key=f"{state_prefix}_module_{project_id}",
-    )
+    selected_module = selected_module_override
+    if selected_module is None:
+        selected_module = st.selectbox(
+            "Analysis",
+            options=available_modules,
+            format_func=lambda value: _CORPUS_MODULE_LABELS.get(
+                value,
+                value.replace("_", " ").title(),
+            ),
+            key=f"{state_prefix}_module_{project_id}",
+        )
     selected = tuple(
         row for row in filtered_metrics if row.module_name == selected_module
     )
@@ -2367,6 +2347,7 @@ def _render_corpus_diagnostics(
     *,
     selected_text_id: str | None,
     state_prefix: str,
+    selected_module_override: str | None = None,
 ) -> None:
     selected_coverage = tuple(
         row
@@ -2385,15 +2366,17 @@ def _render_corpus_diagnostics(
     if not module_names:
         st.info("No coverage or warning records are available for this selection.")
         return
-    module_name = st.selectbox(
-        "Analysis",
-        options=module_names,
-        format_func=lambda value: _CORPUS_MODULE_LABELS.get(
-            value,
-            value.replace("_", " ").title(),
-        ),
-        key=f"{state_prefix}_diagnostic_module",
-    )
+    module_name = selected_module_override
+    if module_name is None:
+        module_name = st.selectbox(
+            "Analysis",
+            options=module_names,
+            format_func=lambda value: _CORPUS_MODULE_LABELS.get(
+                value,
+                value.replace("_", " ").title(),
+            ),
+            key=f"{state_prefix}_diagnostic_module",
+        )
     module_coverage = tuple(
         row for row in selected_coverage if row.module_name == module_name
     )
@@ -2452,12 +2435,7 @@ def _render_completed_corpus_results(
     repository: ProjectRepository,
     project_id: str,
     texts,
-    metrics,
-    module_metrics,
-    module_coverage,
-    module_warnings,
-    module_results,
-    module_aggregates,
+    latest_batch,
 ) -> None:
     st.divider()
     st.subheader("Completed Analysis Results")
@@ -2466,18 +2444,26 @@ def _render_completed_corpus_results(
         "family. The interface shows concise summaries and charts; complete "
         "statistical and audit records remain available from Export."
     )
-    scope_options = _corpus_result_scope_options(
-        texts,
-        metrics,
-        module_metrics,
+    analyzed_text_ids = set(latest_batch.text_ids)
+    scope_options = (
+        (_WHOLE_CORPUS_SCOPE, "Whole Corpus"),
+        *(
+            (text.text_id, text.title)
+            for text in texts
+            if text.text_id in analyzed_text_ids
+        ),
     )
     scope_labels = dict(scope_options)
-    reports = _available_corpus_report_families(
-        metrics,
-        module_metrics,
-        module_coverage,
-        module_warnings,
-    )
+    reports = []
+    if latest_batch.lexicon_ids:
+        reports.append("Affective Evidence")
+    recorded_modules = set(latest_batch.module_names)
+    for family, family_modules in _CORPUS_REPORT_MODULES.items():
+        if recorded_modules.intersection(family_modules):
+            reports.append(family)
+    if recorded_modules:
+        reports.append("Evidence & Diagnostics")
+    reports = tuple(reports)
     if not reports:
         st.info("The completed batch contains no reportable results.")
         return
@@ -2516,6 +2502,28 @@ def _render_completed_corpus_results(
 
     state_prefix = f"corpus_result_{project_id}_{scope_id}"
     if report_family == "Affective Evidence":
+        view_ids = {
+            LexicalScope.ALL_LEXICAL: "all_matched",
+            LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+            LexicalScope.CONTENT_WORDS: "content_words",
+        }
+        metrics = repository.list_latest_metrics(
+            project_id,
+            text_id=selected_text_id,
+            analysis_views=tuple(
+                view_ids[scope] for scope in profile_state.selection.scopes
+            ),
+            weightings=tuple(
+                weighting.value.casefold()
+                for weighting in profile_state.selection.weightings
+            ),
+            metrics=(
+                "vad_mean",
+                "vad_standard_deviation",
+                *_VAD_LOAD_METRICS,
+                *_VAD_VOLATILITY_METRICS,
+            ),
+        )
         _render_corpus_affective_report(
             metrics,
             selected_text_id=selected_text_id,
@@ -2524,11 +2532,39 @@ def _render_completed_corpus_results(
         )
         return
     if report_family == "Evidence & Diagnostics":
+        diagnostic_modules = tuple(
+            module_name
+            for module_name in latest_batch.module_names
+            if module_name in _CORPUS_MODULE_LABELS
+        )
+        if not diagnostic_modules:
+            st.info("No coverage or warning records are available for this batch.")
+            return
+        diagnostic_module = st.selectbox(
+            "Analysis",
+            options=diagnostic_modules,
+            format_func=lambda value: _CORPUS_MODULE_LABELS.get(
+                value, value.replace("_", " ").title()
+            ),
+            key=f"{state_prefix}_diagnostic_module",
+        )
+        module_coverage = repository.list_latest_module_coverage(
+            project_id,
+            text_id=selected_text_id,
+            module_names=(diagnostic_module,),
+            scopes=("document",),
+        )
+        module_warnings = repository.list_latest_module_warnings(
+            project_id,
+            text_id=selected_text_id,
+            module_names=(diagnostic_module,),
+        )
         _render_corpus_diagnostics(
             module_coverage,
             module_warnings,
             selected_text_id=selected_text_id,
             state_prefix=state_prefix,
+            selected_module_override=diagnostic_module,
         )
         return
     if report_family == "VerseMap" and selected_text_id is None:
@@ -2542,15 +2578,48 @@ def _render_completed_corpus_results(
     }.get(report_family, ())
     for module_id in fixed_modules:
         st.caption(fixed_profile_notice(module_id))
+    available_modules = tuple(
+        module_name
+        for module_name in latest_batch.module_names
+        if module_name in _CORPUS_REPORT_MODULES[report_family]
+    )
+    if not available_modules:
+        st.info("No compatible module results are available for this selection.")
+        return
+    selected_module = st.selectbox(
+        "Analysis",
+        options=available_modules,
+        format_func=lambda value: _CORPUS_MODULE_LABELS.get(
+            value, value.replace("_", " ").title()
+        ),
+        key=f"{state_prefix}_module_{project_id}",
+    )
+    module_metrics = repository.list_latest_module_metrics(
+        project_id,
+        text_id=selected_text_id,
+        module_names=(selected_module,),
+        scopes=("document",),
+    )
+    module_results = repository.list_latest_module_results(
+        project_id,
+        text_id=selected_text_id,
+        module_names=(selected_module,),
+    )
+    module_aggregates = tuple(
+        row
+        for row in repository.list_latest_module_aggregates(project_id)
+        if row.module_name == selected_module
+    )
     _render_corpus_modules(
         repository,
         project_id,
         module_metrics,
-        module_coverage,
-        module_warnings,
+        (),
+        (),
         module_results,
         module_aggregates,
         allowed_modules=_CORPUS_REPORT_MODULES[report_family],
+        selected_module_override=selected_module,
         selected_text_id=selected_text_id,
         state_prefix=state_prefix,
     )
@@ -2561,6 +2630,8 @@ def _render_analysis_tab(
     project_id: str,
     preprocessor: TextPreprocessor,
     resource_readiness: ResourceReadiness,
+    *,
+    show_completed_results: bool = True,
 ) -> None:
     texts = repository.list_texts(project_id)
     if not texts:
@@ -3237,25 +3308,18 @@ def _render_analysis_tab(
                 f"Technical detail: {error}"
             )
 
-    metrics = repository.list_latest_metrics(project_id)
-    module_metrics = repository.list_latest_module_metrics(project_id)
-    module_coverage = repository.list_latest_module_coverage(project_id)
-    module_warnings = repository.list_latest_module_warnings(project_id)
-    module_results = repository.list_latest_module_results(project_id)
-    module_aggregates = repository.list_latest_module_aggregates(project_id)
-    if not metrics and not module_metrics:
+    if not show_completed_results:
+        return
+
+    completed_batches = repository.list_completed_batches(project_id)
+    if not completed_batches:
         st.info("No complete corpus batch is available yet.")
         return
     _render_completed_corpus_results(
         repository,
         project_id,
         texts,
-        metrics,
-        module_metrics,
-        module_coverage,
-        module_warnings,
-        module_results,
-        module_aggregates,
+        completed_batches[0],
     )
     _render_batch_comparison(repository, project_id)
     return
@@ -3542,6 +3606,19 @@ def _render_batch_comparison(
         "Use this to compare an untouched baseline with a reviewed scenario, or "
         "two different scenario versions. Only like-for-like metrics are subtracted."
     )
+    if not st.toggle(
+        "Load batch comparison",
+        value=False,
+        key=f"load_batch_comparison_{project_id}",
+        help=(
+            "Batch comparison can load many stored rows. Leave this off while "
+            "moving between ordinary report sections."
+        ),
+    ):
+        st.caption(
+            "Turn this on only when you want to compare two immutable analysis batches."
+        )
+        return
 
     def label(batch_id: str) -> str:
         batch = next(item for item in batches if item.batch_id == batch_id)
@@ -4309,24 +4386,16 @@ def _render_part_of_speech_tab(
 def _render_export_tab(
     repository: ProjectRepository,
     project_id: str,
-    part_of_speech_rows: tuple[dict[str, object], ...],
+    preprocessor: TextPreprocessor,
 ) -> None:
     project = repository.get_project(project_id)
-    texts = repository.list_texts(project_id)
-    metrics = repository.list_latest_metrics(project_id)
-    unmatched = repository.list_latest_unmatched(project_id)
-    module_metrics = repository.list_latest_module_metrics(project_id)
-    module_coverage = repository.list_latest_module_coverage(project_id)
-    module_warnings = repository.list_latest_module_warnings(project_id)
-    module_results = repository.list_latest_module_results(project_id)
-    module_aggregates = repository.list_latest_module_aggregates(project_id)
     st.subheader("Research Export & Downloads")
     st.write(
         "The ZIP includes machine-readable CSV tables plus a comprehensive Word "
         "report. It retains collection weightings, work-level results, coverage, "
         "unmatched review notes, methodology, and provenance."
     )
-    if not metrics and not module_metrics:
+    if not repository.list_completed_batches(project_id):
         st.info("Complete a corpus analysis before exporting the research bundle.")
         return
     export_mode_label = st.radio(
@@ -4406,6 +4475,19 @@ def _render_export_tab(
         type="primary",
         key=f"prepare_corpus_export_{project_id}",
     ):
+        texts = repository.list_texts(project_id)
+        metrics = repository.list_latest_metrics(project_id)
+        unmatched = repository.list_latest_unmatched(project_id)
+        module_metrics = repository.list_latest_module_metrics(project_id)
+        module_coverage = repository.list_latest_module_coverage(project_id)
+        module_warnings = repository.list_latest_module_warnings(project_id)
+        module_results = repository.list_latest_module_results(project_id)
+        module_aggregates = repository.list_latest_module_aggregates(project_id)
+        part_of_speech_rows = _corpus_part_of_speech_rows(
+            repository,
+            project_id,
+            preprocessor,
+        )
         methodology = repository.latest_methodology(project_id)
         with st.spinner("Preparing CSV, Word, and reproducibility files..."):
             export_bundle = build_corpus_export_bundle(
@@ -4540,11 +4622,6 @@ def render_corpus_workspace(
         f"{project.title} · {project.description or 'No project description.'} "
         "All saves are local and completed analysis runs remain immutable."
     )
-    part_of_speech_rows = _corpus_part_of_speech_rows(
-        repository,
-        project_id,
-        preprocessor,
-    )
     project_sections = (
         "Works & Metadata",
         "Language Profile",
@@ -4555,7 +4632,7 @@ def render_corpus_workspace(
         "Project Settings",
     )
     project_state_key = f"corpus_project_section_{project_id}"
-    _, project_containers = render_stateful_section_navigation(
+    active_project_section, project_containers = render_stateful_section_navigation(
         "Project section",
         project_sections,
         state_key=project_state_key,
@@ -4567,30 +4644,38 @@ def render_corpus_workspace(
         ),
         control="dropdown",
     )
-    texts_tab = project_containers["Works & Metadata"]
-    language_tab = project_containers["Language Profile"]
-    analysis_tab = project_containers["Analyze & Compare"]
-    versemap_tab = project_containers["VerseMap"]
-    review_tab = project_containers["Review & Scenarios"]
-    export_tab = project_containers["Export"]
-    settings_tab = project_containers["Project Settings"]
+    active_container = project_containers[active_project_section]
+    with active_container:
+        if active_project_section == "Works & Metadata":
+            _render_texts_tab(repository, project_id)
+        elif active_project_section == "Language Profile":
+            _render_part_of_speech_tab(repository, project_id, preprocessor)
+        elif active_project_section == "Analyze & Compare":
+            _render_analysis_tab(
+                repository,
+                project_id,
+                preprocessor,
+                resource_readiness,
+            )
+        elif active_project_section == "VerseMap":
+            _render_versemap_tab(repository, project_id)
+        elif active_project_section == "Review & Scenarios":
+            _render_review_tab(repository, project_id)
+        elif active_project_section == "Export":
+            _render_export_tab(repository, project_id, preprocessor)
+        elif active_project_section == "Project Settings":
+            _render_project_settings_tab(repository, project_id)
+        else:
+            raise RuntimeError(
+                f"Unknown corpus project section: {active_project_section!r}"
+            )
 
-    with texts_tab:
-        _render_texts_tab(repository, project_id)
-    with language_tab:
-        _render_part_of_speech_tab(repository, project_id, preprocessor)
-    with analysis_tab:
-        _render_analysis_tab(
-            repository,
-            project_id,
-            preprocessor,
-            resource_readiness,
-        )
-    with versemap_tab:
-        _render_versemap_tab(repository, project_id)
-    with review_tab:
-        _render_review_tab(repository, project_id)
-    with export_tab:
-        _render_export_tab(repository, project_id, part_of_speech_rows)
-    with settings_tab:
-        _render_project_settings_tab(repository, project_id)
+    if active_project_section != "Analyze & Compare":
+        with project_containers["Analyze & Compare"]:
+            _render_analysis_tab(
+                repository,
+                project_id,
+                preprocessor,
+                resource_readiness,
+                show_completed_results=False,
+            )
