@@ -1079,9 +1079,23 @@ def _render_profiles(
                 scale=alt.Scale(domain=[0.0, 1.0]),
                 title="Normalized mean",
             ),
-            y=alt.Y("Metric profile:N", title=None),
+            y=alt.Y(
+                "Metric profile:N",
+                title=None,
+                axis=alt.Axis(labelLimit=360),
+            ),
             yOffset=alt.YOffset("Collection view:N"),
-            color=alt.Color("Collection view:N"),
+            color=alt.Color(
+                "Collection view:N",
+                legend=alt.Legend(
+                    title=None,
+                    orient="top",
+                    direction="horizontal",
+                    columns=2,
+                    labelLimit=260,
+                    symbolType="square",
+                ),
+            ),
             tooltip=[
                 "Lexicon:N",
                 "Profile:N",
@@ -2433,6 +2447,7 @@ def _render_corpus_diagnostics(
     )
 
 
+@st.fragment
 def _render_completed_corpus_results(
     repository: ProjectRepository,
     project_id: str,

@@ -44,14 +44,28 @@ from versevad.ui.design import (
     render_workspace_header,
 )
 from versevad.ui.versemap import render_versemap
-from versevad.module_capabilities import fixed_profile_notice
-from versevad.ui.profile_controls import render_report_profile_controls
+from versevad.ui.profile_controls import render_fixed_report_profile_controls
 from versevad.versemap import VerseMapConfiguration
 from versevad.versemap.profile import FEATURE_BY_ID
 
 
 def _hosted() -> bool:
     return os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT") == "1"
+
+
+def _render_versemap_fixed_profile_controls(workspace_id: str) -> None:
+    render_fixed_report_profile_controls(
+        workspace_id,
+        profile_name="VerseMap Standard Profile 1.0",
+        lexical_scope="Content words only; stopwords removed",
+        aggregation_weighting="Token-weighted; repetition retained",
+        explanation=(
+            "Corpus Browser reads the registered reference index rather than "
+            "reaggregating it. These controls are disabled because changing them "
+            "would make reference poems methodologically incomparable. Formal and "
+            "structural dimensions retain their own documented fixed rules."
+        ),
+    )
 
 
 def _corpora(*, indexed_only: bool = False) -> tuple[ReferenceCorpusDescriptor, ...]:
@@ -866,8 +880,7 @@ def _render_corpus_browser_poem(index, poems_frame, point) -> None:
         ),
         key="corpus_browser_poem_report",
     )
-    render_report_profile_controls("corpus_browser_poem")
-    st.caption(fixed_profile_notice("versemap"))
+    _render_versemap_fixed_profile_controls("corpus_browser_poem")
     feature_frame = _corpus_browser_poem_feature_frame(index, point)
     if report == "Profile Overview":
         overview_rows = []
@@ -1120,8 +1133,7 @@ def render_corpus_browser_workspace() -> None:
         ),
         key="corpus_browser_section",
     )
-    render_report_profile_controls("corpus_browser")
-    st.caption(fixed_profile_notice("versemap"))
+    _render_versemap_fixed_profile_controls("corpus_browser")
     if section == "Overview":
         metrics = st.columns(4)
         metrics[0].metric("Poems", len(index.poems))

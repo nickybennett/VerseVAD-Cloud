@@ -146,6 +146,44 @@ def render_report_profile_controls(
     )
 
 
+def render_fixed_report_profile_controls(
+    workspace_id: str,
+    *,
+    profile_name: str,
+    lexical_scope: str,
+    aggregation_weighting: str,
+    explanation: str,
+) -> None:
+    """Show the global profile controls as read-only for a fixed methodology."""
+
+    columns = st.columns(2)
+    with columns[0]:
+        st.multiselect(
+            "Lexical scope",
+            options=(lexical_scope,),
+            default=(lexical_scope,),
+            key=f"{workspace_id}_fixed_profile_scope",
+            disabled=True,
+            help=(
+                f"{profile_name} fixes lexical eligibility so every result remains "
+                "comparable."
+            ),
+        )
+    with columns[1]:
+        st.multiselect(
+            "Aggregation weighting",
+            options=(aggregation_weighting,),
+            default=(aggregation_weighting,),
+            key=f"{workspace_id}_fixed_profile_weighting",
+            disabled=True,
+            help=(
+                f"{profile_name} fixes aggregation weighting so every result "
+                "remains comparable."
+            ),
+        )
+    st.caption(f"**{profile_name} (fixed):** {explanation}")
+
+
 def report_profile_state(workspace_id: str) -> ReportProfileState:
     """Read a workspace's selection without rendering widgets."""
 
@@ -184,6 +222,7 @@ def clear_report_profile_state(workspace_id: str) -> None:
 __all__ = [
     "ReportProfileState",
     "clear_report_profile_state",
+    "render_fixed_report_profile_controls",
     "render_report_profile_controls",
     "report_profile_state",
 ]
