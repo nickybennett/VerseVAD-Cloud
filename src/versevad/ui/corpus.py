@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import json
+import zipfile
 from dataclasses import asdict
 
 import altair as alt
@@ -966,41 +968,71 @@ def _render_texts_tab(repository: ProjectRepository, project_id: str) -> None:
             st.error(f"Metadata was not changed: {error}")
 
 
-def _render_profiles(metrics, total_works: int) -> None:
-    profiles = corpus_vad_profiles(metrics, total_works=total_works)
+def _render_profiles(
+    metrics,
+    total_works: int,
+    *,
+    profile_selection: ProfileSelection | None = None,
+) -> None:
+    view_ids = {
+        LexicalScope.ALL_LEXICAL: "all_matched",
+        LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+        LexicalScope.CONTENT_WORDS: "content_words",
+    }
+    analysis_views = (
+        tuple(view_ids[scope] for scope in profile_selection.scopes)
+        if profile_selection is not None
+        else None
+    )
+    weightings = (
+        tuple(weighting.value.casefold() for weighting in profile_selection.weightings)
+        if profile_selection is not None
+        else ("token",)
+    )
+    profiles = corpus_vad_profiles(
+        metrics,
+        total_works=total_works,
+        analysis_views=analysis_views,
+        weightings=weightings,
+    )
     if not profiles:
         st.info("The latest complete corpus batch has no normalized VAD means to compare.")
         return
     st.subheader("Collection VAD: Report Both Views")
     st.write(
-        "The **token-weighted volume profile** pools included matched observations, so "
-        "long works contribute more. The **work-weighted volume profile** gives every "
-        "eligible work one poem-level score. Their divergence can be an important finding."
+        "The **pooled-observation volume profile** lets works with more included matched "
+        "observations contribute more. The **equal-work volume profile** gives every "
+        "eligible work one poem-level score. Both use the lexical scope and within-poem "
+        "token/type weighting selected above; their divergence can be an important finding."
     )
+    scope_labels = {
+        "all_matched": "All lexical tokens",
+        "stopwords_excluded": "Stopword-excluded",
+        "content_words": "Content words only",
+    }
     profile_frame = pd.DataFrame(
         [
             {
                 "Lexicon": row.lexicon,
-                "Analysis view": (
-                    "All matched tokens"
-                    if row.analysis_view == "all_matched"
-                    else "Stopwords excluded"
+                "Profile": (
+                    f"{scope_labels.get(row.analysis_view, row.analysis_view)} · "
+                    f"{row.weighting.title()}-weighted"
                 ),
                 "Dimension": row.dimension.title(),
                 "Works included": row.works_included,
                 "Works omitted": row.works_omitted,
                 "Matched observations": row.matched_observations,
                 "Volume coverage": row.volume_coverage,
-                "Token-weighted volume mean": row.token_weighted_volume_mean,
+                "Pooled-observation volume mean": row.token_weighted_volume_mean,
                 "Pooled lexical-rating SD": (
                     row.pooled_lexical_rating_standard_deviation
                 ),
-                "Work-weighted volume mean": row.work_weighted_volume_mean,
+                "Equal-work volume mean": row.work_weighted_volume_mean,
                 "Across-poem mean SD": row.poem_mean_standard_deviation,
                 "Poem-mean median": row.poem_mean_median,
                 "Lowest poem mean": row.poem_mean_minimum,
                 "Highest poem mean": row.poem_mean_maximum,
-                "Work minus token": row.work_minus_token_difference,
+                "Equal-work minus pooled": row.work_minus_token_difference,
             }
             for row in profiles
         ]
@@ -1009,14 +1041,14 @@ def _render_profiles(metrics, total_works: int) -> None:
         profile_frame.style.format(
             {
                 "Volume coverage": "{:.1%}",
-                "Token-weighted volume mean": "{:.3f}",
+                "Pooled-observation volume mean": "{:.3f}",
                 "Pooled lexical-rating SD": "{:.3f}",
-                "Work-weighted volume mean": "{:.3f}",
+                "Equal-work volume mean": "{:.3f}",
                 "Across-poem mean SD": "{:.3f}",
                 "Poem-mean median": "{:.3f}",
                 "Lowest poem mean": "{:.3f}",
                 "Highest poem mean": "{:.3f}",
-                "Work minus token": "{:+.3f}",
+                "Equal-work minus pooled": "{:+.3f}",
             },
             na_rep="—",
         ),
@@ -1024,27 +1056,116 @@ def _render_profiles(metrics, total_works: int) -> None:
         width="stretch",
     )
     chart = profile_frame.melt(
-        id_vars=["Lexicon", "Analysis view", "Dimension"],
-        value_vars=["Token-weighted volume mean", "Work-weighted volume mean"],
+        id_vars=["Lexicon", "Profile", "Dimension"],
+        value_vars=["Pooled-observation volume mean", "Equal-work volume mean"],
         var_name="Collection view",
         value_name="Normalized mean",
     )
-    st.bar_chart(
-        rounded_display_data(chart),
-        x="Dimension",
-        y="Normalized mean",
-        color="Collection view",
-        stack=False,
-        height=320,
+    chart["Metric profile"] = chart["Dimension"] + " · " + chart["Profile"]
+    comparison_chart = (
+        alt.Chart(rounded_display_data(chart))
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "Normalized mean:Q",
+                scale=alt.Scale(domain=[0.0, 1.0]),
+                title="Normalized mean",
+            ),
+            y=alt.Y("Metric profile:N", title=None),
+            yOffset=alt.YOffset("Collection view:N"),
+            color=alt.Color("Collection view:N"),
+            tooltip=[
+                "Lexicon:N",
+                "Profile:N",
+                "Dimension:N",
+                "Collection view:N",
+                alt.Tooltip("Normalized mean:Q", format=".3f"),
+            ],
+        )
+        .properties(height=max(220, 52 * profile_frame["Profile"].nunique() * 3))
     )
+    st.altair_chart(publication_chart(comparison_chart), width="stretch")
     st.caption(
         "Pooled lexical-rating SD describes the spread of all included matched "
-        "token ratings around the token-weighted volume mean. Across-poem mean SD "
-        "describes variation among poem-level token means around the work-weighted "
+        "ratings around the pooled-observation mean. Across-poem mean SD "
+        "describes variation among compatible poem-level means around the equal-work "
         "mean. Neither is a confidence interval, source-rater uncertainty, or an "
         "emotion declaration. Missing work scores stay omitted rather than receiving "
         "a neutral value."
     )
+    _render_scope_token_counts(metrics)
+
+
+def _render_scope_token_counts(metrics) -> None:
+    """Show the eligible token pool behind each corpus lexical scope."""
+
+    scope_labels = {
+        "all_matched": "All lexical tokens",
+        "stopwords_excluded": "Stopword-excluded",
+        "content_words": "Content words only",
+    }
+    counts: dict[tuple[str, str], dict[str, object]] = {}
+    for row in metrics:
+        if (
+            row.weighting != "token"
+            or row.analysis_view not in scope_labels
+            or row.lexical_tokens < 0
+        ):
+            continue
+        key = (row.text_id, row.analysis_view)
+        current = counts.get(key)
+        if current is None or int(row.lexical_tokens) > int(current["Eligible tokens"]):
+            counts[key] = {
+                "Poem": row.title,
+                "Scope": scope_labels[row.analysis_view],
+                "Eligible tokens": int(row.lexical_tokens),
+            }
+    if not counts:
+        return
+
+    poem_rows: dict[str, dict[str, object]] = {}
+    for (text_id, _analysis_view), item in counts.items():
+        row = poem_rows.setdefault(text_id, {"Poem": item["Poem"]})
+        row[str(item["Scope"])] = item["Eligible tokens"]
+    ordered_scopes = tuple(scope_labels.values())
+    poem_frame = pd.DataFrame(
+        sorted(poem_rows.values(), key=lambda item: str(item["Poem"]).casefold()),
+        columns=("Poem", *ordered_scopes),
+    )
+    whole_rows = []
+    for scope in ordered_scopes:
+        values = poem_frame[scope].dropna() if scope in poem_frame else pd.Series(dtype=float)
+        whole_rows.append(
+            {
+                "Scope": scope,
+                "Poems represented": int(values.count()),
+                "Eligible tokens in corpus": int(values.sum()),
+            }
+        )
+
+    with bottom_collapsible_expander(
+        "Eligible Token Counts by Lexical Scope",
+        control_id="corpus-scope-token-counts",
+        expanded=False,
+    ):
+        st.write(
+            "These are lexical token occurrences eligible under each scope before "
+            "resource matching. The pooled-observation profile uses only matched "
+            "observations drawn from the applicable scope; the equal-work profile "
+            "uses one poem-level mean per eligible poem."
+        )
+        render_dataframe(
+            pd.DataFrame(whole_rows),
+            hide_index=True,
+            width="stretch",
+        )
+        st.markdown("##### Counts by Poem")
+        render_dataframe(
+            poem_frame,
+            hide_index=True,
+            width="stretch",
+            height=min(420, 76 + len(poem_frame) * 35),
+        )
 
 
 _WHOLE_CORPUS_SCOPE = "__whole_corpus__"
@@ -1204,6 +1325,7 @@ def _render_corpus_affective_report(
         _render_profiles(
             selected_metrics,
             len({row.text_id for row in selected_metrics}),
+            profile_selection=profile_selection,
         )
         st.markdown("#### Poem-Level Comparison")
 
@@ -2092,23 +2214,12 @@ def _render_corpus_modules(
         row for row in warnings if row.module_name == selected_module
     ]
     if selected_warnings:
-        with st.expander("Module warnings"):
-            render_dataframe(
-                pd.DataFrame(
-                    [
-                        {
-                            "Work": row.title,
-                            "Severity": row.severity.title(),
-                            "Code": row.code,
-                            "Message": row.message,
-                            "Technical detail": row.technical_detail or "—",
-                        }
-                        for row in selected_warnings
-                    ]
-                ),
-                hide_index=True,
-                width="stretch",
-            )
+        st.markdown("#### Module Warnings")
+        _render_corpus_warning_records(
+            selected_warnings,
+            summarize_shared=selected_text_id is None,
+            control_id=f"{state_prefix}-{selected_module}-module-warnings",
+        )
 
     artifact_results = [
         row for row in results if row.module_name == selected_module
@@ -2142,6 +2253,90 @@ def _render_corpus_modules(
                         f"{chosen.run_id}_{chosen.module_name}"
                     ),
                 )
+
+
+def _render_corpus_warning_records(
+    warnings,
+    *,
+    summarize_shared: bool,
+    control_id: str,
+) -> None:
+    """Consolidate shared warnings while preserving poem-level audit detail."""
+
+    detail_rows = [
+        {
+            "Poem": row.title,
+            "Severity": row.severity.title(),
+            "Code": row.code,
+            "Message": row.message,
+            "Technical Detail": row.technical_detail or "—",
+        }
+        for row in warnings
+    ]
+    if not summarize_shared:
+        render_dataframe(
+            pd.DataFrame(detail_rows),
+            hide_index=True,
+            width="stretch",
+            height=min(380, 76 + len(detail_rows) * 35),
+        )
+        return
+
+    grouped: dict[tuple[str, str, str, str], set[str]] = {}
+    for row in warnings:
+        grouped.setdefault(
+            (
+                row.severity.title(),
+                row.code,
+                row.message,
+                row.technical_detail or "—",
+            ),
+            set(),
+        ).add(row.title)
+    summary_rows = []
+    for (severity, code, message, technical_detail), titles in grouped.items():
+        ordered_titles = sorted(titles, key=str.casefold)
+        examples = ", ".join(ordered_titles[:3])
+        if len(ordered_titles) > 3:
+            examples += f" (+{len(ordered_titles) - 3} more)"
+        summary_rows.append(
+            {
+                "Severity": severity,
+                "Code": code,
+                "Warning": message,
+                "Affected Poems": len(ordered_titles),
+                "Examples": examples,
+                "Technical Detail": technical_detail,
+            }
+        )
+    summary_rows.sort(
+        key=lambda row: (
+            str(row["Severity"]),
+            str(row["Code"]),
+            str(row["Warning"]),
+        )
+    )
+    st.caption(
+        f"{len(detail_rows):,} poem-level warning record(s) consolidated into "
+        f"{len(summary_rows):,} distinct warning pattern(s)."
+    )
+    render_dataframe(
+        pd.DataFrame(summary_rows),
+        hide_index=True,
+        width="stretch",
+        height=min(360, 76 + len(summary_rows) * 35),
+    )
+    with bottom_collapsible_expander(
+        "Poem-by-Poem Warning Records",
+        control_id=control_id,
+        expanded=False,
+    ):
+        render_dataframe(
+            pd.DataFrame(detail_rows),
+            hide_index=True,
+            width="stretch",
+            height=420,
+        )
 
 
 def _render_corpus_diagnostics(
@@ -2217,21 +2412,10 @@ def _render_corpus_diagnostics(
             )
     if module_warnings:
         st.markdown("#### Warnings")
-        render_dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "Poem": row.title,
-                        "Severity": row.severity.title(),
-                        "Message": row.message,
-                        "Technical Detail": row.technical_detail or "—",
-                    }
-                    for row in module_warnings
-                ]
-            ),
-            hide_index=True,
-            width="stretch",
-            height=min(380, 76 + len(module_warnings) * 35),
+        _render_corpus_warning_records(
+            module_warnings,
+            summarize_shared=selected_text_id is None,
+            control_id=f"{state_prefix}-{module_name}-warnings",
         )
     elif not module_coverage:
         st.success("No warnings were recorded for this analysis.")
@@ -4113,9 +4297,9 @@ def _render_export_tab(
     module_warnings = repository.list_latest_module_warnings(project_id)
     module_results = repository.list_latest_module_results(project_id)
     module_aggregates = repository.list_latest_module_aggregates(project_id)
-    st.subheader("Research Export")
+    st.subheader("Research Export & Downloads")
     st.write(
-        "The ZIP includes machine-readable CSV tables plus a narrative Word "
+        "The ZIP includes machine-readable CSV tables plus a comprehensive Word "
         "report. It retains collection weightings, work-level results, coverage, "
         "unmatched review notes, methodology, and provenance."
     )
@@ -4133,6 +4317,17 @@ def _render_export_tab(
         if export_mode_label == "Export Current View"
         else "complete_audit"
     )
+    if export_mode == "complete_audit":
+        st.info(
+            "The Complete Audit ZIP includes every compatible lexical scope and "
+            "weighting, all calculated module tables, coverage and warning records, "
+            "unmatched/QC data, methodology and provenance, plus the readable Word report."
+        )
+    else:
+        st.caption(
+            "Current View limits compatible lexical results to the selected profiles "
+            "and the chosen report family while retaining the supporting methodology."
+        )
     visible_section = str(
         st.session_state.get(
             f"corpus_result_family_{project_id}",
@@ -4178,8 +4373,13 @@ def _render_export_tab(
         tuple(profile.id for profile in profile_state.selection.profiles),
         project.updated_at,
     )
+    prepare_label = (
+        "Prepare Complete Audit ZIP"
+        if export_mode == "complete_audit"
+        else "Prepare Current View ZIP"
+    )
     if st.button(
-        "Prepare Export",
+        prepare_label,
         type="primary",
         key=f"prepare_corpus_export_{project_id}",
     ):
@@ -4205,15 +4405,42 @@ def _render_export_tab(
                     st.session_state.get(f"corpus_preset_{project_id}", "Custom")
                 ),
             )
-        st.session_state[prepared_key] = (signature, export_bundle)
+        with zipfile.ZipFile(io.BytesIO(export_bundle)) as archive:
+            report = archive.read("corpus_report.docx")
+        st.session_state[prepared_key] = {
+            "signature": signature,
+            "bundle": export_bundle,
+            "report": report,
+        }
     prepared = st.session_state.get(prepared_key)
-    if prepared and prepared[0] == signature:
-        st.download_button(
-            "Download Prepared Export",
-            data=prepared[1],
-            file_name=f"{_safe_filename(project.title)}_VerseVAD_corpus.zip",
+    if isinstance(prepared, dict) and prepared.get("signature") == signature:
+        download_label = (
+            "Download Complete Audit ZIP"
+            if export_mode == "complete_audit"
+            else "Download Current View ZIP"
+        )
+        report_column, bundle_column = st.columns(2)
+        report_column.download_button(
+            "Download Comprehensive Word Report",
+            data=prepared["report"],
+            file_name=f"{_safe_filename(project.title)}_VerseVAD_report.docx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
+            width="stretch",
+            key=f"download_corpus_report_{project_id}",
+        )
+        bundle_column.download_button(
+            download_label,
+            data=prepared["bundle"],
+            file_name=(
+                f"{_safe_filename(project.title)}_VerseVAD_"
+                f"{'complete_audit' if export_mode == 'complete_audit' else 'current_view'}.zip"
+            ),
             mime="application/zip",
             type="primary",
+            width="stretch",
             key=f"download_corpus_{project_id}",
         )
     st.caption(
@@ -4315,6 +4542,7 @@ def render_corpus_workspace(
             "The selected project section is retained when controls, analyses, "
             "or prepared exports refresh the page."
         ),
+        control="dropdown",
     )
     texts_tab = project_containers["Works & Metadata"]
     language_tab = project_containers["Language Profile"]

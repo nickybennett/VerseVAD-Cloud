@@ -39,6 +39,7 @@ from versevad.core.resources import (
 from versevad.exports.aoa import export_aoa_bundle
 from versevad.exports.concreteness import export_concreteness_bundle
 from versevad.exports.docx_report import (
+    build_comprehensive_analysis_report,
     build_narrative_report_from_summary_csv,
 )
 from versevad.exports.frequency import export_frequency_bundle
@@ -5075,6 +5076,9 @@ def _build_detailed_export_zip(
     workspace_label: str = "Single Poem",
     active_annotation_scope: str = "",
     active_preset: str = "",
+    author: str = "",
+    analysis_timestamp: str = "",
+    source_notes: str = "",
 ) -> bytes:
     """Create the complete audit bundle temporarily and return an in-memory ZIP."""
 
@@ -5098,10 +5102,26 @@ def _build_detailed_export_zip(
     )
     selected_profiles = frozenset(selection.profiles)
 
-    def profile_csv(profiles: frozenset[AnalysisProfile]) -> bytes:
+    section_profile_modules = {
+        "Affective Evidence": frozenset(
+            {"vad", "emotion_association", "emotion_intensity"}
+        ),
+        "Lexical Character, Imagery & Embodiment": frozenset(
+            {"concreteness", "frequency", "aoa", "sensorimotor", "word_length"}
+        ),
+        "Structure": frozenset({"word_length"}),
+    }
+
+    def profile_csv(
+        profiles: frozenset[AnalysisProfile],
+        *,
+        module_ids: frozenset[str] | None = None,
+    ) -> bytes:
         rows = []
         for item in workspace_profile_metrics(workspace):
             if item.profile not in profiles:
+                continue
+            if module_ids is not None and item.module_id not in module_ids:
                 continue
             coverage = item.coverage
             rows.append(
@@ -5115,8 +5135,19 @@ def _build_detailed_export_zip(
                     "metric_id": item.metric_id,
                     "metric": item.metric_label,
                     "value": item.value,
+                    "median": item.median,
                     "population_standard_deviation": item.population_standard_deviation,
+                    "first_quartile": item.first_quartile,
+                    "third_quartile": item.third_quartile,
+                    "minimum": item.minimum,
+                    "maximum": item.maximum,
                     "cumulative_value": item.cumulative_value,
+                    "value_per_100_observations": item.value_per_100_observations,
+                    "above_midpoint_load": item.above_midpoint_load,
+                    "below_midpoint_load": item.below_midpoint_load,
+                    "net_midpoint_load": item.net_midpoint_load,
+                    "absolute_midpoint_load": item.absolute_midpoint_load,
+                    "average_deviation_from_mean": item.average_deviation_from_mean,
                     "observation_count": item.observation_count,
                     "eligible_token_count": coverage.eligible_token_count,
                     "matched_token_count": coverage.matched_token_count,
@@ -5214,7 +5245,15 @@ def _build_detailed_export_zip(
             export_files["lexical_trajectory.csv"] = lexical_trajectory_csv(
                 workspace
             )
-        export_files["profile_metrics_selected.csv"] = profile_csv(selected_profiles)
+        selected_module_ids = (
+            section_profile_modules.get(visible_section)
+            if export_mode == "current_view"
+            else None
+        )
+        export_files["profile_metrics_selected.csv"] = profile_csv(
+            selected_profiles,
+            module_ids=selected_module_ids,
+        )
         if export_mode == "complete_audit":
             export_files["profile_metrics_all_compatible.csv"] = profile_csv(
                 frozenset(
@@ -5260,6 +5299,7 @@ def _build_detailed_export_zip(
             report_section=visible_section,
             analysis_id=workspace.document.text_version_id,
             title=workspace.document.title,
+            author=author,
             source_sha256=workspace.document.text_sha256,
             visible_profiles=selection.profiles,
             included_profiles=included_profiles,
@@ -5285,6 +5325,7 @@ def _build_detailed_export_zip(
                 if source_module in included_module_names
                 for module_id in fixed_ids
             ),
+            export_timestamp=analysis_timestamp or None,
         )
         warning_messages = [
             warning
@@ -5315,24 +5356,27 @@ def _build_detailed_export_zip(
             warning_messages.extend(
                 warning.message for warning in workspace.poem_document.warnings
             )
-        export_files["VerseVAD_analysis_report.docx"] = (
-            build_narrative_report_from_summary_csv(
-                "phase2",
-                summary_csv,
-                companion_csv_files=tuple(
-                    name
-                    for name in export_files
-                    if name.endswith(".csv")
-                ),
-                text_title=workspace.document.title,
-                text_id=workspace.document.text_id,
-                result_id=workspace.document.text_version_id,
-                warnings=tuple(dict.fromkeys(warning_messages)),
-                methods_reproducibility=methods_appendix_paragraphs(
-                    included_profiles,
-                    source_sha256=workspace.document.text_sha256,
-                ),
-            )
+        export_files["VerseVAD_analysis_report.docx"] = build_comprehensive_analysis_report(
+            export_files=export_files,
+            text_title=workspace.document.title,
+            author=author,
+            analysis_timestamp=analysis_timestamp,
+            export_mode=export_mode,
+            visible_section=visible_section,
+            workspace_label=workspace_label,
+            text_id=workspace.document.text_id,
+            result_id=workspace.document.text_version_id,
+            source_sha256=workspace.document.text_sha256,
+            analysis_profiles=tuple(profile.id for profile in selection.profiles),
+            active_preset=active_preset,
+            source_notes=source_notes,
+            software_version=__version__,
+            warnings=tuple(dict.fromkeys(warning_messages)),
+            resources=resources,
+            methods_reproducibility=methods_appendix_paragraphs(
+                included_profiles,
+                source_sha256=workspace.document.text_sha256,
+            ),
         )
         export_files["FILE_INVENTORY.txt"] = b""
         for _attempt in range(3):
@@ -5358,6 +5402,9 @@ def detailed_export_zip(
     workspace_label: str = "Single Poem",
     active_annotation_scope: str = "",
     active_preset: str = "",
+    author: str = "",
+    analysis_timestamp: str = "",
+    source_notes: str = "",
 ) -> bytes:
     """Return a bounded cached export for an immutable completed analysis."""
 
@@ -5386,6 +5433,9 @@ def detailed_export_zip(
         workspace_label,
         active_annotation_scope,
         active_preset,
+        author,
+        analysis_timestamp,
+        source_notes,
         tuple(
             profile.id
             for profile in (
@@ -5403,6 +5453,9 @@ def detailed_export_zip(
             workspace_label=workspace_label,
             active_annotation_scope=active_annotation_scope,
             active_preset=active_preset,
+            author=author,
+            analysis_timestamp=analysis_timestamp,
+            source_notes=source_notes,
         ),
         enabled=use_cache,
         validator=lambda value: (

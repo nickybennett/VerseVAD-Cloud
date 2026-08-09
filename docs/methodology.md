@@ -668,23 +668,35 @@ weighting must be held constant when poems are compared.
 ## Corpus weighting and long works
 
 Every work is analyzed separately before collection aggregation. For a given
-lexicon and normalized VAD dimension, let `m_i` be work `i`'s token-weighted
-mean and `n_i` its number of included matched observations.
+lexicon, normalized VAD dimension, lexical scope, and within-poem weighting,
+let `m_i` be work `i`'s compatible mean and `n_i` its number of included
+matched observations under that profile.
 
-The token-weighted volume profile pools observations:
+The pooled-observation volume profile is:
 
 `sum(m_i * n_i) / sum(n_i)`
 
-The work-weighted volume profile gives every eligible work one score:
+The equal-work volume profile gives every eligible work one score:
 
 `sum(m_i) / number of eligible works`
 
-Long works therefore contribute more to the first view but not the second.
-VerseVAD reports both plus their signed difference. Work scores that are
+When token weighting is selected, repeated occurrences remain observations and
+long works can therefore contribute more to the first view but not the second.
+When type weighting is selected, the pool instead contains each poem's
+metric-specific matched type observations. The universal report controls select
+the scope and within-poem weighting before either collection aggregation is
+computed. VerseVAD reports both collection views plus their signed difference.
+Work scores that are
 missing because no observations matched remain missing; they are counted as
 omitted and do not become neutral values. This collection-level distinction is
 separate from the within-work token/type distinction: type-weighted work means
 give each distinct matched lexicon entry one contribution.
+
+Eligible token counts are retained separately from matched observations. For
+each poem and each of the three lexical scopes, the corpus interface and
+`corpus_scope_token_counts.csv` report the token-occurrence denominator before
+resource matching. Whole-corpus scope counts are sums of those poem-level
+denominators and never arise by concatenating or retokenizing the corpus.
 
 Corpus comparisons use one completed batch. A pending or failed batch can
 contain individually complete work runs for recovery and audit, but it never
@@ -716,6 +728,29 @@ version and active decision revisions. Batch comparison therefore shows
 before-and-after coverage and VAD deltas without rewriting the baseline.
 Mapping and exclusion counts remain visible; unmatched-note proposals do not
 affect scores unless converted into active scenario decisions.
+
+The unreviewed baseline is the ordinary automatic result. A user selects a
+named review scenario only when documented flags, exclusions, or verified exact
+mappings should define an alternative auditable batch. Shared warnings are
+presentation-deduplicated for whole-corpus inspection, but every original
+poem-level warning record remains unchanged in the audit export.
+
+## Comprehensive Word report contract
+
+The Current View and Complete Audit research bundles include a readable DOCX
+report in addition to full-precision CSV evidence. The report is generated only
+from the completed retained result and never triggers tokenization, matching, or
+reanalysis. Suitable displayed numbers are rounded to three decimal places;
+companion CSV values retain their available precision.
+
+Current View includes the selected compatible lexical profiles and the active
+report family. Disabled or unselected optional families are omitted or marked
+not reported. Complete Audit includes every calculated compatible profile,
+fixed-profile results, coverage, warnings, resources, and reproducibility
+metadata. Atomic or high-volume evidence remains in named companion CSV files
+and is inventoried rather than being expanded into an unreadable Word table.
+Interpretation bands appear only where the corresponding module already defines
+an auditable band; the report does not invent thresholds.
 
 ## Lexicon Explorer derivations
 

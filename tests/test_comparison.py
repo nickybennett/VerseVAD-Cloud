@@ -21,9 +21,11 @@ from versevad.comparison import (
 from versevad.exports.comparison import (
     export_poem_comparison_csv,
     export_poem_comparison_docx,
+    export_poem_comparison_set_bundle,
     export_poem_comparison_set_csv,
     export_poem_comparison_set_docx,
 )
+from versevad.analysis_profiles import ProfileSelection
 from versevad.phase2_validation import (
     phase2_synthetic_emotion_lexicon,
     phase2_synthetic_intensity_lexicon,
@@ -255,7 +257,8 @@ def test_comparison_csv_and_docx_exports_are_auditable(poem_comparison) -> None:
     docx_content = export_poem_comparison_docx(poem_comparison)
     with zipfile.ZipFile(io.BytesIO(docx_content)) as archive:
         document_xml = archive.read("word/document.xml").decode("utf-8")
-    assert "Contrastive Evaluation Report" in document_xml
+    assert "Computational Poetics" in document_xml
+    assert "Analysis Report" in document_xml
     assert "Poem A compared with Poem B" in document_xml
 
 
@@ -309,6 +312,28 @@ def test_comparison_set_exports_are_long_form_without_pairwise_differences(
     with zipfile.ZipFile(io.BytesIO(docx_content)) as archive:
         document_xml = archive.read("word/document.xml").decode("utf-8")
     assert "Comparison set: Poem A, Poem B, Poem C" in document_xml
+
+
+def test_comparison_set_complete_audit_contains_principal_word_report(
+    poem_comparison_set,
+) -> None:
+    bundle = export_poem_comparison_set_bundle(
+        poem_comparison_set,
+        selection=ProfileSelection(),
+        export_mode="complete_audit",
+    )
+
+    with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
+        names = set(archive.namelist())
+        assert "VerseVAD_comprehensive_comparison_report.docx" in names
+        assert "REPRODUCIBILITY_README.txt" in names
+        document_xml = archive.read(
+            "VerseVAD_comprehensive_comparison_report.docx"
+        )
+    with zipfile.ZipFile(io.BytesIO(document_xml)) as report_archive:
+        report_xml = report_archive.read("word/document.xml").decode("utf-8")
+    assert "Complete Audit Report" in report_xml
+    assert "Comparison set: Poem A; Poem B; Poem C" in report_xml
 
 
 def test_comparison_display_values_are_arrow_safe() -> None:

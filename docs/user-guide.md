@@ -220,8 +220,18 @@ Import each poem as a separate work; do not concatenate a corpus into one text.
 
 Whole-corpus summaries preserve work boundaries. Equal-poem summaries give each
 included poem one contribution. Pooled token summaries give longer works more
-influence and are labeled accordingly. Read both with poem counts, observation
-counts, and coverage.
+influence and are labeled accordingly. The universal lexical-scope and
+token/type-weighting controls filter both summaries; corpus-level pooling versus
+equal-work aggregation remains a separate comparison. An expandable scope-count
+table reports eligible token occurrences for every poem and the whole corpus
+under all-lexical, stopword-excluded, and content-word-only scopes. Read the
+summaries with poem counts, matched-observation counts, eligible-token counts,
+and coverage.
+
+Shared corpus warnings are consolidated by warning code, message, severity, and
+technical detail, with the number of affected poems and representative titles.
+The complete poem-by-poem warning records remain available in a collapsed audit
+table and in exports.
 
 Research Projects are loadable in their own analysis area and available to
 corpus comparison tools. The latest completed internally consistent batch is
@@ -362,7 +372,21 @@ compact option for a focused analysis.
 fixed-profile results, compatible sections, coverage, exclusions, evidence,
 and provenance retained by the run. Exporting does not rerun the analysis.
 
-Research ZIPs include clean CSV tables, narrative Word reports where available,
+Every analytical workspace exposes a principal scan-friendly comprehensive Word
+report: `VerseVAD_analysis_report.docx` for Single Poem and Other Text,
+`VerseVAD_comprehensive_comparison_report.docx` for Compare Poems, and
+`corpus_report.docx` for Saved Projects and Personal Corpus. The interface also
+offers the report as a direct DOCX download after preparation. Reports include
+text or collection metadata, analyst and research-question placeholders,
+primary means, secondary medians, dispersion, cumulative and midpoint loads,
+coverage, plain-language explanations, cautions, module-status information, and
+a reproducibility appendix. Current View reports omit or mark unselected and
+disabled sections as not reported. Complete Audit reports include every
+calculated compatible profile and identify high-volume evidence retained in the
+companion files. Report displays round suitable numeric values to three decimal
+places; this does not alter stored or exported data.
+
+Research ZIPs include clean CSV tables, comprehensive or module-specific Word reports,
 `REPRODUCIBILITY_README.txt`, and `FILE_INVENTORY.txt`. CSV values retain
 available precision even though the interface rounds most numbers to three
 decimal places. JSON is not required.

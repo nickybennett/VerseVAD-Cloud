@@ -46,6 +46,7 @@ def test_corpus_export_contains_data_report_and_reproducibility_records() -> Non
     with zipfile.ZipFile(io.BytesIO(first)) as archive:
         names = set(archive.namelist())
         assert "corpus_report.docx" in names
+        assert "corpus_scope_token_counts.csv" in names
         assert "corpus_works.csv" in names
         assert "corpus_methodology.csv" in names
         assert "REPRODUCIBILITY_README.txt" in names
@@ -66,9 +67,9 @@ def test_corpus_export_contains_data_report_and_reproducibility_records() -> Non
         text_content = "\n".join(
             paragraph.text for paragraph in document.paragraphs
         )
-        assert "VerseVAD Corpus Report" in text_content
-        assert "Scope and interpretation" in text_content
-        assert "Companion data files" in text_content
+        assert "Computational Poetics\nAnalysis Report" in text_content
+        assert "How to Read This Report" in text_content
+        assert "Companion Audit Files" in text_content
 
 
 def test_corpus_export_reports_both_vad_dispersion_levels() -> None:
@@ -177,5 +178,6 @@ def test_corpus_export_reports_both_vad_dispersion_levels() -> None:
                 ),
             ]
         ).casefold()
-        assert "pooled lexical rating population standard deviation" in report_text
-        assert "across poem mean population standard deviation" in report_text
+        assert "valence pooled-observation mean" in report_text
+        assert "valence equal-work mean" in report_text
+        assert "population sd" in report_text

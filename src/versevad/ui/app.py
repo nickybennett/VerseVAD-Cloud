@@ -10,6 +10,7 @@ import sys
 import zipfile
 from contextlib import contextmanager
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
 import altair as alt
@@ -2634,6 +2635,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     )
                 st.session_state["workspace"] = run_workspace_analysis(
                     request, preprocessor=_preprocessor()
+                )
+                st.session_state["workspace_analysis_timestamp"] = (
+                    datetime.now().astimezone().isoformat(timespec="seconds")
                 )
                 analysis_status.update(
                     label="Analysis complete",
@@ -7394,6 +7398,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 + ",".join(
                     profile.id for profile in profile_state.selection.profiles
                 )
+                + "|metadata:"
+                + "|".join(
+                    str(st.session_state.get(key, ""))
+                    for key in (
+                        "text_author",
+                        "text_year",
+                        "text_source_notes",
+                        "workspace_analysis_timestamp",
+                    )
+                )
             ).encode("utf-8")
         ).hexdigest()
         prepared_exports = st.session_state.get("prepared_workspace_exports")
@@ -7419,6 +7433,18 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     workspace_label=workspace_page,
                     active_annotation_scope=profile_state.active_annotation_scope.value,
                     active_preset=str(st.session_state.get("module_preset") or "Custom"),
+                    author=st.session_state.get("text_author", "").strip(),
+                    analysis_timestamp=str(
+                        st.session_state.get("workspace_analysis_timestamp", "")
+                    ),
+                    source_notes=" · ".join(
+                        value
+                        for value in (
+                            st.session_state.get("text_year", "").strip(),
+                            st.session_state.get("text_source_notes", "").strip(),
+                        )
+                        if value
+                    ),
                 )
                 audit_bundle = add_research_notes_to_audit_bundle(
                     audit_bundle,
@@ -7468,7 +7494,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 key="download_guide",
             )
             column3.download_button(
-                "Download narrative report",
+                "Download comprehensive report",
                 data=prepared_exports["report"],
                 file_name=f"{safe_stem}_VerseVAD_report.docx",
                 mime=(

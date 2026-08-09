@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import os
+import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -32,7 +34,6 @@ from versevad.exports.comparison import (
     export_poem_comparison_csv,
     export_poem_comparison_docx,
     export_poem_comparison_set_csv,
-    export_poem_comparison_set_docx,
     export_poem_comparison_set_bundle,
 )
 from versevad.models import PhrasePolicy
@@ -2116,39 +2117,73 @@ def _render_comparison_set_results(
             "Compare Poems",
             key_prefix="comparison_set_export_notes",
         )
-        csv_content = export_poem_comparison_set_csv(
-            comparison_set,
-            analysis_view=analysis_view,
-            weighting=weighting,
+        export_signature = (
+            comparison_set.comparison_set_id,
+            export_mode,
+            visible_section,
+            tuple(profile.id for profile in profile_state.selection.profiles),
+            tuple(
+                (note.note_id, note.updated_at)
+                for note in selected_notes
+            ),
+            include_note_metadata,
         )
-        docx_content = export_poem_comparison_set_docx(
-            comparison_set,
-            analysis_view=analysis_view,
-            weighting=weighting,
-        )
-        docx_content = append_research_notes_to_docx(
-            docx_content,
-            selected_notes,
-            include_metadata=include_note_metadata,
-        )
-        bundle_content = export_poem_comparison_set_bundle(
-            comparison_set,
-            selection=profile_state.selection,
-            export_mode=export_mode,
-            visible_section=visible_section,
-        )
+        prepared_key = "prepared_comparison_set_exports"
+        prepared_exports = st.session_state.get(prepared_key)
+        if st.button(
+            "Prepare downloads",
+            type="primary",
+            key="prepare_comparison_set_exports",
+        ):
+            with st.spinner("Preparing CSV, Word, and reproducibility files..."):
+                csv_content = export_poem_comparison_set_csv(
+                    comparison_set,
+                    analysis_view=analysis_view,
+                    weighting=weighting,
+                )
+                bundle_content = export_poem_comparison_set_bundle(
+                    comparison_set,
+                    selection=profile_state.selection,
+                    export_mode=export_mode,
+                    visible_section=visible_section,
+                )
+                with zipfile.ZipFile(io.BytesIO(bundle_content)) as archive:
+                    docx_content = archive.read(
+                        "VerseVAD_comprehensive_comparison_report.docx"
+                    )
+                docx_content = append_research_notes_to_docx(
+                    docx_content,
+                    selected_notes,
+                    include_metadata=include_note_metadata,
+                )
+                prepared_exports = {
+                    "signature": export_signature,
+                    "csv": csv_content,
+                    "report": docx_content,
+                    "bundle": bundle_content,
+                }
+                st.session_state[prepared_key] = prepared_exports
+        if not (
+            isinstance(prepared_exports, dict)
+            and prepared_exports.get("signature") == export_signature
+        ):
+            st.caption(
+                "Downloads are generated on demand so larger comparisons do not "
+                "rebuild reports during ordinary interface interactions."
+            )
+            return
         downloads = st.columns(4 if selected_notes else 3)
         downloads[0].download_button(
             "Download Comparison-Set CSV",
-            data=csv_content,
+            data=prepared_exports["csv"],
             file_name="VerseVAD_poem_comparison_set.csv",
             mime="text/csv",
             key="comparison_set_download_csv",
             width="stretch",
         )
         downloads[1].download_button(
-            "Download Narrative Word Report",
-            data=docx_content,
+            "Download Comprehensive Word Report",
+            data=prepared_exports["report"],
             file_name="VerseVAD_poem_comparison_set.docx",
             mime=(
                 "application/vnd.openxmlformats-officedocument."
@@ -2163,7 +2198,7 @@ def _render_comparison_set_results(
                 if export_mode == "current_view"
                 else "Download Complete Audit Bundle"
             ),
-            data=bundle_content,
+            data=prepared_exports["bundle"],
             file_name="VerseVAD_poem_comparison_bundle.zip",
             mime="application/zip",
             key="comparison_set_download_bundle",

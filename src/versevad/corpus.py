@@ -88,6 +88,7 @@ class CorpusVadProfile:
     poem_mean_maximum: float
     work_minus_token_difference: float
     volume_coverage: float | None
+    weighting: str = "token"
 
 
 @dataclass(frozen=True)
@@ -399,12 +400,16 @@ def corpus_vad_profiles(
     metrics: Sequence[CorpusMetricRecord],
     *,
     total_works: int | None = None,
+    analysis_views: Sequence[str] | None = None,
+    weightings: Sequence[str] = ("token",),
 ) -> tuple[CorpusVadProfile, ...]:
     """Compute collection VAD means and two non-interchangeable dispersions.
 
-    Token-weighted collection means reconstruct a pooled matched-observation mean.
-    Work-weighted means average the eligible poem-level token means. Missing poem
-    scores stay missing and are reported as omitted, never changed to 0.5 or zero.
+    Pooled-observation collection means reconstruct a mean across the matched
+    observations permitted by the selected lexical scope and within-poem
+    token/type weighting. Equal-work means average the compatible eligible
+    poem-level means. Missing poem scores stay missing and are reported as
+    omitted, never changed to 0.5 or zero.
 
     The pooled lexical-rating population SD is reconstructed from every included
     work's mean, population SD, and observation count. It is withheld if any
@@ -412,11 +417,21 @@ def corpus_vad_profiles(
     instead describes variation among the included work-level means.
     """
 
+    selected_views = (
+        {str(value).casefold() for value in analysis_views}
+        if analysis_views is not None
+        else None
+    )
+    selected_weightings = {str(value).casefold() for value in weightings}
     selected = tuple(
         row
         for row in metrics
         if row.metric == "vad_mean"
-        and row.weighting == "token"
+        and row.weighting.casefold() in selected_weightings
+        and (
+            selected_views is None
+            or row.analysis_view.casefold() in selected_views
+        )
         and row.scale == "normalized_0_1"
         and row.value is not None
         and row.observations > 0
@@ -436,19 +451,35 @@ def corpus_vad_profiles(
         ): row
         for row in metrics
         if row.metric == "vad_standard_deviation"
-        and row.weighting == "token"
+        and row.weighting.casefold() in selected_weightings
+        and (
+            selected_views is None
+            or row.analysis_view.casefold() in selected_views
+        )
         and row.scale == "normalized_0_1"
         and row.value is not None
         and row.observations > 0
     }
-    grouped: dict[tuple[str, str, str, str], list[CorpusMetricRecord]] = {}
+    grouped: dict[tuple[str, str, str, str, str], list[CorpusMetricRecord]] = {}
     for row in selected:
         grouped.setdefault(
-            (row.lexicon_id, row.lexicon, row.analysis_view, row.dimension),
+            (
+                row.lexicon_id,
+                row.lexicon,
+                row.analysis_view,
+                row.dimension,
+                row.weighting,
+            ),
             [],
         ).append(row)
     profiles = []
-    for (lexicon_id, lexicon, analysis_view, dimension), rows in grouped.items():
+    for (
+        lexicon_id,
+        lexicon,
+        analysis_view,
+        dimension,
+        weighting,
+    ), rows in grouped.items():
         observations = sum(row.observations for row in rows)
         work_values = tuple(float(row.value) for row in rows)
         work_mean = statistics.fmean(work_values)
@@ -510,6 +541,7 @@ def corpus_vad_profiles(
                 poem_mean_maximum=max(work_values),
                 work_minus_token_difference=work_mean - token_mean,
                 volume_coverage=coverage,
+                weighting=weighting,
             )
         )
     return tuple(
@@ -518,6 +550,7 @@ def corpus_vad_profiles(
             key=lambda row: (
                 row.lexicon.casefold(),
                 row.analysis_view,
+                row.weighting,
                 row.dimension,
             ),
         )

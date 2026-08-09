@@ -6,6 +6,7 @@ import csv
 import io
 import zipfile
 
+from versevad import __version__
 from versevad.analysis_profiles import (
     SCOPE_ORDER,
     WEIGHTING_ORDER,
@@ -20,7 +21,7 @@ from versevad.comparison import (
     comparison_rows,
     comparison_set_rows,
 )
-from versevad.exports.docx_report import build_narrative_report_from_summary_csv
+from versevad.exports.docx_report import build_comprehensive_analysis_report
 from versevad.exports.reproducibility import (
     build_file_inventory,
     build_reproducibility_readme,
@@ -30,6 +31,106 @@ from versevad.module_capabilities import CapabilityCategory, MODULE_CAPABILITIES
 
 
 COMPARISON_EXPORT_API_VERSION = 1
+
+
+_COMPARISON_REPORT_FILENAMES = {
+    "Affective Evidence": "comparison_phase2_vad.csv",
+    "Emotion": "comparison_phase2_emotion.csv",
+    "Lexical Character, Imagery & Embodiment": (
+        "comparison_concreteness_frequency_aoa.csv"
+    ),
+    "Sensorimotor": "comparison_sensorimotor.csv",
+    "Readability": "comparison_readability.csv",
+    "Sound & Form": "comparison_pronunciation_meter_rhyme_inherited_form.csv",
+    "Structure": "comparison_lexical_style.csv",
+    "PoetryID": "comparison_poetry_id.csv",
+    "VerseMap": "comparison_versemap.csv",
+    "Evidence & Diagnostics": "comparison_diagnostics.csv",
+}
+
+
+def _comparison_report_family(metric_id: str) -> str:
+    prefix = metric_id.split(".", 1)[0]
+    if prefix == "poetry_id":
+        return "PoetryID"
+    if prefix in {"emotion", "emotion_intensity", "vader"}:
+        return "Emotion"
+    if prefix == "sensorimotor":
+        return "Sensorimotor"
+    if prefix == "readability":
+        return "Readability"
+    return _dashboard_section(metric_id)
+
+
+def _csv_rows_bytes(rows: list[dict[str, str]]) -> bytes:
+    if not rows:
+        return b""
+    preferred = (
+        "poem_title",
+        "profile",
+        "source",
+        "metric",
+        "value",
+        "unit_or_scale",
+        "denominator",
+        "coverage",
+        "range_max_minus_min",
+        "categorical_summary",
+        "note",
+    )
+    fields = [field for field in preferred if any(field in row for row in rows)]
+    fields.extend(
+        field
+        for field in dict.fromkeys(field for row in rows for field in row)
+        if field not in fields
+    )
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    return b"\xef\xbb\xbf" + output.getvalue().encode("utf-8")
+
+
+def _comparison_report_files(
+    profile_csvs: tuple[tuple[str, bytes], ...],
+) -> dict[str, bytes]:
+    """Pivot long comparison evidence into readable poem-by-poem report tables."""
+
+    grouped: dict[str, dict[tuple[str, ...], dict[str, str]]] = {}
+    for profile_label, content in profile_csvs:
+        reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
+        for source_row in reader:
+            row = dict(source_row)
+            family = _comparison_report_family(row.get("metric_id", ""))
+            key = (
+                profile_label,
+                row.get("source", ""),
+                row.get("metric_id", ""),
+                row.get("metric", ""),
+                row.get("unit_or_scale", ""),
+                row.get("range_max_minus_min", ""),
+                row.get("categorical_summary", ""),
+                row.get("note", ""),
+            )
+            report_row = grouped.setdefault(family, {}).setdefault(
+                key,
+                {
+                    "profile": profile_label,
+                    "source": row.get("source", ""),
+                    "metric": row.get("metric", ""),
+                    "unit_or_scale": row.get("unit_or_scale", ""),
+                    "range_max_minus_min": row.get("range_max_minus_min", ""),
+                    "categorical_summary": row.get("categorical_summary", ""),
+                    "note": row.get("note", ""),
+                },
+            )
+            poem_title = row.get("poem_title", "") or "Untitled poem"
+            report_row[poem_title] = row.get("value", "")
+    return {
+        _COMPARISON_REPORT_FILENAMES[family]: _csv_rows_bytes(list(rows.values()))
+        for family, rows in grouped.items()
+        if rows
+    }
 
 
 def _dashboard_section(metric_id: str) -> str:
@@ -143,7 +244,7 @@ def export_poem_comparison_docx(
     analysis_view: str = "all_matched",
     weighting: str = "token",
 ) -> bytes:
-    """Build a readable comparison report backed by the complete CSV."""
+    """Build a comprehensive comparison report backed by the complete CSV."""
 
     csv_content = export_poem_comparison_csv(
         comparison,
@@ -152,19 +253,63 @@ def export_poem_comparison_docx(
     )
     title_a = comparison.first.request.title or "Poem A"
     title_b = comparison.second.request.title or "Poem B"
-    return build_narrative_report_from_summary_csv(
-        "compare_poems",
-        csv_content,
-        companion_csv_files=("versevad_poem_comparison.csv",),
+    profile_label = (
+        f"{analysis_view.replace('_', ' ').title()} · {weighting.title()}-weighted"
+    )
+    return build_comprehensive_analysis_report(
+        export_files=_comparison_report_files(((profile_label, csv_content),)),
         text_title=f"{title_a} compared with {title_b}",
+        author="; ".join(
+            filter(
+                None,
+                (
+                    getattr(comparison.first.request, "author", ""),
+                    getattr(comparison.second.request, "author", ""),
+                ),
+            )
+        ),
+        export_mode="current_view",
+        visible_section="Complete comparison",
+        workspace_label="Compare Poems",
+        text_id=comparison.comparison_id,
         result_id=comparison.comparison_id,
+        source_sha256="; ".join(
+            (
+                comparison.first.document.text_sha256,
+                comparison.second.document.text_sha256,
+            )
+        ),
+        analysis_profiles=(profile_label,),
+        software_version=__version__,
         warnings=(
             "Differences are descriptive B minus A values, not significance tests.",
             "Missing values remain missing; compare coverage and denominators before interpretation.",
         ),
-        additional_paragraphs=(
-            f"Shared lexical view: {analysis_view.replace('_', ' ')}; "
-            f"shared weighting: {weighting} weighted.",
+        methods_reproducibility=methods_appendix_paragraphs(
+            (
+                AnalysisProfile(
+                    next(
+                        scope
+                        for scope, view in {
+                            LexicalScope.ALL_LEXICAL: "all_matched",
+                            LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+                            LexicalScope.CONTENT_WORDS: "content_words",
+                        }.items()
+                        if view == analysis_view
+                    ),
+                    next(
+                        item
+                        for item in WEIGHTING_ORDER
+                        if item.value.casefold() == weighting
+                    ),
+                ),
+            ),
+            source_sha256="; ".join(
+                (
+                    comparison.first.document.text_sha256,
+                    comparison.second.document.text_sha256,
+                )
+            ),
         ),
     )
 
@@ -283,7 +428,7 @@ def export_poem_comparison_set_docx(
     include_configurable: bool = True,
     include_fixed: bool = True,
 ) -> bytes:
-    """Build a readable set-comparison report backed by the long-form CSV."""
+    """Build a comprehensive set-comparison report backed by the long-form CSV."""
 
     csv_content = export_poem_comparison_set_csv(
         comparison_set,
@@ -297,20 +442,37 @@ def export_poem_comparison_set_docx(
         analysis.request.title or f"Poem {index}"
         for index, analysis in enumerate(comparison_set.analyses, start=1)
     ]
-    return build_narrative_report_from_summary_csv(
-        "compare_poems",
-        csv_content,
-        companion_csv_files=("versevad_poem_comparison_set.csv",),
+    profile_label = (
+        f"{analysis_view.replace('_', ' ').title()} · {weighting.title()}-weighted"
+    )
+    source_sha256 = "; ".join(
+        analysis.document.text_sha256 for analysis in comparison_set.analyses
+    )
+    return build_comprehensive_analysis_report(
+        export_files=_comparison_report_files(((profile_label, csv_content),)),
         text_title=f"Comparison set: {', '.join(titles)}",
+        author="; ".join(
+            dict.fromkeys(
+                filter(
+                    None,
+                    (
+                        getattr(analysis.request, "author", "")
+                        for analysis in comparison_set.analyses
+                    ),
+                )
+            )
+        ),
+        export_mode="current_view",
+        visible_section=report_section or "Complete comparison",
+        workspace_label="Compare Poems",
+        text_id=comparison_set.comparison_set_id,
         result_id=comparison_set.comparison_set_id,
+        source_sha256=source_sha256,
+        analysis_profiles=(profile_label,),
+        software_version=__version__,
         warnings=(
             "Ranges are descriptive maximum-minus-minimum comparisons, not significance tests.",
             "Missing values remain missing; compare coverage and denominators before interpretation.",
-        ),
-        additional_paragraphs=(
-            f"{len(titles)} poems; shared lexical view: "
-            f"{analysis_view.replace('_', ' ')}; shared weighting: "
-            f"{weighting} weighted.",
         ),
         methods_reproducibility=methods_appendix_paragraphs(
             (
@@ -331,9 +493,7 @@ def export_poem_comparison_set_docx(
                     ),
                 ),
             ) if include_configurable else (),
-            source_sha256="; ".join(
-                analysis.document.text_sha256 for analysis in comparison_set.analyses
-            ),
+            source_sha256=source_sha256,
         ),
     )
 
@@ -364,17 +524,20 @@ def export_poem_comparison_set_bundle(
         LexicalScope.CONTENT_WORDS: "content_words",
     }
     files: dict[str, bytes] = {}
+    report_csvs: list[tuple[str, bytes]] = []
     for profile in profiles:
         stem = profile.id.casefold()
         view = view_ids[profile.scope]
         weighting = profile.weighting.value.casefold()
-        files[f"comparison_{stem}.csv"] = export_poem_comparison_set_csv(
+        profile_csv = export_poem_comparison_set_csv(
             comparison_set,
             analysis_view=view,
             weighting=weighting,
             report_section=(visible_section if export_mode == "current_view" else ""),
             include_fixed=False,
         )
+        files[f"comparison_{stem}.csv"] = profile_csv
+        report_csvs.append((profile.label, profile_csv))
         files[f"comparison_{stem}.docx"] = export_poem_comparison_set_docx(
             comparison_set,
             analysis_view=view,
@@ -403,6 +566,7 @@ def export_poem_comparison_set_bundle(
     )
     if len(fixed_csv.decode("utf-8-sig").splitlines()) > 1:
         files["comparison_fixed_profiles.csv"] = fixed_csv
+        report_csvs.append(("Fixed-profile metrics", fixed_csv))
         files["comparison_fixed_profiles.docx"] = export_poem_comparison_set_docx(
             comparison_set,
             analysis_view=fixed_view,
@@ -411,20 +575,67 @@ def export_poem_comparison_set_bundle(
             include_configurable=False,
             include_fixed=True,
         )
-    selected_ids = ", ".join(profile.id for profile in profiles)
+    report_files = _comparison_report_files(tuple(report_csvs))
+    report_title = "; ".join(
+        analysis.request.title or f"Poem {position}"
+        for position, analysis in enumerate(comparison_set.analyses, start=1)
+    )
+    source_sha256 = "; ".join(
+        analysis.document.text_sha256 for analysis in comparison_set.analyses
+    )
     first_analysis = comparison_set.analyses[0]
+    files["VerseVAD_comprehensive_comparison_report.docx"] = (
+        build_comprehensive_analysis_report(
+            export_files=report_files,
+            text_title=f"Comparison set: {report_title}",
+            author="; ".join(
+                dict.fromkeys(
+                    filter(
+                        None,
+                        (
+                            getattr(analysis.request, "author", "")
+                            for analysis in comparison_set.analyses
+                        ),
+                    )
+                )
+            ),
+            export_mode=export_mode,
+            visible_section=(
+                visible_section
+                if export_mode == "current_view"
+                else "Complete Audit"
+            ),
+            workspace_label="Compare Poems",
+            text_id=comparison_set.comparison_set_id,
+            result_id=comparison_set.comparison_set_id,
+            source_sha256=source_sha256,
+            analysis_profiles=tuple(profile.label for profile in profiles),
+            active_preset="Shared comparison profile",
+            software_version=__version__,
+            warnings=(
+                "Ranges are descriptive maximum-minus-minimum comparisons, not significance tests.",
+                "Missing values remain missing; compare coverage and denominators before interpretation.",
+            ),
+            resources=tuple(
+                dict.fromkeys(
+                    result.lexicon_metadata.display_name
+                    for result in first_analysis.results
+                )
+            ),
+            methods_reproducibility=methods_appendix_paragraphs(
+                profiles,
+                source_sha256=source_sha256,
+            ),
+        )
+    )
+    selected_ids = ", ".join(profile.id for profile in profiles)
     files["REPRODUCIBILITY_README.txt"] = build_reproducibility_readme(
         export_mode=export_mode,
         workspace="Compare Poems",
         report_section=visible_section,
         analysis_id=comparison_set.comparison_set_id,
-        title="; ".join(
-            analysis.request.title or f"Poem {position}"
-            for position, analysis in enumerate(comparison_set.analyses, start=1)
-        ),
-        source_sha256="; ".join(
-            analysis.document.text_sha256 for analysis in comparison_set.analyses
-        ),
+        title=report_title,
+        source_sha256=source_sha256,
         visible_profiles=selection.profiles,
         included_profiles=profiles,
         active_preset="shared comparison profile",

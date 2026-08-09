@@ -161,6 +161,42 @@ def test_corpus_vad_pooled_dispersion_stays_missing_when_a_work_sd_is_missing() 
     assert comparisons[1].population_standard_deviation is None
 
 
+def test_corpus_vad_profiles_honor_scope_and_within_poem_weighting() -> None:
+    token_metric = _vad_metric(
+        text_id="a",
+        title="First",
+        metric="vad_mean",
+        value=0.2,
+        observations=4,
+    )
+    type_metric = replace(
+        token_metric,
+        value=0.6,
+        observations=2,
+        matched_tokens=4,
+        lexical_tokens=5,
+        weighting="type",
+    )
+    content_metric = replace(
+        token_metric,
+        value=0.9,
+        observations=3,
+        analysis_view="content_words",
+    )
+
+    profiles = corpus_vad_profiles(
+        (token_metric, type_metric, content_metric),
+        total_works=1,
+        analysis_views=("all_matched",),
+        weightings=("type",),
+    )
+
+    assert len(profiles) == 1
+    assert profiles[0].analysis_view == "all_matched"
+    assert profiles[0].weighting == "type"
+    assert profiles[0].token_weighted_volume_mean == pytest.approx(0.6)
+
+
 def test_folder_decode_preserves_relative_paths_and_text() -> None:
     summary = decode_corpus_files(
         (

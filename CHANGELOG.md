@@ -32,6 +32,20 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Corpus/research-project dashboards now apply the universal lexical scope and
+  within-poem token/type weighting to both pooled-observation and equal-work VAD
+  summaries, expose per-poem and whole-corpus eligible token counts by scope,
+  and consolidate repeated warnings without discarding poem-level audit rows.
+- Research-project export controls now identify Current View and Complete Audit
+  ZIP preparation/downloads explicitly, and the crowded project navigation is a
+  persistent dropdown.
+- Current View and Complete Audit bundles now include a comprehensive,
+  scan-friendly Word report with three-decimal display rounding, explanatory
+  metric-family guidance, coverage cautions, analyst/research placeholders, and
+  reproducibility information; full-precision and atomic evidence remains in CSV.
+- Single Poem, Other Text, Compare Poems, Saved Projects, and Personal Corpus
+  now use the same prepare-and-download pattern for a direct comprehensive DOCX
+  and a clearly labeled Current View or Complete Audit ZIP.
 - Unified compatible lexical reporting around three post-analysis scopes
   (all lexical tokens, stopword-excluded, and content words only) and two
   aggregation weightings (token and type), with one shared report control,

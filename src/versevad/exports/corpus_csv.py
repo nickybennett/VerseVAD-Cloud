@@ -21,7 +21,8 @@ from versevad.db import (
     ProjectRecord,
     UnmatchedQcRecord,
 )
-from versevad.exports.docx_report import REPORT_PROFILES, build_narrative_report
+from versevad import __version__
+from versevad.exports.docx_report import build_comprehensive_analysis_report
 from versevad.exports.reproducibility import (
     build_file_inventory,
     build_reproducibility_readme,
@@ -290,7 +291,14 @@ def build_corpus_export_bundle(
         methodology_rows,
     )
 
-    profiles = corpus_vad_profiles(exported_metrics, total_works=len(texts))
+    profile_views = tuple(dict.fromkeys(row.analysis_view for row in exported_metrics))
+    profile_weightings = tuple(dict.fromkeys(row.weighting for row in exported_metrics))
+    profiles = corpus_vad_profiles(
+        exported_metrics,
+        total_works=len(texts),
+        analysis_views=profile_views,
+        weightings=profile_weightings or ("token",),
+    )
     profile_rows = [
         {
             key: _value(value)
@@ -303,123 +311,170 @@ def build_corpus_export_bundle(
         profile_fields,
         profile_rows,
     )
+    scope_count_views = (
+        {view_ids[scope] for scope in selection.scopes}
+        if export_mode == "current_view"
+        else set(view_ids.values())
+    )
+    scope_count_lookup: dict[tuple[str, str], dict[str, object]] = {}
+    for row in metrics:
+        if row.weighting != "token" or row.analysis_view not in scope_count_views:
+            continue
+        key = (row.text_id, row.analysis_view)
+        current = scope_count_lookup.get(key)
+        if current is None or row.lexical_tokens > int(current["eligible_tokens"]):
+            scope_count_lookup[key] = {
+                "record_level": "poem",
+                "text_id": row.text_id,
+                "title": row.title,
+                "analysis_view": row.analysis_view,
+                "eligible_tokens": row.lexical_tokens,
+            }
+    scope_count_rows = list(scope_count_lookup.values())
+    for analysis_view in sorted(scope_count_views):
+        matching = [
+            row for row in scope_count_rows if row["analysis_view"] == analysis_view
+        ]
+        scope_count_rows.append(
+            {
+                "record_level": "whole corpus",
+                "text_id": "",
+                "title": project.title,
+                "analysis_view": analysis_view,
+                "eligible_tokens": sum(int(row["eligible_tokens"]) for row in matching),
+            }
+        )
+    bundle["corpus_scope_token_counts.csv"] = _csv_bytes(
+        ("record_level", "text_id", "title", "analysis_view", "eligible_tokens"),
+        scope_count_rows,
+    )
 
-    report_rows: list[dict[str, str]] = [
-        {
-            "section": "collection overview",
-            "metric": "works represented",
-            "value": str(len(texts)),
-            "unit_or_scale": "works",
-            "denominator": project.title,
-            "note": (
-                "Full literary texts are not duplicated in this export; the works "
-                "CSV retains identifiers, paths, and SHA-256 hashes."
-            ),
-        },
-        {
-            "section": "collection overview",
-            "metric": "VAD metric records",
-            "value": str(len(exported_metrics)),
-            "unit_or_scale": "records",
-            "denominator": "",
-            "note": "Each record retains its source, view, weighting, and scale.",
-        },
-        {
-            "section": "collection overview",
-            "metric": "additional module result records",
-            "value": str(len(module_results)),
-            "unit_or_scale": "records",
-            "denominator": "",
-            "note": "Module configurations remain distinct.",
-        },
-    ]
-    for profile in profiles:
-        section = (
-            f"{profile.lexicon} · {profile.analysis_view} · {profile.dimension}"
-        )
-        report_rows.extend(
-            (
-                {
-                    "section": section,
-                    "metric": "token weighted volume mean",
-                    "value": f"{profile.token_weighted_volume_mean:.4f}",
-                    "unit_or_scale": "normalized 0-1",
-                    "denominator": (
-                        f"{profile.matched_observations} matched observations"
-                    ),
-                    "note": "Longer works contribute more observations.",
-                },
-                {
-                    "section": section,
-                    "metric": "pooled lexical rating population standard deviation",
-                    "value": (
-                        f"{profile.pooled_lexical_rating_standard_deviation:.4f}"
-                        if profile.pooled_lexical_rating_standard_deviation
-                        is not None
-                        else "unavailable"
-                    ),
-                    "unit_or_scale": "normalized 0-1",
-                    "denominator": (
-                        f"{profile.matched_observations} matched observations"
-                    ),
-                    "note": (
-                        "Spread of pooled matched token ratings; withheld if a "
-                        "required work-level standard deviation is unavailable."
-                    ),
-                },
-                {
-                    "section": section,
-                    "metric": "work weighted volume mean",
-                    "value": f"{profile.work_weighted_volume_mean:.4f}",
-                    "unit_or_scale": "normalized 0-1",
-                    "denominator": (
-                        f"{profile.works_included} included works; "
-                        f"{profile.works_omitted} omitted"
-                    ),
-                    "note": "Each included work contributes one mean.",
-                },
-                {
-                    "section": section,
-                    "metric": "across poem mean population standard deviation",
-                    "value": f"{profile.poem_mean_standard_deviation:.4f}",
-                    "unit_or_scale": "normalized 0-1",
-                    "denominator": f"{profile.works_included} included works",
-                    "note": (
-                        "Spread of poem-level token means, not source-rater "
-                        "uncertainty or a confidence interval."
-                    ),
-                },
-                {
-                    "section": section,
-                    "metric": "poem mean median",
-                    "value": f"{profile.poem_mean_median:.4f}",
-                    "unit_or_scale": "normalized 0-1",
-                    "denominator": f"{profile.works_included} included works",
-                    "note": "Median of the included poem-level token means.",
-                },
-                {
-                    "section": section,
-                    "metric": "poem mean range",
-                    "value": (
-                        f"{profile.poem_mean_minimum:.4f} to "
-                        f"{profile.poem_mean_maximum:.4f}"
-                    ),
-                    "unit_or_scale": "normalized 0-1",
-                    "denominator": f"{profile.works_included} included works",
-                    "note": "Lowest and highest included poem-level token means.",
-                },
-            )
-        )
     warning_messages = tuple(
         dict.fromkeys(row.message for row in module_warnings)
     )
-    bundle["corpus_report.docx"] = build_narrative_report(
-        profile=REPORT_PROFILES["corpus"],
-        summary_rows=report_rows,
-        companion_csv_files=tuple(bundle),
+    report_profile_rows: list[dict[str, object]] = []
+    for profile in profiles:
+        common = {
+            "scope": profile.analysis_view,
+            "weighting": profile.weighting,
+            "module_id": "vad",
+            "source_id": profile.lexicon_id,
+            "source": profile.lexicon,
+            "unit": "normalized 0-1",
+        }
+        report_profile_rows.extend(
+            (
+                {
+                    **common,
+                    "profile_id": (
+                        f"{profile.analysis_view}__{profile.weighting}__pooled_observation"
+                    ),
+                    "metric_id": f"{profile.dimension}_pooled_observation_mean",
+                    "metric": f"{profile.dimension.title()} pooled-observation mean",
+                    "value": profile.token_weighted_volume_mean,
+                    "median": "",
+                    "population_standard_deviation": (
+                        profile.pooled_lexical_rating_standard_deviation
+                    ),
+                    "minimum": "",
+                    "maximum": "",
+                    "observation_count": profile.matched_observations,
+                    "eligible_token_count": profile.lexical_tokens,
+                    "token_coverage": profile.volume_coverage,
+                },
+                {
+                    **common,
+                    "profile_id": (
+                        f"{profile.analysis_view}__{profile.weighting}__equal_work"
+                    ),
+                    "metric_id": f"{profile.dimension}_equal_work_mean",
+                    "metric": f"{profile.dimension.title()} equal-work mean",
+                    "value": profile.work_weighted_volume_mean,
+                    "median": profile.poem_mean_median,
+                    "population_standard_deviation": (
+                        profile.poem_mean_standard_deviation
+                    ),
+                    "minimum": profile.poem_mean_minimum,
+                    "maximum": profile.poem_mean_maximum,
+                    "observation_count": profile.works_included,
+                    "eligible_token_count": "",
+                    "token_coverage": "",
+                },
+            )
+        )
+    report_profile_fields = (
+        "profile_id",
+        "scope",
+        "weighting",
+        "module_id",
+        "source_id",
+        "source",
+        "metric_id",
+        "metric",
+        "value",
+        "median",
+        "population_standard_deviation",
+        "minimum",
+        "maximum",
+        "observation_count",
+        "eligible_token_count",
+        "token_coverage",
+        "unit",
+    )
+    report_files = dict(bundle)
+    report_files["profile_metrics_selected.csv"] = _csv_bytes(
+        report_profile_fields,
+        report_profile_rows,
+    )
+    if export_mode == "complete_audit":
+        report_files["profile_metrics_all_compatible.csv"] = _csv_bytes(
+            report_profile_fields,
+            report_profile_rows,
+        )
+    module_report_filenames = {
+        "phonology": "corpus_rhyme_phonological_aggregates.csv",
+        "performance_meter": "corpus_meter_aggregates.csv",
+    }
+    for module_name in sorted({row.module_name for row in module_aggregates}):
+        selected_aggregates = tuple(
+            row for row in module_aggregates if row.module_name == module_name
+        )
+        fields, rows = _record_rows(
+            selected_aggregates,
+            record_type=CorpusModuleAggregateRecord,
+        )
+        filename = module_report_filenames.get(
+            module_name,
+            f"corpus_{module_name}_aggregates.csv",
+        )
+        report_files[filename] = _csv_bytes(fields, rows)
+    bundle["corpus_report.docx"] = build_comprehensive_analysis_report(
+        export_files=report_files,
         text_title=project.title,
+        author=project.researcher,
+        analysis_timestamp=project.updated_at,
+        export_mode=export_mode,
+        visible_section=report_section or (
+            "Complete Audit" if export_mode == "complete_audit" else "Current View"
+        ),
+        workspace_label="Saved Projects / Corpus",
         text_id=project.project_id,
+        result_id=project.updated_at,
+        source_sha256="; ".join(text.text_sha256 for text in texts),
+        analysis_profiles=tuple(profile.id for profile in included_profiles),
+        active_preset=active_preset,
+        source_notes=project.description,
+        software_version=__version__,
         warnings=warning_messages,
+        resources=tuple(
+            dict.fromkeys(
+                [row.lexicon for row in metrics]
+                + [
+                    f"{row.module_name} {row.module_version}"
+                    for row in module_results
+                ]
+            )
+        ),
         methods_reproducibility=methods_appendix_paragraphs(
             included_profiles,
             source_sha256="; ".join(text.text_sha256 for text in texts),

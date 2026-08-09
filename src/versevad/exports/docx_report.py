@@ -5,8 +5,10 @@ from __future__ import annotations
 import csv
 import io
 import zipfile
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from math import isfinite
 from typing import Iterable, Mapping, Sequence
 
 from docx import Document
@@ -20,7 +22,212 @@ _FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 _FIXED_CORE_DATE = datetime(2000, 1, 1, tzinfo=UTC)
 _BLUE = "1F4E78"
 _DARK_BLUE = "17365D"
+_SLATE_BLUE = "466B82"
+_PALE_BLUE = "DCE8EF"
 _PALE_GRAY = "F2F4F7"
+_LIGHTER_BLUE = "EDF3F7"
+
+
+@dataclass(frozen=True, slots=True)
+class ComprehensiveReportFamily:
+    """One readable family in the comprehensive analysis report."""
+
+    family_id: str
+    title: str
+    explanation: str
+    cautions: tuple[str, ...] = ()
+
+
+COMPREHENSIVE_REPORT_FAMILIES: tuple[ComprehensiveReportFamily, ...] = (
+    ComprehensiveReportFamily(
+        "vad",
+        "Valence, Arousal, and Dominance",
+        "Valence describes normative positivity or pleasantness, arousal describes "
+        "activation or intensity, and dominance describes normative power or control. "
+        "These are lexical tendencies in the matched evidence, not declarations of "
+        "the poem's, speaker's, author's, or reader's emotion.",
+        ("The normalized display scale runs from 0 to 1 with a midpoint of 0.5.",),
+    ),
+    ComprehensiveReportFamily(
+        "emotion",
+        "Emotion Associations, Intensity, and Sentiment",
+        "Association proportions record how often eligible evidence is linked with "
+        "documented emotion categories. Intensity values summarize the strength of "
+        "those lexical associations when the source supplies it.",
+        (
+            "Association categories can overlap and therefore need not sum to 100%.",
+            "VADER is a prose/social-media-oriented rule system and is exploratory for poetry.",
+        ),
+    ),
+    ComprehensiveReportFamily(
+        "lexical_character",
+        "Concreteness, Frequency, and Age of Acquisition",
+        "Concreteness estimates normative sensory or experience-based grounding. "
+        "SUBTLEX Zipf values describe corpus frequency, with higher values indicating "
+        "more common words. Age of Acquisition records retrospective normative age "
+        "estimates for matched vocabulary.",
+        (
+            "Configured common/rare, concrete/abstract, and early/later bands are orientation aids, not universal linguistic boundaries.",
+        ),
+    ),
+    ComprehensiveReportFamily(
+        "sensorimotor",
+        "Sensorimotor Imagery and Embodiment",
+        "Lancaster dimensions describe context-free normative associations with six "
+        "perceptual modalities and five bodily action effectors. Higher strength "
+        "indicates stronger lexical association with that domain.",
+        ("The norms describe lexical affordances for interpretation, not imagery guaranteed by the text or experienced by every reader.",),
+    ),
+    ComprehensiveReportFamily(
+        "readability",
+        "Readability and Processing Demand",
+        "VerseVAD Poetic Reading Ease estimates surface-level linguistic accessibility "
+        "without sentence length. Traditional readability formulas remain prose-oriented "
+        "descriptive evidence and can behave unusually on poetic syntax and lineation.",
+        ("Readability scores do not measure thematic, symbolic, interpretive, or literary complexity.",),
+    ),
+    ComprehensiveReportFamily(
+        "structure",
+        "Lexical Diversity and Formal Structure",
+        "These measures describe vocabulary recurrence, word length, line and stanza "
+        "dimensions, and other preserved structural features. Diversity measures respond "
+        "differently to text length and token order, so their parameters and scope matter.",
+    ),
+    ComprehensiveReportFamily(
+        "sound_form",
+        "Prosody, Rhythm, Sound, and Inherited Form",
+        "Pronunciation-supported results describe syllables, stress, candidate meter, "
+        "rhyme, and recurring sound evidence. Inherited-form results compare the poem "
+        "with versioned rule-based profiles.",
+        (
+            "Dictionary pronunciations and automatic scansion are analytical candidates, not mandatory performances.",
+            "Form confidence and consistency are rule-based indices, not probabilities or declarations of genre identity.",
+        ),
+    ),
+    ComprehensiveReportFamily(
+        "poetry_id",
+        "PoetryID Lexical-Affective Profile",
+        "PoetryID summarizes a versioned lexical-affective profile. Category fit applies "
+        "the documented region rules; nearest centroid reports the closest candidate in "
+        "the registered profile space.",
+        ("The labels are descriptive candidates, not diagnoses, genres, or judgments of quality.",),
+    ),
+    ComprehensiveReportFamily(
+        "versemap",
+        "VerseMap Comparative Position",
+        "VerseMap positions the poem under Standard Profile 1.0 relative to the selected "
+        "reference corpus. Full-space distance determines neighbors; PCA coordinates are "
+        "two-dimensional display composites.",
+        ("Proximity is descriptive and is not evidence of authorship, influence, quality, or meaning.",),
+    ),
+)
+
+
+_PROFILE_FAMILY_BY_MODULE = {
+    "vad": "vad",
+    "emotion_association": "emotion",
+    "emotion_intensity": "emotion",
+    "concreteness": "lexical_character",
+    "frequency": "lexical_character",
+    "aoa": "lexical_character",
+    "sensorimotor": "sensorimotor",
+    "word_length": "structure",
+}
+
+
+_FILE_FAMILY_HINTS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("phase2_vad", "vad_by_part", "lexical_trajectory"), "vad"),
+    (("phase2_emotion", "vader_sentiment"), "emotion"),
+    (("concreteness", "frequency", "aoa"), "lexical_character"),
+    (("sensorimotor",), "sensorimotor"),
+    (("readability",), "readability"),
+    (("lexical_style",), "structure"),
+    (("pronunciation", "meter", "rhyme", "phonological", "inherited_form"), "sound_form"),
+    (("poetry_id",), "poetry_id"),
+    (("versemap",), "versemap"),
+)
+
+
+_PROFILE_BACKED_REPORT_FILES = {
+    "vad_by_part_of_speech.csv",
+    "lexical_trajectory.csv",
+    "phase2_emotion_associations.csv",
+    "phase2_emotion_intensity.csv",
+}
+
+
+_REPORT_COLUMN_WHITELISTS: Mapping[str, tuple[str, ...]] = {
+    "vad_by_part_of_speech.csv": (
+        "lexicon",
+        "analysis_view",
+        "part_of_speech",
+        "matched_observations",
+        "lexical_token_coverage",
+        "token_weighted_mean_valence_0_1",
+        "token_weighted_mean_arousal_0_1",
+        "token_weighted_mean_dominance_0_1",
+        "type_weighted_mean_valence_0_1",
+        "type_weighted_mean_arousal_0_1",
+        "type_weighted_mean_dominance_0_1",
+        "sparse_below_configured_minimum",
+    ),
+    "phase2_emotion_associations.csv": (
+        "category",
+        "associated_token_count",
+        "associated_unique_type_count",
+        "proportion_of_lexical_tokens",
+        "proportion_of_matched_emotion_bearing_tokens",
+        "proportion_of_unique_lexical_types",
+    ),
+    "phase2_emotion_intensity.csv": (
+        "category",
+        "matched_token_occurrences",
+        "prevalence_among_lexical_tokens",
+        "prevalence_among_emotion_intensity_matches",
+        "token_mean",
+        "token_median",
+        "token_population_standard_deviation",
+        "type_mean",
+        "type_median",
+        "type_population_standard_deviation",
+    ),
+    "lexical_trajectory.csv": (
+        "lexicon_id",
+        "lexicon",
+        "analysis_view",
+        "line_number",
+        "stanza_number",
+        "source_text",
+        "mean_valence_0_1",
+        "mean_arousal_0_1",
+        "mean_dominance_0_1",
+        "mean_concreteness_normalized_0_1",
+        "mean_concreteness_source_scale_1_5",
+        "vad_matched_observations",
+        "concreteness_matched_tokens",
+    ),
+}
+
+
+_ATOMIC_FILE_MARKERS = (
+    "token_audit",
+    "match_audit",
+    "observations",
+    "processing_tokens",
+    "processing_dependencies",
+    "processing_entities",
+    "processing_orthographic_spans",
+    "_lines.csv",
+    "_pairs.csv",
+    "_internal.csv",
+    "alignment_operations",
+    "scholar_revisions",
+    "_terms.csv",
+    "_neighbors.csv",
+    "_types.csv",
+    "_words.csv",
+    "_sentences.csv",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -417,6 +624,728 @@ def _normalize_docx(package: bytes) -> bytes:
             information.external_attr = archive.getinfo(name).external_attr
             output.writestr(information, archive.read(name))
     return target.getvalue()
+
+
+def _set_row_cant_split(row) -> None:
+    properties = row._tr.get_or_add_trPr()
+    if properties.find(qn("w:cantSplit")) is None:
+        properties.append(OxmlElement("w:cantSplit"))
+
+
+def _set_cell_border(cell, *, color: str = "D7E0E6", size: str = "4") -> None:
+    properties = cell._tc.get_or_add_tcPr()
+    borders = properties.find(qn("w:tcBorders"))
+    if borders is None:
+        borders = OxmlElement("w:tcBorders")
+        properties.append(borders)
+    for edge in ("top", "start", "bottom", "end"):
+        node = borders.find(qn(f"w:{edge}"))
+        if node is None:
+            node = OxmlElement(f"w:{edge}")
+            borders.append(node)
+        node.set(qn("w:val"), "single")
+        node.set(qn("w:sz"), size)
+        node.set(qn("w:color"), color)
+
+
+def _configure_comprehensive_document(document: Document) -> None:
+    section = document.sections[0]
+    section.page_width = Inches(8.5)
+    section.page_height = Inches(11)
+    section.top_margin = Inches(0.78)
+    section.bottom_margin = Inches(0.68)
+    section.left_margin = Inches(0.70)
+    section.right_margin = Inches(0.70)
+
+    normal = document.styles["Normal"]
+    normal.font.name = "Aptos"
+    normal.font.size = Pt(9.5)
+    normal.paragraph_format.space_after = Pt(4)
+    normal.paragraph_format.line_spacing = 1.04
+
+    for name, size, color, before, after in (
+        ("Title", 23, _DARK_BLUE, 0, 7),
+        ("Heading 1", 15, _DARK_BLUE, 12, 6),
+        ("Heading 2", 12, _BLUE, 9, 4),
+        ("Heading 3", 10, _SLATE_BLUE, 7, 3),
+    ):
+        style = document.styles[name]
+        style.font.name = "Aptos Display" if name != "Normal" else "Aptos"
+        style.font.size = Pt(size)
+        style.font.color.rgb = RGBColor.from_string(color)
+        style.font.bold = True
+        style.paragraph_format.space_before = Pt(before)
+        style.paragraph_format.space_after = Pt(after)
+        style.paragraph_format.keep_with_next = True
+
+    header = section.header.paragraphs[0]
+    header.text = "VERSEVAD  /  COMPUTATIONAL POETICS ANALYSIS"
+    header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    for run in header.runs:
+        run.font.name = "Aptos"
+        run.font.size = Pt(8)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor.from_string(_SLATE_BLUE)
+    _add_page_field(section.footer.paragraphs[0])
+
+
+def _read_csv_table(content: bytes) -> tuple[list[str], list[dict[str, str]]]:
+    text = content.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+    return list(reader.fieldnames or ()), [dict(row) for row in reader]
+
+
+def _numeric(value: object) -> float | None:
+    text = _clean(value).replace(",", "")
+    if not text or text.endswith("%"):
+        return None
+    try:
+        number = float(text)
+    except ValueError:
+        return None
+    return number if isfinite(number) else None
+
+
+def _format_report_value(value: object, field: str = "") -> str:
+    text = _clean(value)
+    if not text:
+        return "Not available"
+    number = _numeric(text)
+    if number is None:
+        return text
+    lowered = field.lower()
+    count_fields = {
+        "observation_count",
+        "eligible_token_count",
+        "matched_token_count",
+        "unmatched_token_count",
+        "eligible_type_count",
+        "matched_type_count",
+        "unmatched_type_count",
+        "excluded_stopword_count",
+        "excluded_non_content_count",
+        "phrase_match_count",
+        "matched_observations",
+        "vad_matched_observations",
+        "concreteness_matched_tokens",
+        "line_number",
+        "stanza_number",
+        "rank",
+        "version_number",
+    }
+    count_suffixes = (
+        "_count",
+        "_tokens",
+        "_types",
+        "_poems",
+        "_lines",
+        "_stanzas",
+        "_sentences",
+    )
+    if number.is_integer() and (
+        lowered in count_fields or lowered.endswith(count_suffixes)
+    ):
+        return f"{int(number):,}"
+    if any(marker in lowered for marker in ("coverage", "proportion", "percent")):
+        if 0 <= number <= 1:
+            return f"{number * 100:.1f}%"
+    return f"{number:.3f}"
+
+
+def _friendly_header(value: str) -> str:
+    replacements = {
+        "id": "ID",
+        "vad": "VAD",
+        "aoa": "AoA",
+        "sd": "SD",
+        "iqr": "IQR",
+        "pca": "PCA",
+        "zipf": "Zipf",
+        "sha256": "SHA-256",
+    }
+    words = value.replace("-", "_").split("_")
+    return " ".join(replacements.get(word.lower(), word.title()) for word in words)
+
+
+def _add_report_table(
+    document: Document,
+    headers: Sequence[str],
+    rows: Sequence[Sequence[object]],
+    *,
+    widths: Sequence[int] | None = None,
+    font_size: float = 8.0,
+) -> None:
+    if not headers:
+        return
+    table = document.add_table(rows=1, cols=len(headers))
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.style = "Table Grid"
+    for index, header in enumerate(headers):
+        cell = table.cell(0, index)
+        cell.text = str(header)
+        _set_cell_shading(cell, _BLUE)
+        _set_cell_border(cell, color=_BLUE)
+        for run in cell.paragraphs[0].runs:
+            run.font.name = "Aptos"
+            run.font.size = Pt(font_size)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(255, 255, 255)
+    _set_repeat_table_header(table.rows[0])
+    _set_row_cant_split(table.rows[0])
+    for row_index, values in enumerate(rows):
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cell = cells[index]
+            cell.text = str(value)
+            if row_index % 2:
+                _set_cell_shading(cell, _LIGHTER_BLUE)
+            _set_cell_border(cell)
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.space_after = Pt(0)
+                for run in paragraph.runs:
+                    run.font.name = "Aptos"
+                    run.font.size = Pt(font_size)
+        _set_row_cant_split(table.rows[-1])
+    if widths is None:
+        usable = 10200
+        widths = tuple(usable // len(headers) for _ in headers)
+    _set_table_width(table, widths)
+
+
+def _add_callout(document: Document, heading: str, body: str) -> None:
+    table = document.add_table(rows=1, cols=1)
+    table.style = "Table Grid"
+    cell = table.cell(0, 0)
+    _set_cell_shading(cell, _PALE_BLUE)
+    _set_cell_border(cell, color="B7CDD9", size="6")
+    paragraph = cell.paragraphs[0]
+    paragraph.paragraph_format.space_after = Pt(0)
+    run = paragraph.add_run(f"{heading}: ")
+    run.bold = True
+    run.font.color.rgb = RGBColor.from_string(_DARK_BLUE)
+    paragraph.add_run(body)
+    _set_table_width(table, (10200,))
+
+
+def _profile_family(row: Mapping[str, str]) -> str:
+    return _PROFILE_FAMILY_BY_MODULE.get(_clean(row.get("module_id", "")), "")
+
+
+def _file_family(filename: str) -> str:
+    lowered = filename.lower()
+    for hints, family in _FILE_FAMILY_HINTS:
+        if any(hint in lowered for hint in hints):
+            return family
+    return ""
+
+
+def _is_atomic_file(filename: str, row_count: int) -> bool:
+    lowered = filename.lower()
+    return row_count > 250 or any(marker in lowered for marker in _ATOMIC_FILE_MARKERS)
+
+
+def _dataset_label(filename: str) -> str:
+    return _friendly_header(filename.removesuffix(".csv"))
+
+
+def _add_csv_dataset(
+    document: Document,
+    filename: str,
+    fields: Sequence[str],
+    records: Sequence[Mapping[str, str]],
+) -> None:
+    selected_fields = _REPORT_COLUMN_WHITELISTS.get(filename)
+    if selected_fields:
+        fields = [field for field in selected_fields if field in fields]
+    if not fields:
+        return
+    document.add_heading(_dataset_label(filename), level=3)
+    if not records:
+        document.add_paragraph("No rows were available for this dataset.")
+        return
+    document.add_paragraph(
+        f"{len(records):,} row(s). Numeric values are rounded to three decimal places in this report; companion CSV data retain full precision.",
+    )
+    identifiers = [
+        field
+        for field in fields
+        if field.lower()
+        in {
+            "source",
+            "metric",
+            "section",
+            "profile",
+            "profile_id",
+            "dimension",
+            "category",
+            "label",
+            "candidate",
+            "name",
+            "poem",
+            "poem_title",
+            "title",
+            "work",
+        }
+    ][:3]
+    value_fields = [field for field in fields if field not in identifiers]
+    if not value_fields:
+        value_fields = list(fields)
+        identifiers = []
+    chunks = [value_fields[index : index + 5] for index in range(0, len(value_fields), 5)]
+    for chunk_index, chunk in enumerate(chunks, start=1):
+        columns = [*identifiers, *chunk]
+        if len(chunks) > 1:
+            caption = document.add_paragraph(
+                f"Column group {chunk_index} of {len(chunks)}",
+            )
+            caption.runs[0].italic = True
+            caption.runs[0].font.color.rgb = RGBColor.from_string(_SLATE_BLUE)
+        table_rows = [
+            tuple(_format_report_value(record.get(field, ""), field) for field in columns)
+            for record in records
+        ]
+        _add_report_table(
+            document,
+            tuple(_friendly_header(field) for field in columns),
+            table_rows,
+            font_size=7.4 if len(columns) > 6 else 8.0,
+        )
+
+
+def _add_all_profile_matrix(
+    document: Document,
+    records: Sequence[Mapping[str, str]],
+) -> None:
+    profiles = list(
+        dict.fromkeys(_clean(row.get("profile_id", "")) for row in records)
+    )
+    profiles = [profile for profile in profiles if profile]
+    metric_keys = list(
+        dict.fromkeys(
+            (
+                _clean(row.get("source", row.get("source_id", ""))),
+                _clean(row.get("metric", row.get("metric_id", ""))),
+            )
+            for row in records
+        )
+    )
+    lookup = {
+        (
+            _clean(row.get("source", row.get("source_id", ""))),
+            _clean(row.get("metric", row.get("metric_id", ""))),
+            _clean(row.get("profile_id", "")),
+        ): row
+        for row in records
+    }
+    rows = []
+    for source, metric in metric_keys:
+        rows.append(
+            (
+                source,
+                metric,
+                *(
+                    _format_report_value(
+                        lookup.get((source, metric, profile), {}).get("value", ""),
+                        "value",
+                    )
+                    for profile in profiles
+                ),
+            )
+        )
+    _add_report_table(
+        document,
+        ("Source", "Metric", *(_friendly_header(profile) for profile in profiles)),
+        rows,
+        font_size=7.1,
+    )
+    document.add_paragraph(
+        "This matrix reports the primary mean for every compatible lexical profile. The companion profile_metrics_all_compatible.csv retains full-precision medians, quartiles, ranges, dispersion, cumulative and midpoint loads, volatility, counts, exclusions, and coverage for each cell."
+    )
+
+
+def _profile_display_rows(
+    records: Sequence[Mapping[str, str]],
+) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]]]:
+    primary: list[tuple[str, ...]] = []
+    distribution: list[tuple[str, ...]] = []
+    for row in records:
+        source = _clean(row.get("source", row.get("source_id", "")))
+        metric = _clean(row.get("metric", row.get("metric_id", "")))
+        profile = _clean(row.get("profile_id", ""))
+        primary.append(
+            (
+                source,
+                metric,
+                _friendly_header(profile),
+                _format_report_value(row.get("value", ""), "value"),
+                _format_report_value(row.get("median", ""), "median"),
+                _format_report_value(row.get("observation_count", ""), "observation_count"),
+                _format_report_value(row.get("token_coverage", ""), "token_coverage"),
+                _clean(row.get("unit", "")),
+            )
+        )
+        q1 = _format_report_value(row.get("first_quartile", ""), "first_quartile")
+        q3 = _format_report_value(row.get("third_quartile", ""), "third_quartile")
+        minimum = _format_report_value(row.get("minimum", ""), "minimum")
+        maximum = _format_report_value(row.get("maximum", ""), "maximum")
+        def display_range(first: str, second: str) -> str:
+            if first == "Not available" and second == "Not available":
+                return "Not available"
+            if first == "Not available":
+                return second
+            if second == "Not available":
+                return first
+            return f"{first} to {second}"
+
+        distribution.append(
+            (
+                metric,
+                _friendly_header(profile),
+                _format_report_value(
+                    row.get("population_standard_deviation", ""),
+                    "population_standard_deviation",
+                ),
+                display_range(q1, q3),
+                display_range(minimum, maximum),
+                _format_report_value(row.get("cumulative_value", ""), "cumulative_value"),
+                _format_report_value(
+                    row.get("value_per_100_observations", ""),
+                    "value_per_100_observations",
+                ),
+                _format_report_value(
+                    row.get("average_deviation_from_mean", ""),
+                    "average_deviation_from_mean",
+                ),
+            )
+        )
+    return primary, distribution
+
+
+def _add_profile_family_tables(
+    document: Document,
+    records: Sequence[Mapping[str, str]],
+) -> None:
+    primary, distribution = _profile_display_rows(records)
+    document.add_heading("Primary location and coverage", level=2)
+    _add_report_table(
+        document,
+        ("Source", "Metric", "Profile", "Mean", "Median", "N", "Coverage", "Unit"),
+        primary,
+        font_size=7.3,
+    )
+    document.add_heading("Dispersion, range, cumulative load, and volatility", level=2)
+    _add_report_table(
+        document,
+        ("Metric", "Profile", "Population SD", "IQR", "Min to Max", "Cumulative", "Per 100", "Mean Abs. Deviation"),
+        distribution,
+        font_size=7.2,
+    )
+    if any(_clean(row.get("absolute_midpoint_load", "")) for row in records):
+        document.add_heading("Midpoint-relative lexical load", level=2)
+        midpoint_rows = [
+            (
+                _clean(row.get("metric", row.get("metric_id", ""))),
+                _friendly_header(_clean(row.get("profile_id", ""))),
+                _format_report_value(row.get("above_midpoint_load", ""), "above_midpoint_load"),
+                _format_report_value(row.get("below_midpoint_load", ""), "below_midpoint_load"),
+                _format_report_value(row.get("net_midpoint_load", ""), "net_midpoint_load"),
+                _format_report_value(row.get("absolute_midpoint_load", ""), "absolute_midpoint_load"),
+            )
+            for row in records
+            if _clean(row.get("absolute_midpoint_load", ""))
+        ]
+        _add_report_table(
+            document,
+            ("Metric", "Profile", "Above", "Below", "Net", "Absolute"),
+            midpoint_rows,
+        )
+
+
+def _profile_dashboard_rows(
+    records: Sequence[Mapping[str, str]],
+) -> list[tuple[str, str, str, str]]:
+    preferred = [
+        row
+        for row in records
+        if _clean(row.get("profile_id", ""))
+        in {"stopword_excluded-token_weighted", "stopword_excluded_token_weighted"}
+    ]
+    source = preferred or list(records)
+    rows: list[tuple[str, str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in source:
+        key = (_clean(row.get("source_id", "")), _clean(row.get("metric_id", "")))
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            (
+                _clean(row.get("source", row.get("source_id", ""))),
+                _clean(row.get("metric", row.get("metric_id", ""))),
+                _format_report_value(row.get("value", ""), "value"),
+                _clean(row.get("unit", "")),
+            )
+        )
+        if len(rows) >= 14:
+            break
+    return rows
+
+
+def build_comprehensive_analysis_report(
+    *,
+    export_files: Mapping[str, bytes],
+    text_title: str = "",
+    author: str = "",
+    analysis_timestamp: str = "",
+    export_mode: str = "complete_audit",
+    visible_section: str = "",
+    workspace_label: str = "Single Poem",
+    text_id: str = "",
+    result_id: str = "",
+    source_sha256: str = "",
+    analysis_profiles: Sequence[str] = (),
+    active_preset: str = "",
+    source_notes: str = "",
+    software_version: str = "",
+    warnings: Sequence[str] = (),
+    resources: Sequence[str] = (),
+    methods_reproducibility: Sequence[str] = (),
+) -> bytes:
+    """Build the full readable analysis report directly from exported evidence."""
+
+    if export_mode not in {"current_view", "complete_audit"}:
+        raise ValueError(f"Unknown export mode: {export_mode}")
+    parsed: OrderedDict[str, tuple[list[str], list[dict[str, str]]]] = OrderedDict()
+    for filename in sorted(export_files):
+        if filename.lower().endswith(".csv"):
+            try:
+                parsed[filename] = _read_csv_table(export_files[filename])
+            except (UnicodeDecodeError, csv.Error):
+                continue
+
+    profile_records = parsed.get("profile_metrics_selected.csv", ([], []))[1]
+    family_profiles: dict[str, list[dict[str, str]]] = {
+        family.family_id: [] for family in COMPREHENSIVE_REPORT_FAMILIES
+    }
+    for row in profile_records:
+        family = _profile_family(row)
+        if family:
+            family_profiles[family].append(row)
+
+    family_files: dict[str, list[str]] = {
+        family.family_id: [] for family in COMPREHENSIVE_REPORT_FAMILIES
+    }
+    excluded_inventory: list[tuple[str, str, str]] = []
+    special_files = {
+        "profile_metrics_selected.csv",
+        "profile_metrics_all_compatible.csv",
+        "scholar_summary.csv",
+        "csv_reading_guide.csv",
+        "phase2_manifest.csv",
+    }
+    for filename, (_fields, records) in parsed.items():
+        if filename in special_files:
+            continue
+        family = _file_family(filename)
+        if not family:
+            continue
+        if family_profiles[family] and filename not in _PROFILE_BACKED_REPORT_FILES:
+            excluded_inventory.append(
+                (
+                    filename,
+                    f"{len(records):,}",
+                    "Supporting aggregate detail retained in the companion bundle; selected-profile results are reported in the family tables",
+                )
+            )
+            continue
+        if _is_atomic_file(filename, len(records)):
+            excluded_inventory.append(
+                (filename, f"{len(records):,}", "Atomic or high-volume evidence retained in the companion bundle")
+            )
+        else:
+            family_files[family].append(filename)
+
+    document = Document()
+    _configure_comprehensive_document(document)
+    report_kind = "Current View Report" if export_mode == "current_view" else "Complete Audit Report"
+    document.core_properties.title = "VerseVAD Computational Poetics Analysis Report"
+    document.core_properties.subject = report_kind
+    document.core_properties.author = "VerseVAD"
+    document.core_properties.created = _FIXED_CORE_DATE
+    document.core_properties.modified = _FIXED_CORE_DATE
+
+    kicker = document.add_paragraph("VERSEVAD  /  DIGITAL HUMANITIES FOR EVERYONE")
+    kicker.runs[0].bold = True
+    kicker.runs[0].font.size = Pt(8.5)
+    kicker.runs[0].font.color.rgb = RGBColor.from_string(_SLATE_BLUE)
+    title = document.add_paragraph(style="Title")
+    title.add_run("Computational Poetics\nAnalysis Report")
+    subtitle = document.add_paragraph(report_kind)
+    subtitle.style = document.styles["Subtitle"]
+    subtitle.runs[0].font.color.rgb = RGBColor.from_string(_BLUE)
+    _add_callout(
+        document,
+        "Interpretive principle",
+        "This report organizes computational evidence for close reading. It does not reduce a poem to a score, determine meaning, or replace documented scholarly judgment.",
+    )
+    _add_metadata_table(
+        document,
+        (
+            ("Text", text_title or "Untitled text"),
+            ("Author / creator", author or "[Enter author or creator]"),
+            ("Analyst", "[Enter analyst name]"),
+            ("Research question", "[Enter research question]"),
+            ("Workspace", workspace_label),
+            ("Report scope", visible_section or report_kind),
+            ("Analysis date and time", analysis_timestamp or "Not recorded"),
+            ("VerseVAD version", software_version or "Not recorded"),
+            ("Analysis profile", ", ".join(analysis_profiles) or "Not recorded"),
+            ("Module preset", active_preset or "Custom"),
+            ("Source / bibliographic notes", source_notes),
+        ),
+    )
+    document.add_paragraph()
+    document.add_paragraph("Prepared for transparent, reproducible computational close reading.")
+    document.add_page_break()
+
+    document.add_heading("1. How to Read This Report", level=1)
+    document.add_paragraph(
+        "Means are the primary location measures for continuous lexical metrics. Medians, dispersion, cumulative load, coverage, and denominators are shown where the underlying analysis supplies them. Values are rounded to three decimal places here; companion CSV files retain the original precision."
+    )
+    if export_mode == "current_view":
+        document.add_paragraph(
+            "This Current View report includes the selected report family and the globally selected lexical scope/weighting profiles. Other module families are explicitly marked Not reported."
+        )
+    else:
+        document.add_paragraph(
+            "This Complete Audit report includes every calculated aggregate available in the completed analysis. Disabled or unavailable modules are marked Not calculated. Atomic token-, line-, pair-, and operation-level evidence remains in the companion audit bundle so this document stays readable."
+        )
+    _add_callout(
+        document,
+        "Rounding",
+        "Report values use three decimal places where appropriate. Use the CSV audit files for full-precision computation or secondary analysis.",
+    )
+
+    document.add_heading("2. Executive Metric Dashboard", level=1)
+    dashboard = _profile_dashboard_rows(profile_records)
+    if dashboard:
+        _add_report_table(document, ("Source", "Metric", "Mean", "Unit"), dashboard)
+    else:
+        document.add_paragraph("No compatible lexical-profile rows were available for the dashboard.")
+
+    document.add_heading("3. Module Reporting Status", level=1)
+    status_rows = []
+    first_reported_family = True
+    for family in COMPREHENSIVE_REPORT_FAMILIES:
+        present = bool(family_profiles[family.family_id] or family_files[family.family_id])
+        if present:
+            status = "Reported"
+            note = "Calculated evidence is included below."
+        elif export_mode == "current_view":
+            status = "Not reported"
+            note = "Outside the selected Current View or not enabled."
+        else:
+            status = "Not calculated"
+            note = "Module disabled, unavailable, or unsupported for this text."
+        status_rows.append((family.title, status, note))
+    _add_report_table(document, ("Metric family", "Status", "Reason"), status_rows)
+
+    section_number = 4
+    for family in COMPREHENSIVE_REPORT_FAMILIES:
+        profile_rows = family_profiles[family.family_id]
+        dataset_files = family_files[family.family_id]
+        if not profile_rows and not dataset_files:
+            continue
+        if not first_reported_family:
+            document.add_page_break()
+        first_reported_family = False
+        document.add_heading(f"{section_number}. {family.title}", level=1)
+        section_number += 1
+        document.add_paragraph(family.explanation)
+        for caution in family.cautions:
+            _add_callout(document, "Interpretive caution", caution)
+        if profile_rows:
+            _add_profile_family_tables(document, profile_rows)
+        for filename in dataset_files:
+            fields, records = parsed[filename]
+            _add_csv_dataset(document, filename, fields, records)
+
+    all_profile_fields, all_profile_rows = parsed.get(
+        "profile_metrics_all_compatible.csv", ([], [])
+    )
+    if export_mode == "complete_audit" and all_profile_rows:
+        document.add_page_break()
+        document.add_heading(f"{section_number}. All Compatible Lexical Profiles", level=1)
+        section_number += 1
+        document.add_paragraph(
+            "This appendix records every calculated lexical scope and weighting combination. The main report emphasizes the selected profiles; this table preserves the complete compatible profile space."
+        )
+        _add_all_profile_matrix(document, all_profile_rows)
+
+    document.add_page_break()
+    document.add_heading(f"{section_number}. Coverage, Warnings, and Limitations", level=1)
+    section_number += 1
+    unique_warnings = [warning for warning in dict.fromkeys(_clean(item) for item in warnings) if warning]
+    if unique_warnings:
+        for warning in unique_warnings:
+            paragraph = document.add_paragraph(style="List Bullet")
+            paragraph.add_run(warning)
+    else:
+        document.add_paragraph("No additional module warnings were recorded in this export.")
+    document.add_paragraph(
+        "Coverage is part of the result. Unmatched or source-unrated evidence remains missing rather than receiving a neutral value. Comparisons should retain lexical scope, weighting, eligible-observation counts, resource versions, and coverage."
+    )
+
+    document.add_heading(f"{section_number}. Methods and Reproducibility", level=1)
+    section_number += 1
+    _add_metadata_table(
+        document,
+        (
+            ("Text ID", text_id),
+            ("Result / text-version ID", result_id),
+            ("Source-text SHA-256", source_sha256),
+            ("Report mode", export_mode),
+            ("Selected report section", visible_section),
+        ),
+    )
+    for paragraph_text in methods_reproducibility:
+        if _clean(paragraph_text):
+            document.add_paragraph(_clean(paragraph_text))
+    if resources:
+        document.add_heading("Validated resources", level=2)
+        for resource in resources:
+            document.add_paragraph(_clean(resource), style="List Bullet")
+
+    document.add_heading(f"{section_number}. Interpretive Synthesis", level=1)
+    section_number += 1
+    for label in (
+        "Primary observations",
+        "Patterns that support the research question",
+        "Counterevidence, ambiguity, and surprises",
+        "Close-reading passages to revisit",
+    ):
+        paragraph = document.add_paragraph()
+        run = paragraph.add_run(f"{label}: ")
+        run.bold = True
+        paragraph.add_run("[Enter analyst synthesis]")
+
+    document.add_heading(f"{section_number}. Companion Audit Files", level=1)
+    csv_names = [name for name in export_files if name.lower().endswith(".csv")]
+    _add_companion_table(document, csv_names)
+    if excluded_inventory:
+        document.add_heading("High-volume evidence retained outside the report", level=2)
+        _add_report_table(
+            document,
+            ("File", "Rows", "Purpose"),
+            excluded_inventory,
+        )
+    document.add_paragraph(
+        "Retain this Word report with its CSV files, manifests, file inventory, and reproducibility README. The DOCX is designed for reading; the audit bundle remains the authoritative machine-readable record."
+    )
+
+    output = io.BytesIO()
+    document.save(output)
+    return _normalize_docx(output.getvalue())
 
 
 def build_narrative_report(
