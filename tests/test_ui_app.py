@@ -4,6 +4,7 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 import versevad.application as application_services
+from versevad.analysis_profiles import ProfileSelection
 from versevad.comparison import PoemComparisonSet
 from versevad.corpus import CorpusAnalysisConfiguration, analyze_corpus
 from versevad.db.repository import CorpusTextImport, ProjectRepository
@@ -11,9 +12,11 @@ from versevad.preprocessing import SpacyEnglishPreprocessor
 from versevad.research_library import ResearchLibraryRepository
 from versevad.ui.navigation import ROUTES
 from versevad.ui.profile_management import custom_profile_label
+from versevad.ui.profile_tables import selected_profile_metrics
 from versevad.ui.profiles import load_custom_profiles, save_custom_profile
 from versevad.ui.preferences import AppearanceMode, load_preferences
 from versevad.ui.inherited_form import render_inherited_form
+from versevad.ui.vad_overview import preferred_overview_vad_lexicon_id
 
 
 APP_PATH = Path(__file__).parents[1] / "src" / "versevad" / "ui" / "app.py"
@@ -1460,8 +1463,30 @@ def test_lexical_trajectory_source_change_retains_affective_report_section() -> 
     app.run(timeout=60)
 
     assert any(
-        caption.value == "NRC VAD Lexicon v2.1"
+        caption.value.startswith("NRC VAD Lexicon v2.1 · Stopword-excluded")
         for caption in app.caption
+    )
+    default_vad_rows = selected_profile_metrics(
+        app.session_state["workspace"],
+        ProfileSelection(),
+        module_ids=("vad",),
+    )
+    preferred_source = preferred_overview_vad_lexicon_id(
+        row.source_id for row in default_vad_rows
+    )
+    expected_values = {
+        row.metric_id: row.value
+        for row in default_vad_rows
+        if row.source_id == preferred_source
+    }
+    expected_summary = (
+        f"V {expected_values['valence_mean']:.3f} · "
+        f"A {expected_values['arousal_mean']:.3f} · "
+        f"D {expected_values['dominance_mean']:.3f}"
+    )
+    assert any(
+        block.value == expected_summary
+        for block in app.markdown
     )
     assert _button(app, "Resolve Pronunciation").disabled
 

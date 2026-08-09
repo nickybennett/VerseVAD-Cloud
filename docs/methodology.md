@@ -56,6 +56,10 @@ completed result. The ordinary initial display is
 `STOPWORD_EXCLUDED × TOKEN`. Selected scopes and weightings generate a
 cross-product; they do not mutate the evidence.
 
+Compact orientation cards use `STOPWORD_EXCLUDED × TOKEN` even when several
+profiles are enabled. This stabilizes headline displays while the accompanying
+tables retain and explicitly label the full selected profile cross-product.
+
 Scope-relative coverage is:
 
 `token coverage = matched eligible token positions / eligible token positions`

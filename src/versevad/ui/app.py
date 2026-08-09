@@ -213,7 +213,7 @@ from versevad.poetry_id import (
 from versevad.ui.poetry_id import render_poetry_id
 from versevad.ui.inherited_form import render_inherited_form
 from versevad.ui.interactive_annotation import render_interactive_annotation
-from versevad.analysis_profiles import LexicalScope
+from versevad.analysis_profiles import LexicalScope, ProfileSelection
 from versevad.ui.profile_controls import render_report_profile_controls
 from versevad.ui.profile_tables import (
     primary_profile_metric,
@@ -3196,44 +3196,64 @@ if workspace_page in {"Single Poem", "Other Text"}:
         affective_summary, lexical_summary, sound_summary, structure_summary = (
             st.columns(4)
         )
-        overview_vad_rows = tuple(
-            row
-            for row in vad_views(workspace)
-            if row.analysis_view == "All matched tokens"
+        # Compact orientation cards use VerseVAD's documented default lexical
+        # profile. Detailed tables retain every user-selected combination.
+        prominent_profile_selection = ProfileSelection()
+        prominent_profile_label = prominent_profile_selection.profiles[0].label
+        overview_vad_rows = selected_profile_metrics(
+            workspace,
+            prominent_profile_selection,
+            module_ids=("vad",),
         )
         primary_vad_lexicon_id = preferred_overview_vad_lexicon_id(
-            row.lexicon_id for row in overview_vad_rows
+            row.source_id for row in overview_vad_rows
         )
-        primary_vad = next(
-            (
-                row
-                for row in overview_vad_rows
-                if row.lexicon_id == primary_vad_lexicon_id
-            ),
+        primary_vad_rows = tuple(
+            row
+            for row in overview_vad_rows
+            if row.source_id == primary_vad_lexicon_id
+        )
+        primary_vad_values = {
+            row.metric_id: row.value for row in primary_vad_rows
+        }
+        primary_vad_source = next(
+            (row.source_label for row in primary_vad_rows),
             None,
+        )
+        default_poetry_id_assignments = (
+            tuple(
+                row
+                for row in workspace.poetry_id.assignments
+                if row.analysis_view == "stopwords_excluded"
+                and row.weighting_mode == "token"
+            )
+            if workspace.poetry_id is not None
+            else ()
+        )
+        primary_poetry_id_source = preferred_overview_vad_lexicon_id(
+            row.source_lexicon_id for row in default_poetry_id_assignments
         )
         primary_poetry_id = (
             next(
                 (
                     row
-                    for row in workspace.poetry_id.assignments
-                    if row.analysis_view == "all_matched"
-                    and row.weighting_mode == "token"
+                    for row in default_poetry_id_assignments
+                    if row.source_lexicon_id == primary_poetry_id_source
                 ),
                 None,
             )
-            if workspace.poetry_id is not None
+            if default_poetry_id_assignments
             else None
         )
         with affective_summary:
             st.markdown("#### Affective Evidence")
-            if primary_vad is not None:
+            if primary_vad_rows:
                 st.write(
-                    f"V {_decimal(primary_vad.normalized_valence)} · "
-                    f"A {_decimal(primary_vad.normalized_arousal)} · "
-                    f"D {_decimal(primary_vad.normalized_dominance)}"
+                    f"V {_decimal(primary_vad_values.get('valence_mean'))} · "
+                    f"A {_decimal(primary_vad_values.get('arousal_mean'))} · "
+                    f"D {_decimal(primary_vad_values.get('dominance_mean'))}"
                 )
-                st.caption(primary_vad.lexicon)
+                st.caption(f"{primary_vad_source} · {prominent_profile_label}")
             else:
                 st.write("Not selected")
             if primary_poetry_id is not None:
@@ -3248,29 +3268,60 @@ if workspace_page in {"Single Poem", "Other Text"}:
             st.caption("Open Affective Evidence for sources, weighting, and details.")
         with lexical_summary:
             st.markdown("#### Lexical Character, Imagery & Embodiment")
+            prominent_concreteness = primary_profile_metric(
+                workspace,
+                prominent_profile_selection,
+                module_id="concreteness",
+                metric_id="concreteness_mean",
+            )
+            prominent_frequency = primary_profile_metric(
+                workspace,
+                prominent_profile_selection,
+                module_id="frequency",
+                metric_id="frequency_mean",
+            )
+            prominent_aoa = primary_profile_metric(
+                workspace,
+                prominent_profile_selection,
+                module_id="aoa",
+                metric_id="aoa_mean",
+            )
+            prominent_sensorimotor = primary_profile_metric(
+                workspace,
+                prominent_profile_selection,
+                module_id="sensorimotor",
+                metric_id="minkowski3_sensorimotor_strength",
+            )
             if workspace.concreteness is not None:
                 st.write(
                     "Concreteness: "
-                    f"{_decimal(workspace.concreteness.summary.statistics.mean)}"
+                    f"{_decimal(
+                        prominent_concreteness.value
+                        if prominent_concreteness
+                        else None
+                    )}"
                 )
             if workspace.frequency is not None:
                 st.write(
-                    "Median Zipf: "
-                    f"{_decimal(workspace.frequency.summary.statistics.median)}"
+                    "Mean Zipf: "
+                    f"{_decimal(
+                        prominent_frequency.value if prominent_frequency else None
+                    )}"
                 )
             if workspace.aoa is not None:
                 st.write(
                     "Mean AoA: "
-                    f"{_decimal(workspace.aoa.summary.statistics.mean)} years"
+                    f"{_decimal(prominent_aoa.value if prominent_aoa else None)} "
+                    "years"
                 )
             if workspace.sensorimotor is not None:
-                sensorimotor_profile = workspace.sensorimotor.profile(
-                    "All matched tokens",
-                    "token",
-                )
                 st.write(
                     "Sensorimotor strength: "
-                    f"{_decimal(sensorimotor_profile.overall_sensorimotor_strength.mean)}"
+                    f"{_decimal(
+                        prominent_sensorimotor.value
+                        if prominent_sensorimotor
+                        else None
+                    )}"
                 )
             if all(
                 result is None
@@ -3282,6 +3333,8 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
             ):
                 st.write("Not selected")
+            else:
+                st.caption(f"Default lexical profile · {prominent_profile_label}")
             st.caption(
                 "Open Lexical Character, Imagery & Embodiment for distributions, "
                 "trajectories, and coverage."

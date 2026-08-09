@@ -12,6 +12,7 @@ from versevad.analysis_profiles import (
     AggregationWeighting,
     LexicalScope,
     ProfileSelection,
+    display_profile_order,
 )
 from versevad.poetry_id import ARCHETYPES, PoetryIDAnalysisResult, VadLevel
 from versevad.ui.design import (
@@ -214,7 +215,7 @@ def render_poetry_id(
     }
     requested = tuple(
         (view_id[profile.scope], weighting_id[profile.weighting])
-        for profile in selected_profiles.profiles
+        for profile in display_profile_order(selected_profiles)
     )
     selected_assignments = [
         next(

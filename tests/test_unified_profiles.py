@@ -9,6 +9,9 @@ from versevad.analysis_profiles import (
     AggregationWeighting,
     AnalysisProfile,
     LexicalScope,
+    ProfileSelection,
+    display_profile_order,
+    primary_display_profile,
 )
 from versevad.exports.reproducibility import (
     build_file_inventory,
@@ -67,6 +70,31 @@ def test_six_profiles_are_derived_from_retained_evidence(preprocessor) -> None:
     assert stopword_profile.statistics.count == 3
     assert stopword_profile.coverage.excluded_stopword_count == 1
     assert stopword_profile.coverage.unmatched_token_count == 0
+
+
+def test_compact_displays_prefer_stopword_excluded_token_weighting() -> None:
+    selection = ProfileSelection(
+        scopes=(LexicalScope.ALL_LEXICAL, LexicalScope.STOPWORD_EXCLUDED),
+        weightings=(AggregationWeighting.TOKEN, AggregationWeighting.TYPE),
+    )
+
+    primary = primary_display_profile(selection)
+
+    assert primary == AnalysisProfile(
+        LexicalScope.STOPWORD_EXCLUDED,
+        AggregationWeighting.TOKEN,
+    )
+    assert display_profile_order(selection)[0] == primary
+    assert set(display_profile_order(selection)) == set(selection.profiles)
+
+
+def test_compact_displays_use_selected_profile_when_default_is_absent() -> None:
+    selection = ProfileSelection(
+        scopes=(LexicalScope.CONTENT_WORDS,),
+        weightings=(AggregationWeighting.TYPE,),
+    )
+
+    assert primary_display_profile(selection) == selection.profiles[0]
 
 
 def test_phrase_is_preserved_and_counted_as_one_occurrence(preprocessor) -> None:

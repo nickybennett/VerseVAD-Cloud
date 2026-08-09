@@ -7,7 +7,11 @@ from typing import Iterable
 import pandas as pd
 import streamlit as st
 
-from versevad.analysis_profiles import ProfileSelection
+from versevad.analysis_profiles import (
+    ProfileSelection,
+    display_profile_order,
+    primary_display_profile,
+)
 from versevad.application import WorkspaceAnalysis
 from versevad.ui.design import render_dataframe
 from versevad.workspace_profiles import workspace_profile_metrics
@@ -20,12 +24,16 @@ def selected_profile_metrics(
     module_ids: Iterable[str] = (),
 ):
     allowed = frozenset(module_ids)
-    profiles = frozenset(selection.profiles)
-    return tuple(
+    ordered_profiles = display_profile_order(selection)
+    profile_rank = {
+        profile: index for index, profile in enumerate(ordered_profiles)
+    }
+    rows = tuple(
         row
         for row in workspace_profile_metrics(workspace)
-        if row.profile in profiles and (not allowed or row.module_id in allowed)
+        if row.profile in profile_rank and (not allowed or row.module_id in allowed)
     )
+    return tuple(sorted(rows, key=lambda row: profile_rank[row.profile]))
 
 
 def primary_profile_metric(
@@ -37,6 +45,7 @@ def primary_profile_metric(
 ):
     """Return the first currently selected row for a dashboard detail."""
 
+    primary = primary_display_profile(selection)
     rows = selected_profile_metrics(
         workspace,
         selection,
@@ -46,7 +55,8 @@ def primary_profile_metric(
         (
             row
             for row in rows
-            if metric_id is None or row.metric_id == metric_id
+            if row.profile == primary
+            and (metric_id is None or row.metric_id == metric_id)
         ),
         None,
     )

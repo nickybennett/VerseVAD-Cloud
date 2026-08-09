@@ -13,6 +13,7 @@ from versevad.analysis_profiles import (
     AnalysisProfile,
     LexicalScope,
     ProfileSelection,
+    display_profile_order,
     phrase_adjusted_eligible_ids,
     scoped_token_ids,
 )
@@ -89,7 +90,7 @@ def select_detail_profile(
     *,
     key: str,
 ) -> AnalysisProfile:
-    profiles = selection.profiles
+    profiles = display_profile_order(selection)
     if len(profiles) == 1:
         return profiles[0]
     labels = {profile.label: profile for profile in profiles}

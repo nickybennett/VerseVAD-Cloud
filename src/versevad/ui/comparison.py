@@ -87,7 +87,11 @@ from versevad.ui.profiles import (
     snapshot_profile_settings,
 )
 from versevad.ui.stopwords import render_stopword_settings
-from versevad.analysis_profiles import LexicalScope
+from versevad.analysis_profiles import (
+    LexicalScope,
+    display_profile_order,
+    primary_display_profile,
+)
 from versevad.ui.profile_controls import render_report_profile_controls
 from versevad.ui.vad_overview import (
     overview_metric_matches_vad_preference,
@@ -1884,7 +1888,7 @@ def _render_comparison_set_results(
         "word_length.",
         "poetry_id.",
     )
-    for index, profile in enumerate(profile_state.selection.profiles):
+    for index, profile in enumerate(display_profile_order(profile_state.selection)):
         profile_view = view_ids[profile.scope]
         profile_weighting = profile.weighting.value.casefold()
         profile_frame = _comparison_set_frame(
@@ -1908,7 +1912,7 @@ def _render_comparison_set_results(
         if frames
         else pd.DataFrame()
     )
-    primary_profile = profile_state.selection.profiles[0]
+    primary_profile = primary_display_profile(profile_state.selection)
     analysis_view = view_ids[primary_profile.scope]
     weighting = primary_profile.weighting.value.casefold()
     poem_labels = _comparison_set_labels(comparison_set)

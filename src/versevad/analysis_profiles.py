@@ -107,6 +107,29 @@ class ProfileSelection:
         )
 
 
+def primary_display_profile(selection: ProfileSelection) -> AnalysisProfile:
+    """Choose the profile used by compact cards when several are visible.
+
+    VerseVAD's ordinary public-facing profile is stopword-excluded and
+    token-weighted. Compact cards prefer that profile whenever it is among the
+    selected combinations; if it is not selected, they use the first canonical
+    selected profile instead. Full tables continue to retain every selection.
+    """
+
+    profiles = selection.profiles
+    default_profile = AnalysisProfile(DEFAULT_SCOPES[0], DEFAULT_WEIGHTINGS[0])
+    return default_profile if default_profile in profiles else profiles[0]
+
+
+def display_profile_order(
+    selection: ProfileSelection,
+) -> tuple[AnalysisProfile, ...]:
+    """Return every selected profile with the compact-card profile first."""
+
+    primary = primary_display_profile(selection)
+    return (primary, *(profile for profile in selection.profiles if profile != primary))
+
+
 @dataclass(frozen=True)
 class ProfileCoverage:
     """Explicit scope-relative denominators and exclusion counts."""
@@ -272,8 +295,10 @@ __all__ = [
     "canonical_weightings",
     "coerce_scope",
     "coerce_weighting",
+    "display_profile_order",
     "phrase_adjusted_eligible_ids",
     "phrase_is_in_scope",
+    "primary_display_profile",
     "scope_definitions",
     "scoped_token_ids",
     "token_is_in_scope",

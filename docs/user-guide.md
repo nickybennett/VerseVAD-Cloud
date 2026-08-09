@@ -91,6 +91,11 @@ one or more scopes and one or both weightings. VerseVAD displays their
 cross-product, up to all six combinations. The interface prevents an empty
 scope or weighting selection.
 
+Compact orientation displays, including **Report at a Glance**, always use the
+ordinary **Stopword-excluded · Token-weighted** profile so their headline values
+remain stable and directly comparable. Detailed result tables show every
+enabled scope/weighting combination and label each row's profile explicitly.
+
 ### Fixed analytical profiles
 
 Some methods require a fixed input definition and therefore do not change with
