@@ -897,6 +897,25 @@ def restore_library_revision(
     return workspace
 
 
+def open_library_revision(
+    item: LibraryItem,
+    revision: LibraryRevision,
+) -> None:
+    """Restore a saved revision and open its owning analytical workspace.
+
+    ``restore_library_revision`` retains a pending-route fallback so restored
+    state survives runtimes that defer navigation until the following rerun.
+    The explicit switch here is the ordinary user-facing path: opening a
+    Single Poem, comparison, lexicon lookup, or VerseMap result should not
+    leave the user in the Analysis Library after restoration succeeds.
+    """
+
+    workspace = restore_library_revision(item, revision)
+    from versevad.ui.navigation import switch_to_workspace
+
+    switch_to_workspace(workspace)
+
+
 def _current_notes(
     context: ActiveResearchContext,
 ) -> tuple[ResearchNote, ...]:
@@ -1361,10 +1380,7 @@ def render_analysis_library_workspace() -> None:
 
         def _open_selected_revision() -> None:
             try:
-                restore_library_revision(selected_item, selected_revision)
-                from versevad.ui.navigation import switch_to_workspace
-
-                switch_to_workspace(selected_item.workspace_id)
+                open_library_revision(selected_item, selected_revision)
             except ResearchLibraryError as error:
                 st.error(str(error))
 
@@ -1502,6 +1518,7 @@ __all__ = [
     "render_historical_analysis_notice",
     "render_research_notes_sidebar",
     "release_active_context",
+    "open_library_revision",
     "research_repository",
     "restore_library_revision",
     "save_active_context",
