@@ -1,9 +1,32 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 import versevad.ui.navigation as navigation
 import versevad.ui.research as research
+
+
+def test_registered_workspace_switch_does_not_call_rerun(monkeypatch) -> None:
+    state = {
+        "_pending_workspace_switch": "Single Poem",
+        "_versevad_workspace_pages": {"Single Poem": "single-poem-page"},
+    }
+    switched: list[object] = []
+    fake_streamlit = SimpleNamespace(
+        session_state=state,
+        switch_page=switched.append,
+        rerun=lambda: pytest.fail(
+            "A registered page switch must not call st.rerun()."
+        ),
+    )
+    monkeypatch.setattr(navigation, "st", fake_streamlit)
+
+    navigation.switch_to_workspace("Single Poem")
+
+    assert switched == ["single-poem-page"]
+    assert "_pending_workspace_switch" not in state
 
 
 @pytest.mark.parametrize(
