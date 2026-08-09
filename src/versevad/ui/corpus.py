@@ -817,6 +817,10 @@ def _render_texts_tab(repository: ProjectRepository, project_id: str) -> None:
         help="The browser passes these files only to the VerseVAD process on this computer.",
         key=f"corpus_folder_{project_id}",
     )
+    st.markdown(
+        '<div aria-hidden="true" style="height:0.4rem"></div>',
+        unsafe_allow_html=True,
+    )
     if st.button(
         "Import selected folder",
         type="primary",
@@ -836,6 +840,10 @@ def _render_texts_tab(repository: ProjectRepository, project_id: str) -> None:
         except (TextImportError, ValueError) as error:
             st.error(str(error))
 
+    st.markdown(
+        '<div aria-hidden="true" style="height:0.4rem"></div>',
+        unsafe_allow_html=True,
+    )
     texts = repository.list_texts(project_id)
     if not texts:
         st.info("No works have been imported into this project yet.")
