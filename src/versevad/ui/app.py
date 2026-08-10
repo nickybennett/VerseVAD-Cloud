@@ -3193,7 +3193,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
 
     with poetry_id_tab:
-        render_poetry_id(workspace.poetry_id, profile_state.selection)
+        render_poetry_id(
+            workspace.poetry_id,
+            profile_state.selection,
+            active_source_analysis_ids=(
+                result.analysis_id for result in workspace.results
+            ),
+            key_prefix=f"{report_state_key}_poetry_id",
+        )
 
     with inherited_form_tab:
         st.caption(fixed_profile_notice("inherited_form"))

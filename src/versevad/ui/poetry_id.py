@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 import altair as alt
 import pandas as pd
@@ -42,7 +42,7 @@ def _unique(values: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
-def _clear_invalid_widget_value(key: str, options: list[str]) -> None:
+def _clear_invalid_widget_value(key: str, options: Sequence[object]) -> None:
     if st.session_state.get(key) not in options:
         st.session_state.pop(key, None)
 
@@ -155,6 +155,9 @@ def _render_vad_scale(result: PoetryIDAnalysisResult, assignment) -> None:
 def render_poetry_id(
     result: PoetryIDAnalysisResult | None,
     selection: ProfileSelection | None = None,
+    *,
+    active_source_analysis_ids: Iterable[str] | None = None,
+    key_prefix: str = "poetry_id",
 ) -> None:
     st.subheader("PoetryID")
     st.write(
@@ -178,31 +181,6 @@ def render_poetry_id(
         )
         return
 
-    source_ids = _unique(
-        item.source_analysis_id for item in result.assignments
-    )
-    source_labels = {
-        item.source_analysis_id: item.source_lexicon_name
-        for item in result.assignments
-    }
-    _clear_invalid_widget_value("poetry_id_source", source_ids)
-    selected_source = st.selectbox(
-        "PoetryID VAD source",
-        options=source_ids,
-        format_func=lambda value: source_labels[value],
-        key="poetry_id_source",
-        disabled=len(source_ids) == 1,
-        help=(
-            "Each source-specific normalized VAD result remains separate; "
-            "PoetryID does not create a consensus score."
-        ),
-    )
-
-    source_assignments = [
-        item
-        for item in result.assignments
-        if item.source_analysis_id == selected_source
-    ]
     selected_profiles = selection or ProfileSelection()
     view_id = {
         LexicalScope.ALL_LEXICAL: "all_matched",
@@ -217,59 +195,82 @@ def render_poetry_id(
         (view_id[profile.scope], weighting_id[profile.weighting])
         for profile in display_profile_order(selected_profiles)
     )
-    selected_assignments = [
-        next(
-            (
-                item
-                for item in source_assignments
-                if item.analysis_view == view
-                and item.weighting_mode == weighting
-            ),
-            None,
-        )
-        for view, weighting in requested
+    requested_set = frozenset(requested)
+    active_source_ids = (
+        None
+        if active_source_analysis_ids is None
+        else frozenset(active_source_analysis_ids)
+    )
+    eligible_assignments = [
+        item
+        for item in result.assignments
+        if (active_source_ids is None or item.source_analysis_id in active_source_ids)
+        and (item.analysis_view, item.weighting_mode) in requested_set
     ]
-    selected_assignments = [item for item in selected_assignments if item is not None]
-    if not selected_assignments:
-        st.info("No PoetryID result is available for the selected report profiles.")
+    if not eligible_assignments:
+        st.info(
+            "No PoetryID result is available for the active VAD sources and "
+            "selected report profiles."
+        )
         return
-    assignment = selected_assignments[0]
-    if len(selected_assignments) > 1:
-        render_dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "Profile": (
-                            f"{_ANALYSIS_VIEW_LABELS[item.analysis_view]} Â· "
-                            f"{_WEIGHTING_LABELS[item.weighting_mode]}"
-                        ),
-                        "Category Fit": item.categorical_archetype.name,
-                        "Nearest Centroid": item.nearest_centroid_archetype.name,
-                        "Valence": item.vad.valence,
-                        "Arousal": item.vad.arousal,
-                        "Dominance": item.vad.dominance,
-                        "Token Coverage": item.coverage.token_coverage,
-                        "Type Coverage": item.coverage.type_coverage,
-                    }
-                    for item in selected_assignments
-                ]
-            ).style.format(
-                {
-                    "Valence": "{:.3f}",
-                    "Arousal": "{:.3f}",
-                    "Dominance": "{:.3f}",
-                    "Token Coverage": "{:.1%}",
-                    "Type Coverage": "{:.1%}",
-                },
-                na_rep="â€”",
-            ),
-            hide_index=True,
-            width="stretch",
+
+    source_ids = _unique(
+        item.source_analysis_id for item in eligible_assignments
+    )
+    source_labels = {
+        item.source_analysis_id: item.source_lexicon_name
+        for item in eligible_assignments
+    }
+    source_key = f"{key_prefix}_source"
+    _clear_invalid_widget_value(source_key, source_ids)
+    selected_source = st.selectbox(
+        "PoetryID VAD source",
+        options=source_ids,
+        format_func=lambda value: source_labels[value],
+        key=source_key,
+        disabled=len(source_ids) == 1,
+        help=(
+            "Only VAD lexicons active in this completed analysis are listed. "
+            "Each source-specific result remains separate; PoetryID does not "
+            "create a consensus score."
+        ),
+    )
+
+    source_assignments = [
+        item
+        for item in eligible_assignments
+        if item.source_analysis_id == selected_source
+    ]
+    available_profiles = [
+        profile
+        for profile in requested
+        if any(
+            item.analysis_view == profile[0]
+            and item.weighting_mode == profile[1]
+            for item in source_assignments
         )
-        st.caption(
-            "The detailed archetype evidence below uses the first selected "
-            "profile; the table above preserves every selected profile."
-        )
+    ]
+    profile_key = f"{key_prefix}_profile"
+    _clear_invalid_widget_value(profile_key, available_profiles)
+    selected_profile = st.selectbox(
+        "PoetryID scope and weighting",
+        options=available_profiles,
+        format_func=lambda value: (
+            f"{_ANALYSIS_VIEW_LABELS[value[0]]} · "
+            f"{_WEIGHTING_LABELS[value[1]]}"
+        ),
+        key=profile_key,
+        disabled=len(available_profiles) == 1,
+        help=(
+            "Choose among the lexical scopes and aggregation weightings "
+            "currently enabled in the report controls."
+        ),
+    )
+    assignment = next(
+        item
+        for item in source_assignments
+        if (item.analysis_view, item.weighting_mode) == selected_profile
+    )
 
     st.markdown(
         "### Category Fit Archetype: "

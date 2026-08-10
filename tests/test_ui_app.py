@@ -1568,6 +1568,10 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     )
     selectors = {field.label: field for field in app.selectbox}
     assert "PoetryID VAD source" in selectors
+    assert "PoetryID scope and weighting" in selectors
+    assert selectors["PoetryID scope and weighting"].options == [
+        "Stopwords excluded · Token-weighted"
+    ]
     profile_controls = {field.label: field for field in app.multiselect}
     assert profile_controls["Lexical scope"].options == [
         "All lexical tokens",
