@@ -1513,25 +1513,6 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 for lexicon_id in selected_lexicons
                 if lexicon_id in SUPPORTED_VAD_LEXICON_IDS
             ]
-            if "poetry_id_sources" not in st.session_state:
-                st.session_state["poetry_id_sources"] = list(
-                    available_poetry_id_sources
-                )
-            else:
-                current_poetry_id_sources = st.session_state[
-                    "poetry_id_sources"
-                ]
-                if not isinstance(current_poetry_id_sources, (list, tuple)):
-                    current_poetry_id_sources = []
-                valid_poetry_id_sources = [
-                    source
-                    for source in current_poetry_id_sources
-                    if source in available_poetry_id_sources
-                ]
-                if valid_poetry_id_sources != list(current_poetry_id_sources):
-                    st.session_state["poetry_id_sources"] = (
-                        valid_poetry_id_sources
-                    )
             if not available_poetry_id_sources:
                 st.session_state["include_poetry_id"] = False
             include_poetry_id = st.checkbox(
@@ -1549,17 +1530,17 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     "Select Warriner VAD, NRC VAD v1, or NRC VAD v2.1 to enable "
                     "PoetryID."
                 )
-            poetry_id_sources = st.multiselect(
-                "PoetryID VAD sources",
-                options=available_poetry_id_sources,
-                format_func=lambda lexicon_id: spec_by_id[lexicon_id].display_name,
-                disabled=not include_poetry_id,
-                key="poetry_id_sources",
-                help=(
-                    "Every source remains a separate result. PoetryID never creates "
-                    "a consensus VAD score."
-                ),
-            )
+            poetry_id_sources = tuple(available_poetry_id_sources)
+            if include_poetry_id and poetry_id_sources:
+                st.caption(
+                    "PoetryID retains every active VAD source as a separate "
+                    "result: "
+                    + ", ".join(
+                        spec_by_id[lexicon_id].display_name
+                        for lexicon_id in poetry_id_sources
+                    )
+                    + "."
+                )
             # PoetryID retains all compatible evidence. The global report
             # controls select which scope/weighting perspectives are shown.
             poetry_id_weightings = ("token", "type")
@@ -3196,9 +3177,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
         render_poetry_id(
             workspace.poetry_id,
             profile_state.selection,
-            active_source_analysis_ids=(
-                result.analysis_id for result in workspace.results
-            ),
+            active_vad_sources={
+                result.analysis_id: (
+                    result.lexicon_metadata.lexicon_id,
+                    result.lexicon_metadata.display_name,
+                )
+                for result in workspace.results
+                if result.vad_summary is not None
+            },
             key_prefix=f"{report_state_key}_poetry_id",
         )
 

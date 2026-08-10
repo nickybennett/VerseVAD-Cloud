@@ -1543,14 +1543,8 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     )
     title.input("PoetryID interface validation")
     app.text_area[0].input("joy love peace light happy calm strong")
-    app.multiselect[0].set_value(["nrc_vad_v1"])
+    app.multiselect[0].set_value(["warriner_vad_2013", "nrc_vad_v1"])
     app.run(timeout=60)
-    poetry_id_sources = next(
-        field
-        for field in app.multiselect
-        if field.label == "PoetryID VAD sources"
-    )
-    assert poetry_id_sources.value == ["nrc_vad_v1"]
     poetry_id = next(
         field
         for field in app.checkbox
@@ -1568,6 +1562,15 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     )
     selectors = {field.label: field for field in app.selectbox}
     assert "PoetryID VAD source" in selectors
+    assert len(selectors["PoetryID VAD source"].options) == 2
+    assert any(
+        "Warriner" in option
+        for option in selectors["PoetryID VAD source"].options
+    )
+    assert any(
+        "NRC VAD" in option
+        for option in selectors["PoetryID VAD source"].options
+    )
     assert "PoetryID scope and weighting" in selectors
     assert selectors["PoetryID scope and weighting"].options == [
         "Stopwords excluded · Token-weighted"

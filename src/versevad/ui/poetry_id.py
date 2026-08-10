@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 import altair as alt
 import pandas as pd
@@ -156,7 +156,7 @@ def render_poetry_id(
     result: PoetryIDAnalysisResult | None,
     selection: ProfileSelection | None = None,
     *,
-    active_source_analysis_ids: Iterable[str] | None = None,
+    active_vad_sources: Mapping[str, tuple[str, str]] | None = None,
     key_prefix: str = "poetry_id",
 ) -> None:
     st.subheader("PoetryID")
@@ -171,10 +171,9 @@ def render_poetry_id(
             "the text."
         )
         return
-    if result.unavailable:
+    if not result.assignments and not active_vad_sources:
         for item in result.unavailable:
             st.warning(item.message)
-    if not result.assignments:
         st.info(
             "No PoetryID assignment is available. Review the selected VAD "
             "source, evidence minimums, and coverage."
@@ -197,9 +196,7 @@ def render_poetry_id(
     )
     requested_set = frozenset(requested)
     active_source_ids = (
-        None
-        if active_source_analysis_ids is None
-        else frozenset(active_source_analysis_ids)
+        None if active_vad_sources is None else frozenset(active_vad_sources)
     )
     eligible_assignments = [
         item
@@ -207,20 +204,29 @@ def render_poetry_id(
         if (active_source_ids is None or item.source_analysis_id in active_source_ids)
         and (item.analysis_view, item.weighting_mode) in requested_set
     ]
-    if not eligible_assignments:
+    if not eligible_assignments and active_vad_sources is None:
         st.info(
             "No PoetryID result is available for the active VAD sources and "
             "selected report profiles."
         )
         return
 
-    source_ids = _unique(
-        item.source_analysis_id for item in eligible_assignments
+    source_ids = (
+        list(active_vad_sources)
+        if active_vad_sources is not None
+        else _unique(item.source_analysis_id for item in eligible_assignments)
     )
-    source_labels = {
-        item.source_analysis_id: item.source_lexicon_name
-        for item in eligible_assignments
-    }
+    source_labels = (
+        {
+            analysis_id: source_details[1]
+            for analysis_id, source_details in active_vad_sources.items()
+        }
+        if active_vad_sources is not None
+        else {
+            item.source_analysis_id: item.source_lexicon_name
+            for item in eligible_assignments
+        }
+    )
     source_key = f"{key_prefix}_source"
     _clear_invalid_widget_value(source_key, source_ids)
     selected_source = st.selectbox(
@@ -241,15 +247,7 @@ def render_poetry_id(
         for item in eligible_assignments
         if item.source_analysis_id == selected_source
     ]
-    available_profiles = [
-        profile
-        for profile in requested
-        if any(
-            item.analysis_view == profile[0]
-            and item.weighting_mode == profile[1]
-            for item in source_assignments
-        )
-    ]
+    available_profiles = list(requested)
     profile_key = f"{key_prefix}_profile"
     _clear_invalid_widget_value(profile_key, available_profiles)
     selected_profile = st.selectbox(
@@ -267,10 +265,36 @@ def render_poetry_id(
         ),
     )
     assignment = next(
-        item
-        for item in source_assignments
-        if (item.analysis_view, item.weighting_mode) == selected_profile
+        (
+            item
+            for item in source_assignments
+            if (item.analysis_view, item.weighting_mode) == selected_profile
+        ),
+        None,
     )
+    if assignment is None:
+        selected_lexicon_id = (
+            active_vad_sources[selected_source][0]
+            if active_vad_sources is not None
+            else ""
+        )
+        unavailable = next(
+            (
+                item
+                for item in result.unavailable
+                if item.source_lexicon_id == selected_lexicon_id
+                and (item.analysis_view, item.weighting_mode) == selected_profile
+            ),
+            None,
+        )
+        if unavailable is not None:
+            st.warning(unavailable.message)
+        else:
+            st.warning(
+                "This active VAD source was not retained in the current "
+                "PoetryID result. Reanalyze once to add it."
+            )
+        return
 
     st.markdown(
         "### Category Fit Archetype: "
