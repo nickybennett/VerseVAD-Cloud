@@ -57,6 +57,11 @@ def render_sensorimotor(
         "beneath Report Section."
     )
     profile = result.profile(analysis_view, weighting)
+    per_100_label = (
+        "Load per 100 matched tokens"
+        if weighting == "token"
+        else "Load per 100 matched types"
+    )
 
     cards = st.columns(5)
     cards[0].metric(
@@ -130,7 +135,7 @@ def render_sensorimotor(
                 "Mean": row.statistics.mean,
                 "Population SD": row.statistics.population_standard_deviation,
                 "Cumulative load": row.cumulative_load,
-                "Load per 100 observations": row.load_per_100_observations,
+                per_100_label: row.load_per_100_observations,
                 "Definition": DIMENSION_BY_ID[row.dimension_id].definition,
             }
             for row in profile.dimensions
@@ -156,7 +161,7 @@ def render_sensorimotor(
                 alt.Tooltip("Mean:Q", format=".3f"),
                 alt.Tooltip("Population SD:Q", format=".3f"),
                 alt.Tooltip("Cumulative load:Q", format=".3f"),
-                alt.Tooltip("Load per 100 observations:Q", format=".3f"),
+                alt.Tooltip(f"{per_100_label}:Q", format=".3f"),
                 alt.Tooltip("Definition:N"),
             ],
         )
@@ -172,12 +177,13 @@ def render_sensorimotor(
             "Mean": st.column_config.NumberColumn(format="%.3f"),
             "Population SD": st.column_config.NumberColumn(format="%.3f"),
             "Cumulative load": st.column_config.NumberColumn(format="%.3f"),
-            "Load per 100 observations": st.column_config.NumberColumn(format="%.3f"),
+            per_100_label: st.column_config.NumberColumn(format="%.3f"),
         },
     )
     st.caption(
-        "Cumulative load is length- and repetition-sensitive in the token view. "
-        "The per-100 value normalizes that sum for poem-length comparison. "
+        "Token weighting counts every matched occurrence, so repetition contributes; "
+        "type weighting counts each distinct matched resource entry once. The per-100 "
+        "value uses the matched token or matched type denominator named in the table. "
         "Population SD describes dispersion across matched source means."
     )
 

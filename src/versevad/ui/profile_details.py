@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
+import pandas as pd
 import streamlit as st
 
 from versevad.analysis.statistics import descriptive_statistics
@@ -18,8 +19,14 @@ from versevad.analysis_profiles import (
     scoped_token_ids,
 )
 from versevad.application import WorkspaceAnalysis
-from versevad.models import DescriptiveStatistics, TokenRecord
+from versevad.models import (
+    DescriptiveStatistics,
+    MatchSelection,
+    Phase2AnalysisResult,
+    TokenRecord,
+)
 from versevad.ui.profile_tables import primary_profile_metric
+from versevad.ui.design import render_dataframe
 from versevad.workspace_profiles import WorkspaceProfileMetric
 
 
@@ -66,6 +73,68 @@ class ContinuousProfileDetail:
         ):
             return None
         return self.statistics.third_quartile - self.statistics.first_quartile
+
+
+def representative_contributors(
+    detail: ContinuousProfileDetail,
+    *,
+    limit: int = 3,
+) -> tuple[tuple[dict[str, object], ...], tuple[dict[str, object], ...]]:
+    """Return deduplicated low/high lexical examples for the active profile."""
+
+    grouped: dict[str, list[ProfileAuditObservation]] = {}
+    for observation in detail.observations:
+        identity = (observation.surface_form or observation.source_term).casefold()
+        grouped.setdefault(identity, []).append(observation)
+    records = []
+    for observations in grouped.values():
+        first = min(observations, key=lambda item: (item.line_number, item.stanza_number))
+        records.append(
+            {
+                "Word / expression": first.surface_form or first.source_term,
+                "Source entry": first.source_term,
+                "Value": observations[0].value,
+                "Occurrences": len(observations),
+                "First line": first.line_number,
+            }
+        )
+    ordered = sorted(
+        records,
+        key=lambda item: (float(item["Value"]), int(item["First line"])),
+    )
+    return tuple(ordered[:limit]), tuple(reversed(ordered[-limit:]))
+
+
+def render_representative_contributors(
+    detail: ContinuousProfileDetail | None,
+    *,
+    low_label: str,
+    high_label: str,
+    limit: int = 3,
+) -> None:
+    """Render a compact, profile-aligned evidence sample for close reading."""
+
+    if detail is None or not detail.observations:
+        return
+    lowest, highest = representative_contributors(detail, limit=limit)
+    st.markdown("**Representative lexical evidence**")
+    columns = st.columns(2)
+    for container, label, records in (
+        (columns[0], low_label, lowest),
+        (columns[1], high_label, highest),
+    ):
+        with container:
+            st.caption(label)
+            render_dataframe(
+                pd.DataFrame(records),
+                hide_index=True,
+                width="stretch",
+            )
+    st.caption(
+        f"Examples use **{detail.profile.label}**. Surface forms are deduplicated "
+        "for display; Occurrences shows retained repetition. The complete audit "
+        "preserves every contributing observation."
+    )
 
 
 def _workspace_tokens(workspace: WorkspaceAnalysis) -> tuple[TokenRecord, ...]:
@@ -263,10 +332,154 @@ def continuous_profile_detail(
     )
 
 
+def affect_continuous_profile_detail(
+    workspace: WorkspaceAnalysis,
+    result: Phase2AnalysisResult,
+    *,
+    profile: AnalysisProfile,
+    module_id: str,
+    metric_id: str,
+    value_getter: Callable[[object], float | None],
+    type_identity_suffix: str = "",
+) -> ContinuousProfileDetail | None:
+    """Reconstruct source-specific continuous affect evidence for one profile."""
+
+    selection = ProfileSelection(
+        scopes=(profile.scope,),
+        weightings=(profile.weighting,),
+    )
+    metric = primary_profile_metric(
+        workspace,
+        selection,
+        module_id=module_id,
+        metric_id=metric_id,
+        source_id=result.lexicon_metadata.lexicon_id,
+    )
+    if metric is None:
+        return None
+    tokens = tuple(result.tokens)
+    token_map = {token.token_id: token for token in tokens}
+    candidates: list[ProfileAuditObservation] = []
+    for match in result.matches:
+        if (
+            match.selection is not MatchSelection.INCLUDED
+            or not match.included
+        ):
+            continue
+        value = value_getter(match)
+        if value is None:
+            continue
+        match_tokens = tuple(
+            token_map[token_id]
+            for token_id in match.token_ids
+            if token_id in token_map
+        )
+        if not match_tokens:
+            continue
+        surface = " ".join(token.surface_form for token in match_tokens)
+        identity = (
+            match.matched_lookup_form
+            or match.matched_term
+            or match.match_id
+        ).casefold()
+        if type_identity_suffix:
+            identity = f"{identity}:{type_identity_suffix.casefold()}"
+        first_token = min(match_tokens, key=lambda token: token.token_position)
+        candidates.append(
+            ProfileAuditObservation(
+                token_ids=tuple(match.token_ids),
+                value=float(value),
+                type_identity=identity,
+                source_term=str(match.matched_term or match.matched_lookup_form or surface),
+                surface_form=surface,
+                line_number=match.line_number,
+                stanza_number=match.stanza_number,
+                part_of_speech=first_token.part_of_speech or "Unknown",
+                source_row=match,
+            )
+        )
+    base_eligible = scoped_token_ids(
+        tokens,
+        profile.scope,
+        active_stopwords=_active_stopwords(workspace),
+    )
+    eligible = phrase_adjusted_eligible_ids(
+        base_eligible,
+        (item.token_ids for item in candidates if len(item.token_ids) > 1),
+    )
+    observations = tuple(
+        item
+        for item in candidates
+        if set(item.token_ids).intersection(eligible)
+        and (len(item.token_ids) == 1 or set(item.token_ids).issubset(eligible))
+    )
+    if profile.weighting is AggregationWeighting.TYPE:
+        by_type: dict[str, ProfileAuditObservation] = {}
+        for observation in observations:
+            by_type.setdefault(observation.type_identity, observation)
+        observations = tuple(by_type.values())
+    return ContinuousProfileDetail(
+        profile=profile,
+        metric=metric,
+        observations=observations,
+        statistics=descriptive_statistics(item.value for item in observations),
+        line_summaries=_group_details(observations, "line_number"),
+        stanza_summaries=_group_details(observations, "stanza_number"),
+        part_of_speech_summaries=_group_details(observations, "part_of_speech"),
+    )
+
+
+def categorical_affect_contributors(
+    workspace: WorkspaceAnalysis,
+    result: Phase2AnalysisResult,
+    *,
+    profile: AnalysisProfile,
+    category: str,
+    limit: int = 3,
+) -> tuple[dict[str, object], ...]:
+    """Return deterministic binary association contributors without fake strength."""
+
+    detail = affect_continuous_profile_detail(
+        workspace,
+        result,
+        profile=profile,
+        module_id="emotion_association",
+        metric_id=f"{category}_association",
+        value_getter=lambda match: (
+            1.0 if category in getattr(match, "associations", ()) else None
+        ),
+        type_identity_suffix=category,
+    )
+    if detail is None:
+        return ()
+    grouped: dict[str, list[ProfileAuditObservation]] = {}
+    for observation in detail.observations:
+        grouped.setdefault(observation.type_identity, []).append(observation)
+    records = []
+    for observations in grouped.values():
+        first = min(observations, key=lambda item: (item.line_number, item.stanza_number))
+        records.append(
+            {
+                "Word / expression": first.surface_form or first.source_term,
+                "Occurrences": len(observations),
+                "First line": first.line_number,
+            }
+        )
+    if profile.weighting is AggregationWeighting.TOKEN:
+        records.sort(key=lambda item: (-int(item["Occurrences"]), int(item["First line"]), str(item["Word / expression"]).casefold()))
+    else:
+        records.sort(key=lambda item: (int(item["First line"]), str(item["Word / expression"]).casefold()))
+    return tuple(records[:limit])
+
+
 __all__ = [
+    "affect_continuous_profile_detail",
+    "categorical_affect_contributors",
     "ContinuousProfileDetail",
     "ProfileAuditObservation",
     "ProfileGroupDetail",
     "continuous_profile_detail",
+    "render_representative_contributors",
+    "representative_contributors",
     "select_detail_profile",
 ]

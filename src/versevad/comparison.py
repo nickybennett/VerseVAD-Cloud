@@ -11,6 +11,7 @@ from numbers import Real
 from typing import TYPE_CHECKING, Iterable, Sequence
 
 from versevad.stopwords import build_stopword_policy
+from versevad.metric_capabilities import metric_capabilities
 
 if TYPE_CHECKING:
     from versevad.application import WorkspaceAnalysis
@@ -318,8 +319,9 @@ def _vad_rows(
         )
         summaries_a = vad_profile_summaries(first)
         summaries_b = vad_profile_summaries(second)
-        denominator_a = f"{len(matches_a)} matched {weighting}-weighted observations"
-        denominator_b = f"{len(matches_b)} matched {weighting}-weighted observations"
+        denominator_kind = "tokens" if weighting == "token" else "types"
+        denominator_a = f"{len(matches_a)} matched {denominator_kind}"
+        denominator_b = f"{len(matches_b)} matched {denominator_kind}"
         for dimension in ("valence", "arousal", "dominance"):
             summary_a = summaries_a[dimension][profile]
             summary_b = summaries_b[dimension][profile]
@@ -385,43 +387,41 @@ def _vad_rows(
             cumulative_a = _cumulative_values(values_a)
             cumulative_b = _cumulative_values(values_b)
             for key, label in (
-                ("rating_total", "Rating total"),
                 ("above_midpoint", "Above-midpoint load"),
                 ("below_midpoint", "Below-midpoint load"),
                 ("net_midpoint", "Net midpoint load"),
                 ("absolute_midpoint", "Absolute midpoint load"),
-                ("rating_total_per_100", "Rating total per 100 observations"),
                 (
                     "above_midpoint_per_observation",
-                    "Above-midpoint deviation per matched observation",
+                    f"Above-midpoint deviation per matched {denominator_kind[:-1]}",
                 ),
                 (
                     "below_midpoint_per_observation",
-                    "Below-midpoint deviation per matched observation",
+                    f"Below-midpoint deviation per matched {denominator_kind[:-1]}",
                 ),
                 (
                     "net_midpoint_per_observation",
-                    "Net midpoint deviation per matched observation",
+                    f"Net midpoint deviation per matched {denominator_kind[:-1]}",
                 ),
                 (
                     "absolute_midpoint_per_observation",
-                    "Absolute midpoint deviation per matched observation",
+                    f"Absolute midpoint deviation per matched {denominator_kind[:-1]}",
                 ),
                 (
                     "above_midpoint_per_100",
-                    "Above-midpoint deviation per 100 matched observations",
+                    f"Above-midpoint deviation per 100 matched {denominator_kind}",
                 ),
                 (
                     "below_midpoint_per_100",
-                    "Below-midpoint deviation per 100 matched observations",
+                    f"Below-midpoint deviation per 100 matched {denominator_kind}",
                 ),
                 (
                     "net_midpoint_per_100",
-                    "Net midpoint deviation per 100 matched observations",
+                    f"Net midpoint deviation per 100 matched {denominator_kind}",
                 ),
                 (
                     "absolute_midpoint_per_100",
-                    "Absolute midpoint deviation per 100 matched observations",
+                    f"Absolute midpoint deviation per 100 matched {denominator_kind}",
                 ),
                 (
                     "average_deviation_from_poem_mean",
@@ -441,14 +441,14 @@ def _vad_rows(
                         unit_or_scale=(
                             "mean absolute deviation on derived normalized 0-1 scale"
                             if "poem_mean" in key
-                            else "deviation points per 100 matched observations"
+                            else f"deviation points per 100 matched {denominator_kind}"
                             if key.endswith("per_100")
                             and "midpoint" in key
                             else (
                                     "mean deviation per matched observation"
                                 if key.endswith("per_observation")
                                 else (
-                                    "summed normalized ratings per 100 observations"
+                                    f"summed normalized ratings per 100 matched {denominator_kind}"
                                     if key.endswith("per_100")
                                     else "summed normalized ratings"
                                 )
@@ -460,14 +460,14 @@ def _vad_rows(
                         coverage_b=coverage_b,
                         note=(
                             (
-                                "Length-normalized dispersion around each poem's "
+                                "Length-neutral dispersion around each poem's "
                                 "own lexical mean; token or line order is not retained."
                             )
                             if "poem_mean" in key
                             else (
                                 "Raw loads retain length and repetition in the token "
                                 "view; per-observation and per-100 deviations support "
-                                "length-normalized comparison."
+                                "comparison across differently sized poems."
                             )
                         ),
                     )
@@ -541,8 +541,8 @@ def _descriptive_rows(
 ) -> list[PoemComparisonRow]:
     mean_a = statistics.fmean(values_a) if values_a else None
     mean_b = statistics.fmean(values_b) if values_b else None
-    sd_a = statistics.pstdev(values_a) if values_a else None
-    sd_b = statistics.pstdev(values_b) if values_b else None
+    sd_a = statistics.pstdev(values_a) if len(values_a) > 1 else None
+    sd_b = statistics.pstdev(values_b) if len(values_b) > 1 else None
     sum_a = sum(values_a) if values_a else None
     sum_b = sum(values_b) if values_b else None
     denominator_a = f"{len(values_a)} matched {weighting}-weighted observations"
@@ -1365,8 +1365,8 @@ def _stopword_excluded_emotion_rows(
             values_b = retained_values(retained_b)
             mean_a = statistics.fmean(values_a) if values_a else None
             mean_b = statistics.fmean(values_b) if values_b else None
-            sd_a = statistics.pstdev(values_a) if values_a else None
-            sd_b = statistics.pstdev(values_b) if values_b else None
+            sd_a = statistics.pstdev(values_a) if len(values_a) > 1 else None
+            sd_b = statistics.pstdev(values_b) if len(values_b) > 1 else None
             pair_denominator_a = f"{len(values_a)} matched pairs"
             pair_denominator_b = f"{len(values_b)} matched pairs"
             rows.extend(
@@ -1644,9 +1644,9 @@ def _canonical_profile_rows(
                     unit_or_scale=row_a.unit,
                 )
             )
-        if (
-            row_a.module_id != "emotion_association"
-            and (row_a.cumulative_value is not None or row_b.cumulative_value is not None)
+        capabilities = metric_capabilities(row_a.module_id)
+        if capabilities.supports_raw_accumulation and (
+            row_a.cumulative_value is not None or row_b.cumulative_value is not None
         ):
             output.append(
                 _row(
@@ -1654,7 +1654,11 @@ def _canonical_profile_rows(
                     metric_id=(
                         f"{module_prefix}.{row_a.source_id}.{metric_base}.cumulative"
                     ),
-                    metric=f"{row_a.metric_label} cumulative lexical load",
+                    metric=(
+                        f"{row_a.metric_label} cumulative emotion intensity load"
+                        if row_a.module_id == "emotion_intensity"
+                        else f"{row_a.metric_label} method-defined cumulative load"
+                    ),
                     value_a=row_a.cumulative_value,
                     value_b=row_b.cumulative_value,
                     unit_or_scale=f"summed {row_a.unit}",
@@ -1785,11 +1789,11 @@ def comparison_set_rows(
         numeric_sd = (
             statistics.pstdev(numeric_values)
             if len(numeric_values) > 1
-            else (0.0 if numeric_values else None)
+            else None
         )
         numeric_range = (
             max(numeric_values) - min(numeric_values)
-            if numeric_values
+            if len(numeric_values) > 1
             else None
         )
         result.append(

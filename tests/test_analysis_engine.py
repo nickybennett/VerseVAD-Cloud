@@ -101,5 +101,5 @@ def test_one_match_is_calculated_and_flagged_sparse(preprocessor) -> None:
     stats = result.vad_summary.token_weighted_original.valence
     assert stats.count == 1
     assert stats.mean == 3.0
-    assert stats.population_standard_deviation == 0.0
+    assert stats.population_standard_deviation is None
     assert result.vad_summary.is_sparse

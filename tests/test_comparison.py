@@ -159,7 +159,7 @@ def test_comparison_reports_like_for_like_means_dispersion_and_loads(
 
     mean = by_id[f"{prefix}.mean"]
     dispersion = by_id[f"{prefix}.population_sd"]
-    cumulative = by_id[f"{prefix}.rating_total"]
+    cumulative = by_id[f"{prefix}.above_midpoint"]
     normalized = by_id[f"{prefix}.absolute_midpoint_per_observation"]
     normalized_per_100 = by_id[f"{prefix}.absolute_midpoint_per_100"]
     mean_centered = by_id[f"{prefix}.average_deviation_from_poem_mean"]
@@ -172,13 +172,14 @@ def test_comparison_reports_like_for_like_means_dispersion_and_loads(
     assert dispersion.value_a is not None
     assert dispersion.note.startswith("Within-poem lexical dispersion")
     assert cumulative.value_a is not None
-    assert cumulative.denominator_a.endswith("token-weighted observations")
+    assert cumulative.denominator_a.endswith("matched tokens")
     assert normalized.value_a is not None
     assert normalized_per_100.value_a == pytest.approx(
         float(normalized.value_a) * 100
     )
     assert mean_centered.value_a is not None
     assert "own lexical mean" in mean_centered.note
+    assert f"{prefix}.rating_total" not in by_id
 
 
 def test_comparison_type_view_changes_repetition_sensitive_denominator(
@@ -406,12 +407,12 @@ def test_comparison_metric_families_separate_means_loads_and_dispersion() -> Non
         "vad.source.valence.net_midpoint",
         "Valence — Net midpoint load",
         "VAD Profile",
-    ) == "Cumulative Lexical Load"
+    ) == "Cumulative Midpoint Loads"
     assert _comparison_metric_family(
         "vad.source.valence.absolute_midpoint_per_observation",
         "Valence — Absolute midpoint deviation per matched observation",
         "VAD Profile",
-    ) == "Length-Normalized Midpoint Deviation"
+    ) == "Midpoint Deviation per Matched Token/Type"
     assert _comparison_metric_family(
         "vad.source.valence.average_deviation_from_poem_mean",
         "Valence — Average deviation from poem mean",
@@ -428,9 +429,9 @@ def test_reader_facing_family_order_places_means_before_loads_and_dispersion() -
         {
             "Metric Family": [
             "Within-Poem Dispersion",
-            "Length-Normalized Midpoint Deviation",
+            "Midpoint Deviation per Matched Token/Type",
             "Mean-Centered Lexical Volatility",
-            "Cumulative Lexical Load",
+            "Cumulative Midpoint Loads",
             "VAD Means",
             ]
         }
@@ -438,8 +439,8 @@ def test_reader_facing_family_order_places_means_before_loads_and_dispersion() -
 
     assert _ordered_metric_families(rows, "VAD Profile") == (
         "VAD Means",
-        "Cumulative Lexical Load",
-        "Length-Normalized Midpoint Deviation",
+        "Cumulative Midpoint Loads",
+        "Midpoint Deviation per Matched Token/Type",
         "Mean-Centered Lexical Volatility",
         "Within-Poem Dispersion",
     )

@@ -15,6 +15,7 @@ from versevad.analysis_profiles import (
 )
 from versevad.application import WorkspaceAnalysis
 from versevad.models import MatchSelection, Phase2AnalysisResult, TokenRecord
+from versevad.metric_capabilities import metric_capabilities
 from versevad.profile_aggregation import (
     ScalarEvidence,
     ScalarProfileSummary,
@@ -24,7 +25,7 @@ from versevad.profile_aggregation import (
 )
 
 
-WORKSPACE_PROFILE_ROWS_VERSION = "workspace-profile-rows-v2"
+WORKSPACE_PROFILE_ROWS_VERSION = "workspace-profile-rows-v3"
 _PROFILE_CACHE: OrderedDict[tuple[str, ...], tuple["WorkspaceProfileMetric", ...]] = OrderedDict()
 _PROFILE_CACHE_LOCK = RLock()
 _PROFILE_CACHE_LIMIT = 16
@@ -85,6 +86,7 @@ def _rows_from_summaries(
     unit: str,
     include_normalized_midpoint_loads: bool = False,
 ) -> tuple[WorkspaceProfileMetric, ...]:
+    capabilities = metric_capabilities(module_id)
     return tuple(
         WorkspaceProfileMetric(
             module_id=module_id,
@@ -97,13 +99,31 @@ def _rows_from_summaries(
             median=summary.statistics.median,
             population_standard_deviation=(
                 summary.statistics.population_standard_deviation
+                if capabilities.supports_dispersion
+                else None
             ),
-            first_quartile=summary.statistics.first_quartile,
-            third_quartile=summary.statistics.third_quartile,
+            first_quartile=(
+                summary.statistics.first_quartile
+                if capabilities.supports_dispersion
+                else None
+            ),
+            third_quartile=(
+                summary.statistics.third_quartile
+                if capabilities.supports_dispersion
+                else None
+            ),
             minimum=summary.statistics.minimum,
             maximum=summary.statistics.maximum,
-            cumulative_value=summary.cumulative_value,
-            value_per_100_observations=summary.value_per_100_observations,
+            cumulative_value=(
+                summary.cumulative_value
+                if capabilities.supports_raw_accumulation
+                else None
+            ),
+            value_per_100_observations=(
+                summary.value_per_100_observations
+                if capabilities.supports_normalized_accumulation
+                else None
+            ),
             above_midpoint_load=(
                 summary.above_midpoint_load
                 if include_normalized_midpoint_loads
@@ -213,14 +233,8 @@ def _affect_category_rows(
                     third_quartile=None,
                     minimum=None,
                     maximum=None,
-                    cumulative_value=float(summary.statistics.count),
-                    value_per_100_observations=(
-                        float(summary.statistics.count)
-                        / summary.coverage.eligible_token_count
-                        * 100
-                        if summary.coverage.eligible_token_count
-                        else None
-                    ),
+                    cumulative_value=None,
+                    value_per_100_observations=None,
                     above_midpoint_load=None,
                     below_midpoint_load=None,
                     net_midpoint_load=None,

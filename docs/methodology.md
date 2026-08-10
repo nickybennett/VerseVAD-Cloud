@@ -541,6 +541,12 @@ distributions, and frequent contributing terms. A source term present in the
 word-level lexicon but carrying no positive category association can count as a
 lexicon match for coverage but not as an emotion-bearing token.
 
+Because these source values are binary memberships rather than continuous
+ratings, VerseVAD does not report an association mean, median, standard
+deviation, IQR, or cumulative association load. The valid reader-facing
+statistics are counts, proportions, coverage, distributions, and representative
+matched terms.
+
 ## Emotion intensity summaries
 
 Prevalence and intensity answer different questions and remain separate:
@@ -558,6 +564,13 @@ more than once. The token-weighted intensity mean repeats those occurrences;
 the type-weighted mean uses each matched entry-category pair once. Prevalence is
 the category's matched occurrences divided by all lexical tokens or by tokens
 matched anywhere in the intensity lexicon, as labeled.
+
+Emotion intensity is continuous. When at least two included observations are
+available, VerseVAD may therefore report dispersion as well as central
+tendency. **Cumulative Emotion Intensity Load** is the untransformed sum of the
+included source intensity scores. It is length- and repetition-sensitive in the
+token-weighted view; VerseVAD does not invent a midpoint-centered or otherwise
+normalized intensity load.
 
 ## Sensorimotor imagery and embodiment
 
@@ -617,10 +630,9 @@ phrase-specific rating methodology.
 
 ## Cumulative VAD totals
 
-For every VAD dimension, VerseVAD separately reports these length-sensitive
-token totals on the derived 0-1 display scale:
+For every VAD dimension, VerseVAD separately reports these interpretable
+midpoint-relative totals on the derived 0-1 display scale:
 
-- rating total: `sum(x)`;
 - above-midpoint load: `sum(max(x - 0.5, 0))`;
 - below-midpoint load: `sum(max(0.5 - x, 0))`;
 - net midpoint load: above minus below, equivalent to `sum(x - 0.5)`;
@@ -632,12 +644,19 @@ matched observation under the declared phrase policy. Unmatched tokens are
 absent and never receive zero or 0.5. These statistics are called cumulative
 normative lexical load because they grow with encountered matched vocabulary.
 They are not a direct measure of cognitive load or affective impact on a reader.
+The raw sum `sum(x)` remains an internal audit field where required for backward
+compatibility, but it is not a reader-facing result because it conflates text
+length with the arbitrary lower bound of the normalized scale. VerseVAD also
+does not create generic cumulative loads for AoA, Zipf frequency,
+concreteness, or word length; their means, medians, distributions, and coverage
+are the interpretable summaries.
 
 For comparisons between differently sized poems, VerseVAD also divides the
 above-, below-, net-, and absolute-midpoint totals by the number of included
-matched observations. The **per matched observation** value is the resulting
-rate. **Per 100 matches** is that same rate multiplied by 100; it is a more
-readable display scale, not a different statistic. These normalized values are
+matched token occurrences in token weighting or included matched lexical types
+in type weighting. The **per matched token/type** value is the resulting rate.
+**Per 100 matched tokens/types** is that same rate multiplied by 100; it is a
+more readable display scale, not a different statistic. These values are
 comparable only when lexicon, token scope, weighting, phrase policy, and other
 analysis settings are held constant.
 
@@ -664,6 +683,12 @@ Both measures are available in token-weighted and type-weighted form. The
 token-weighted view retains repeated matched occurrences; the type-weighted
 view gives each distinct matched lexicon entry one observation. The selected
 weighting must be held constant when poems are compared.
+
+With no included observations, central tendency and dispersion are unavailable.
+With exactly one observation, mean, median, minimum, and maximum remain valid,
+but population SD, quartiles, IQR, and MAD are reported as unavailable rather
+than as a misleading zero. Dispersion is reported only when at least two
+observations are available.
 
 ## Corpus weighting and long works
 
@@ -798,8 +823,9 @@ retained only in the long-form audit export for reproducibility, not promoted
 in the normal report.
 
 The dashboard imposes a presentation order without changing calculations:
-headline means or composite scores, cumulative lexical loads, then within-poem
-dispersion. PoetryID is narrowed to the selected lexical scope and weighting,
+headline means or composite scores, method-defined cumulative or
+midpoint-relative loads where valid, then within-poem dispersion. PoetryID is
+narrowed to the selected lexical scope and weighting,
 then to one identified VAD source, and displays category fit before nearest
 centroid. All alternate source/view/weighting rows remain auditable in export.
 

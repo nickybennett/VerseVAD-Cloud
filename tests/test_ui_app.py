@@ -76,6 +76,19 @@ def _section_navigation(app: AppTest, label: str):
     )
 
 
+def test_single_poem_survives_lexicon_explorer_round_trip() -> None:
+    app = AppTest.from_file(str(APP_PATH), default_timeout=60).run()
+    assert not app.exception
+    app.session_state["poem_text"] = "A poem retained across navigation."
+
+    _open_workspace(app, "Lexicon Explorer")
+    assert not app.exception
+    _open_workspace(app, "Single Poem")
+
+    assert not app.exception
+    assert app.session_state["poem_text"] == "A poem retained across navigation."
+
+
 def test_every_registered_workspace_opens_without_an_exception(
     tmp_path,
     monkeypatch,
@@ -1440,8 +1453,8 @@ def test_interface_analyzes_pasted_poem_and_builds_readable_views() -> None:
         "Download current-view bundle",
     }
     assert any(
-        "REPRODUCIBILITY_README.txt" in message.value
-        and "FILE_INVENTORY.txt" in message.value
+        "reproducibility guide" in message.value
+        and "CSV file inventory" in message.value
         for message in app.info
     )
     profile_controls = {field.label: field for field in app.multiselect}

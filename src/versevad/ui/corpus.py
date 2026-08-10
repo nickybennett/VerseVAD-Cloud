@@ -3527,7 +3527,7 @@ def _render_analysis_tab(
     st.subheader("Cumulative and Length-Normalized Load by Work")
     st.write(
         "Raw sums grow with included matched vocabulary and repetition. "
-        "Per-observation and per-100 rows provide length-normalized comparisons; "
+        "Per-observation and per-100 rows divide by matched tokens or types for comparable rates; "
         "none estimates a reader's psychological response."
     )
     load_rows = [row for row in metrics if row.metric in _VAD_LOAD_METRICS]

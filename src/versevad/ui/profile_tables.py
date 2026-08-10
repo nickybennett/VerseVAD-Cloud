@@ -42,6 +42,7 @@ def primary_profile_metric(
     *,
     module_id: str,
     metric_id: str | None = None,
+    source_id: str | None = None,
 ):
     """Return the first currently selected row for a dashboard detail."""
 
@@ -57,6 +58,7 @@ def primary_profile_metric(
             for row in rows
             if row.profile == primary
             and (metric_id is None or row.metric_id == metric_id)
+            and (source_id is None or row.source_id == source_id)
         ),
         None,
     )
@@ -78,11 +80,19 @@ def render_configurable_profile_table(
     if not rows:
         st.info("No compatible retained lexical evidence is available for this section.")
         return
-    frame = pd.DataFrame(
-        [
+
+    records = []
+    for row in rows:
+        per_100_unit = (
+            "per 100 matched tokens"
+            if row.profile.weighting.value == "TOKEN"
+            else "per 100 matched types"
+        )
+        records.append(
             {
                 "Source": row.source_label,
                 "Metric": row.metric_label,
+                "Module": row.module_id,
                 "Profile": row.profile.label,
                 "Primary Value": row.value,
                 "Median": row.median,
@@ -91,7 +101,7 @@ def render_configurable_profile_table(
                 "Third Quartile": row.third_quartile,
                 "Minimum": row.minimum,
                 "Maximum": row.maximum,
-                "Cumulative Lexical Load": row.cumulative_value,
+                "Cumulative Value": row.cumulative_value,
                 "Load per 100 Observations": row.value_per_100_observations,
                 "Above-Midpoint Load": row.above_midpoint_load,
                 "Below-Midpoint Load": row.below_midpoint_load,
@@ -117,9 +127,8 @@ def render_configurable_profile_table(
                     if row.absolute_midpoint_load is not None and row.observation_count
                     else None
                 ),
-                "Mean Absolute Deviation from Poem Mean": (
-                    row.average_deviation_from_mean
-                ),
+                "Per-100 Unit": per_100_unit,
+                "Mean Absolute Deviation from Poem Mean": row.average_deviation_from_mean,
                 "Observations": row.observation_count,
                 "Eligible Tokens": row.coverage.eligible_token_count,
                 "Matched Tokens": row.coverage.matched_token_count,
@@ -135,164 +144,164 @@ def render_configurable_profile_table(
                 "Type Identity": row.coverage.type_identity_rule,
                 "Unit": row.unit,
             }
-            for row in rows
-        ]
-    )
+        )
+    frame = pd.DataFrame(records)
+
     primary = frame[
-        [
-            "Source",
-            "Metric",
-            "Profile",
-            "Primary Value",
-            "Median",
-            "Observations",
-            "Unit",
-        ]
+        ["Source", "Metric", "Profile", "Primary Value", "Median", "Observations", "Unit"]
     ]
     render_dataframe(
         primary.style.format(
-            {"Primary Value": "{:.3f}", "Median": "{:.3f}"},
-            na_rep="—",
+            {"Primary Value": "{:.3f}", "Median": "{:.3f}"}, na_rep="—"
         ),
         hide_index=True,
         width="stretch",
         height=_height(len(primary)),
     )
     st.caption(
-        "Primary Value is the selected-profile mean for continuous lexical "
-        "metrics and the documented proportion for categorical association "
+        "Primary Value is the selected-profile mean for continuous lexical metrics "
+        "and the documented eligible-evidence proportion for categorical association "
         "metrics. Median is secondary and appears only where it is defined."
     )
+
+    dispersion = frame[
+        frame["Within-Text SD"].notna()
+        | frame["First Quartile"].notna()
+        | frame["Third Quartile"].notna()
+    ]
     with st.expander("Within-Text Dispersion", expanded=False):
-        dispersion = frame[
-            [
-                "Source",
-                "Metric",
-                "Profile",
-                "Within-Text SD",
-                "First Quartile",
-                "Third Quartile",
-                "Minimum",
-                "Maximum",
-                "Observations",
-                "Unit",
+        if dispersion.empty:
+            st.info(
+                "No valid continuous dispersion estimate is available. Categorical "
+                "associations do not have lexical-rating dispersion, and a single "
+                "observation is insufficient to estimate spread."
+            )
+        else:
+            columns = [
+                "Source", "Metric", "Profile", "Within-Text SD", "First Quartile",
+                "Third Quartile", "Minimum", "Maximum", "Observations", "Unit",
             ]
-        ]
-        render_dataframe(
-            dispersion.style.format(
-                {
-                    "Within-Text SD": "{:.3f}",
-                    "First Quartile": "{:.3f}",
-                    "Third Quartile": "{:.3f}",
-                    "Minimum": "{:.3f}",
-                    "Maximum": "{:.3f}",
-                },
-                na_rep="—",
-            ),
-            hide_index=True,
-            width="stretch",
-            height=_height(len(dispersion), 420),
-        )
-        st.caption(
-            "Population standard deviation describes the spread of eligible matched "
-            "values within this text and profile; it is not uncertainty in the mean."
-        )
-    with st.expander("Cumulative Lexical Load", expanded=False):
-        cumulative = frame[
-            [
-                "Source",
-                "Metric",
-                "Profile",
-                "Cumulative Lexical Load",
-                "Observations",
-                "Unit",
-            ]
-        ]
-        render_dataframe(
-            cumulative.style.format(
-                {"Cumulative Lexical Load": "{:.3f}"}, na_rep="—"
-            ),
-            hide_index=True,
-            width="stretch",
-            height=_height(len(cumulative), 420),
-        )
-        st.caption(
-            "Raw cumulative loads sum the included observations. They retain length "
-            "and, for token-weighted profiles, repetition."
-        )
-        vad_loads = frame[frame["Above-Midpoint Load"].notna()][
-            [
-                "Source",
-                "Metric",
-                "Profile",
-                "Above-Midpoint Load",
-                "Below-Midpoint Load",
-                "Net Midpoint Load",
-                "Absolute Midpoint Load",
-                "Above-Midpoint Load per 100",
-                "Below-Midpoint Load per 100",
-                "Net Midpoint Load per 100",
-                "Absolute Midpoint Load per 100",
-            ]
-        ]
-        if not vad_loads.empty:
-            st.markdown("**VAD midpoint-deviation loads**")
             render_dataframe(
-                vad_loads.style.format(precision=3, na_rep="—"),
+                dispersion[columns].style.format(
+                    {
+                        "Within-Text SD": "{:.3f}",
+                        "First Quartile": "{:.3f}",
+                        "Third Quartile": "{:.3f}",
+                        "Minimum": "{:.3f}",
+                        "Maximum": "{:.3f}",
+                    },
+                    na_rep="—",
+                ),
                 hide_index=True,
                 width="stretch",
-                height=_height(len(vad_loads), 420),
+                height=_height(len(dispersion), 420),
             )
             st.caption(
-                "Above and below loads sum distance from the normalized 0.5 "
-                "midpoint; net retains direction and absolute combines both sides."
+                "Population SD describes the spread of eligible matched continuous "
+                "values within this text and profile; it is not uncertainty in the "
+                "mean. Categorical association proportions are intentionally omitted."
             )
-    with st.expander("Mean-Centered Lexical Volatility", expanded=False):
-        volatility = frame[frame["Mean Absolute Deviation from Poem Mean"].notna()][
-            [
-                "Source",
-                "Metric",
-                "Profile",
-                "Mean Absolute Deviation from Poem Mean",
-                "Within-Text SD",
-                "Observations",
+
+    cumulative = frame[frame["Cumulative Value"].notna()]
+    vad_loads = frame[frame["Above-Midpoint Load"].notna()]
+    if not cumulative.empty or not vad_loads.empty:
+        with st.expander("Method-Defined Cumulative and Midpoint Loads", expanded=False):
+            intensity = cumulative[cumulative["Module"] == "emotion_intensity"]
+            other = cumulative[cumulative["Module"] != "emotion_intensity"]
+            if not intensity.empty:
+                st.markdown("**Cumulative Emotion Intensity Load**")
+                columns = [
+                    "Source", "Metric", "Profile", "Cumulative Value",
+                    "Observations", "Unit",
+                ]
+                render_dataframe(
+                    intensity[columns].style.format(
+                        {"Cumulative Value": "{:.3f}"}, na_rep="—"
+                    ),
+                    hide_index=True,
+                    width="stretch",
+                    height=_height(len(intensity), 420),
+                )
+                st.caption(
+                    "This raw sum accumulates supplied continuous word-emotion "
+                    "intensity ratings. It is length-sensitive, not an association "
+                    "count or a newly invented normalized density."
+                )
+            if not other.empty:
+                st.markdown("**Method-defined cumulative loads**")
+                columns = [
+                    "Source", "Metric", "Profile", "Cumulative Value",
+                    "Load per 100 Observations", "Per-100 Unit", "Observations", "Unit",
+                ]
+                render_dataframe(
+                    other[columns].style.format(
+                        {
+                            "Cumulative Value": "{:.3f}",
+                            "Load per 100 Observations": "{:.3f}",
+                        },
+                        na_rep="—",
+                    ),
+                    hide_index=True,
+                    width="stretch",
+                    height=_height(len(other), 420),
+                )
+                st.caption(
+                    "Only modules with an explicit documented accumulation model "
+                    "appear here. Token weighting retains repetition; type weighting "
+                    "includes each distinct matched lexical type once."
+                )
+            if not vad_loads.empty:
+                st.markdown("**VAD midpoint-deviation loads**")
+                columns = [
+                    "Source", "Metric", "Profile", "Above-Midpoint Load",
+                    "Below-Midpoint Load", "Net Midpoint Load",
+                    "Absolute Midpoint Load", "Above-Midpoint Load per 100",
+                    "Below-Midpoint Load per 100", "Net Midpoint Load per 100",
+                    "Absolute Midpoint Load per 100", "Per-100 Unit",
+                ]
+                render_dataframe(
+                    vad_loads[columns].style.format(precision=3, na_rep="—"),
+                    hide_index=True,
+                    width="stretch",
+                    height=_height(len(vad_loads), 420),
+                )
+                st.caption(
+                    "Above and below loads sum distance from the normalized 0.5 "
+                    "midpoint; net retains direction and absolute combines both sides. "
+                    "Per-100 values use the matched token or type denominator named in "
+                    "the table. Raw rating totals are intentionally not reported."
+                )
+
+    volatility = frame[frame["Mean Absolute Deviation from Poem Mean"].notna()]
+    if not volatility.empty:
+        with st.expander("Mean-Centered Lexical Volatility", expanded=False):
+            columns = [
+                "Source", "Metric", "Profile",
+                "Mean Absolute Deviation from Poem Mean", "Within-Text SD", "Observations",
             ]
-        ]
-        render_dataframe(
-            volatility.style.format(precision=3, na_rep="—"),
-            hide_index=True,
-            width="stretch",
-            height=_height(len(volatility), 420),
-        )
-        st.caption(
-            "Mean absolute deviation is the average absolute distance from this "
-            "text's own mean. Population SD is the root-mean-square distance and "
-            "therefore gives more influence to large departures."
-        )
+            render_dataframe(
+                volatility[columns].style.format(precision=3, na_rep="—"),
+                hide_index=True,
+                width="stretch",
+                height=_height(len(volatility), 420),
+            )
+            st.caption(
+                "Mean absolute deviation is the average absolute distance from this "
+                "text's own mean. Population SD squares departures and therefore gives "
+                "more influence to large departures."
+            )
+
     with st.expander("Coverage, Exclusions, and Denominators", expanded=False):
-        coverage = frame[
-            [
-                "Source",
-                "Metric",
-                "Profile",
-                "Eligible Tokens",
-                "Matched Tokens",
-                "Unmatched Tokens",
-                "Token Coverage",
-                "Eligible Types",
-                "Matched Types",
-                "Unmatched Types",
-                "Type Coverage",
-                "Excluded Stopwords",
-                "Excluded Non-Content",
-                "Phrase Matches",
-                "Type Identity",
-            ]
+        columns = [
+            "Source", "Metric", "Profile", "Eligible Tokens", "Matched Tokens",
+            "Unmatched Tokens", "Token Coverage", "Eligible Types", "Matched Types",
+            "Unmatched Types", "Type Coverage", "Excluded Stopwords",
+            "Excluded Non-Content", "Phrase Matches", "Type Identity",
         ]
+        coverage = frame[columns]
         render_dataframe(
             coverage.style.format(
-                {"Token Coverage": "{:.1%}", "Type Coverage": "{:.1%}"},
-                na_rep="—",
+                {"Token Coverage": "{:.1%}", "Type Coverage": "{:.1%}"}, na_rep="—"
             ),
             hide_index=True,
             width="stretch",
@@ -300,7 +309,9 @@ def render_configurable_profile_table(
         )
         st.caption(
             "Excluded words are outside the selected scope and are not counted as "
-            "unmatched. Complete phrase matches remain intact."
+            "unmatched. Token weighting counts retained occurrences; type weighting "
+            "counts each distinct matched lexical identity once. Complete phrase "
+            "matches remain intact."
         )
     st.caption(
         "All rows are reconstructed from completed token and resource evidence. "

@@ -148,18 +148,23 @@ def test_frequency_only_workspace_and_full_bundle(
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         names = set(bundle.namelist())
         assert names >= {
-            "frequency_summary.csv",
-            "frequency_distribution.csv",
-            "frequency_by_structure.csv",
-            "frequency_by_pos.csv",
-            "frequency_terms.csv",
-            "frequency_token_audit.csv",
-            "frequency_report.docx",
-            "processing_source.csv",
-            "processing_tokens.csv",
-            "VerseVAD_analysis_report.docx",
+            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/summary.csv",
+            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/distribution.csv",
+            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/by_structure.csv",
+            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/by_pos.csv",
+            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/terms.csv",
+            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/token_audit.csv",
+            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/report.docx",
+            "07_PROCESSING_AUDIT/source.csv",
+            "07_PROCESSING_AUDIT/tokens.csv",
+            "00_START_HERE/VerseVAD_Analysis_Report.docx",
         }
         assert not any(name.startswith("phase2_") for name in names)
         assert not any(name.endswith((".json", ".xlsx")) for name in names)
-        assert {"REPRODUCIBILITY_README.txt", "FILE_INVENTORY.txt"} <= names
-        assert bundle.read("frequency_report.docx").startswith(b"PK")
+        assert {
+            "08_REPRODUCIBILITY/REPRODUCIBILITY_README.txt",
+            "08_REPRODUCIBILITY/FILE_INVENTORY.csv",
+        } <= names
+        assert bundle.read(
+            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/report.docx"
+        ).startswith(b"PK")

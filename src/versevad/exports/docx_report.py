@@ -41,7 +41,7 @@ class ComprehensiveReportFamily:
 COMPREHENSIVE_REPORT_FAMILIES: tuple[ComprehensiveReportFamily, ...] = (
     ComprehensiveReportFamily(
         "vad",
-        "Valence, Arousal, and Dominance",
+        "Affective Lexical Profile: Valence, Arousal, and Dominance",
         "Valence describes normative positivity or pleasantness, arousal describes "
         "activation or intensity, and dominance describes normative power or control. "
         "These are lexical tendencies in the matched evidence, not declarations of "
@@ -50,7 +50,7 @@ COMPREHENSIVE_REPORT_FAMILIES: tuple[ComprehensiveReportFamily, ...] = (
     ),
     ComprehensiveReportFamily(
         "emotion",
-        "Emotion Associations, Intensity, and Sentiment",
+        "Affective Lexical Profile: Emotion Associations, Intensity, and Sentiment",
         "Association proportions record how often eligible evidence is linked with "
         "documented emotion categories. Intensity values summarize the strength of "
         "those lexical associations when the source supplies it.",
@@ -60,27 +60,30 @@ COMPREHENSIVE_REPORT_FAMILIES: tuple[ComprehensiveReportFamily, ...] = (
         ),
     ),
     ComprehensiveReportFamily(
-        "lexical_character",
-        "Concreteness, Frequency, and Age of Acquisition",
+        "experience_imagery",
+        "Experience and Imagery: Concreteness and Sensorimotor Evidence",
         "Concreteness estimates normative sensory or experience-based grounding. "
-        "SUBTLEX Zipf values describe corpus frequency, with higher values indicating "
-        "more common words. Age of Acquisition records retrospective normative age "
-        "estimates for matched vocabulary.",
+        "Lancaster dimensions describe context-free normative associations with "
+        "perceptual modalities and bodily action effectors.",
         (
-            "Configured common/rare, concrete/abstract, and early/later bands are orientation aids, not universal linguistic boundaries.",
+            "Normative lexical affordances support interpretation but do not guarantee imagery or experience for every reader.",
         ),
     ),
     ComprehensiveReportFamily(
-        "sensorimotor",
-        "Sensorimotor Imagery and Embodiment",
-        "Lancaster dimensions describe context-free normative associations with six "
-        "perceptual modalities and five bodily action effectors. Higher strength "
-        "indicates stronger lexical association with that domain.",
-        ("The norms describe lexical affordances for interpretation, not imagery guaranteed by the text or experienced by every reader.",),
+        "lexical_accessibility",
+        "Lexical Accessibility and Style",
+        "SUBTLEX Zipf values describe corpus frequency, with higher values indicating "
+        "more common words. Age of Acquisition records retrospective normative age "
+        "estimates for matched vocabulary. VerseVAD Poetic Reading Ease estimates "
+        "surface-level linguistic accessibility without sentence length. ",
+        (
+            "Configured common/rare and early/later bands are orientation aids, not universal linguistic boundaries.",
+            "Readability scores do not measure thematic, symbolic, interpretive, or literary complexity.",
+        ),
     ),
     ComprehensiveReportFamily(
         "readability",
-        "Readability and Processing Demand",
+        "Traditional Readability and Processing Demand",
         "VerseVAD Poetic Reading Ease estimates surface-level linguistic accessibility "
         "without sentence length. Traditional readability formulas remain prose-oriented "
         "descriptive evidence and can behave unusually on poetic syntax and lineation.",
@@ -127,10 +130,10 @@ _PROFILE_FAMILY_BY_MODULE = {
     "vad": "vad",
     "emotion_association": "emotion",
     "emotion_intensity": "emotion",
-    "concreteness": "lexical_character",
-    "frequency": "lexical_character",
-    "aoa": "lexical_character",
-    "sensorimotor": "sensorimotor",
+    "concreteness": "experience_imagery",
+    "frequency": "lexical_accessibility",
+    "aoa": "lexical_accessibility",
+    "sensorimotor": "experience_imagery",
     "word_length": "structure",
 }
 
@@ -138,8 +141,8 @@ _PROFILE_FAMILY_BY_MODULE = {
 _FILE_FAMILY_HINTS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("phase2_vad", "vad_by_part", "lexical_trajectory"), "vad"),
     (("phase2_emotion", "vader_sentiment"), "emotion"),
-    (("concreteness", "frequency", "aoa"), "lexical_character"),
-    (("sensorimotor",), "sensorimotor"),
+    (("concreteness", "sensorimotor"), "experience_imagery"),
+    (("frequency", "aoa"), "lexical_accessibility"),
     (("readability",), "readability"),
     (("lexical_style",), "structure"),
     (("pronunciation", "meter", "rhyme", "phonological", "inherited_form"), "sound_form"),
@@ -920,6 +923,12 @@ def _add_all_profile_matrix(
         dict.fromkeys(_clean(row.get("profile_id", "")) for row in records)
     )
     profiles = [profile for profile in profiles if profile]
+    profile_labels = {
+        _clean(row.get("profile_id", "")): _clean(
+            row.get("profile_label", row.get("profile_id", ""))
+        )
+        for row in records
+    }
     metric_keys = list(
         dict.fromkeys(
             (
@@ -954,29 +963,40 @@ def _add_all_profile_matrix(
         )
     _add_report_table(
         document,
-        ("Source", "Metric", *(_friendly_header(profile) for profile in profiles)),
+        ("Source", "Metric", *(profile_labels.get(profile, profile) for profile in profiles)),
         rows,
         font_size=7.1,
     )
     document.add_paragraph(
-        "This matrix reports the primary mean for every compatible lexical profile. The companion profile_metrics_all_compatible.csv retains full-precision medians, quartiles, ranges, dispersion, cumulative and midpoint loads, volatility, counts, exclusions, and coverage for each cell."
+        "This matrix reports the primary value for every compatible lexical profile. "
+        "The companion profile_metrics_all_compatible.csv retains full-precision "
+        "statistics, counts, exclusions, and coverage. Statistical fields remain blank "
+        "when they do not apply; cumulative fields are populated only for metric "
+        "families with a defined additive interpretation."
     )
 
 
 def _profile_display_rows(
     records: Sequence[Mapping[str, str]],
-) -> tuple[list[tuple[str, ...]], list[tuple[str, ...]]]:
+) -> tuple[
+    list[tuple[str, ...]],
+    list[tuple[str, ...]],
+    list[tuple[str, ...]],
+]:
+    from versevad.metric_capabilities import metric_capabilities
+
     primary: list[tuple[str, ...]] = []
     distribution: list[tuple[str, ...]] = []
+    cumulative: list[tuple[str, ...]] = []
     for row in records:
         source = _clean(row.get("source", row.get("source_id", "")))
         metric = _clean(row.get("metric", row.get("metric_id", "")))
-        profile = _clean(row.get("profile_id", ""))
+        profile = _clean(row.get("profile_label", row.get("profile_id", "")))
         primary.append(
             (
                 source,
                 metric,
-                _friendly_header(profile),
+                profile,
                 _format_report_value(row.get("value", ""), "value"),
                 _format_report_value(row.get("median", ""), "median"),
                 _format_report_value(row.get("observation_count", ""), "observation_count"),
@@ -997,67 +1017,164 @@ def _profile_display_rows(
                 return first
             return f"{first} to {second}"
 
-        distribution.append(
-            (
-                metric,
-                _friendly_header(profile),
-                _format_report_value(
-                    row.get("population_standard_deviation", ""),
-                    "population_standard_deviation",
-                ),
-                display_range(q1, q3),
-                display_range(minimum, maximum),
-                _format_report_value(row.get("cumulative_value", ""), "cumulative_value"),
-                _format_report_value(
-                    row.get("value_per_100_observations", ""),
-                    "value_per_100_observations",
-                ),
-                _format_report_value(
-                    row.get("average_deviation_from_mean", ""),
-                    "average_deviation_from_mean",
-                ),
+        capability = metric_capabilities(_clean(row.get("module_id", "")))
+        try:
+            observation_count = int(float(_clean(row.get("observation_count", "0")) or 0))
+        except ValueError:
+            observation_count = 0
+        if capability.supports_dispersion and observation_count >= 2:
+            distribution.append(
+                (
+                    source,
+                    metric,
+                    profile,
+                    _format_report_value(
+                        row.get("population_standard_deviation", ""),
+                        "population_standard_deviation",
+                    ),
+                    display_range(q1, q3),
+                    display_range(minimum, maximum),
+                    _format_report_value(
+                        row.get("average_deviation_from_mean", ""),
+                        "average_deviation_from_mean",
+                    ),
+                )
             )
-        )
-    return primary, distribution
+        if capability.supports_raw_accumulation and _clean(row.get("cumulative_value", "")):
+            cumulative.append(
+                (
+                    source,
+                    metric,
+                    profile,
+                    _format_report_value(row.get("cumulative_value", ""), "cumulative_value"),
+                    _clean(row.get("unit", "")),
+                    _format_report_value(row.get("observation_count", ""), "observation_count"),
+                )
+            )
+    return primary, distribution, cumulative
 
 
 def _add_profile_family_tables(
     document: Document,
     records: Sequence[Mapping[str, str]],
 ) -> None:
-    primary, distribution = _profile_display_rows(records)
-    document.add_heading("Primary location and coverage", level=2)
+    primary, distribution, cumulative = _profile_display_rows(records)
+    document.add_heading("Primary values and coverage", level=2)
     _add_report_table(
         document,
-        ("Source", "Metric", "Profile", "Mean", "Median", "N", "Coverage", "Unit"),
+        ("Source", "Metric", "Profile", "Primary value", "Median", "N", "Coverage", "Unit"),
         primary,
         font_size=7.3,
     )
-    document.add_heading("Dispersion, range, cumulative load, and volatility", level=2)
-    _add_report_table(
-        document,
-        ("Metric", "Profile", "Population SD", "IQR", "Min to Max", "Cumulative", "Per 100", "Mean Abs. Deviation"),
-        distribution,
-        font_size=7.2,
-    )
+    if distribution:
+        document.add_heading("Within-text dispersion and volatility", level=2)
+        _add_report_table(
+            document,
+            ("Source", "Metric", "Profile", "Population SD", "IQR", "Min to Max", "Mean Abs. Deviation"),
+            distribution,
+            font_size=7.2,
+        )
+        document.add_paragraph(
+            "Dispersion is reported only for continuous evidence with at least two "
+            "contributing observations. Categorical associations and one-observation "
+            "summaries are omitted rather than presented as zero variability."
+        )
+    if cumulative:
+        has_intensity = any(
+            _clean(row.get("module_id", "")) == "emotion_intensity"
+            and _clean(row.get("cumulative_value", ""))
+            for row in records
+        )
+        document.add_heading(
+            "Cumulative Emotion Intensity Load"
+            if has_intensity
+            else "Method-defined cumulative lexical magnitude",
+            level=2,
+        )
+        _add_report_table(
+            document,
+            ("Source", "Metric", "Profile", "Cumulative value", "Source unit", "Observations"),
+            cumulative,
+            font_size=7.2,
+        )
+        document.add_paragraph(
+            "Cumulative values appear only where the metric methodology defines an "
+            "additive magnitude. VerseVAD does not construct generic AoA, Zipf, "
+            "concreteness, or word-length totals."
+        )
     if any(_clean(row.get("absolute_midpoint_load", "")) for row in records):
         document.add_heading("Midpoint-relative lexical load", level=2)
         midpoint_rows = [
             (
                 _clean(row.get("metric", row.get("metric_id", ""))),
-                _friendly_header(_clean(row.get("profile_id", ""))),
+                _clean(row.get("profile_label", row.get("profile_id", ""))),
                 _format_report_value(row.get("above_midpoint_load", ""), "above_midpoint_load"),
                 _format_report_value(row.get("below_midpoint_load", ""), "below_midpoint_load"),
                 _format_report_value(row.get("net_midpoint_load", ""), "net_midpoint_load"),
                 _format_report_value(row.get("absolute_midpoint_load", ""), "absolute_midpoint_load"),
+                _format_report_value(
+                    (
+                        float(row.get("above_midpoint_load", ""))
+                        / float(row.get("observation_count", "")) * 100
+                    )
+                    if _clean(row.get("above_midpoint_load", ""))
+                    and float(row.get("observation_count", "0") or 0) > 0
+                    else "",
+                    "above_midpoint_load_per_100",
+                ),
+                _format_report_value(
+                    (
+                        float(row.get("below_midpoint_load", ""))
+                        / float(row.get("observation_count", "")) * 100
+                    )
+                    if _clean(row.get("below_midpoint_load", ""))
+                    and float(row.get("observation_count", "0") or 0) > 0
+                    else "",
+                    "below_midpoint_load_per_100",
+                ),
+                _format_report_value(
+                    (
+                        float(row.get("net_midpoint_load", ""))
+                        / float(row.get("observation_count", "")) * 100
+                    )
+                    if _clean(row.get("net_midpoint_load", ""))
+                    and float(row.get("observation_count", "0") or 0) > 0
+                    else "",
+                    "net_midpoint_load_per_100",
+                ),
+                _format_report_value(
+                    (
+                        float(row.get("absolute_midpoint_load", ""))
+                        / float(row.get("observation_count", "")) * 100
+                    )
+                    if _clean(row.get("absolute_midpoint_load", ""))
+                    and float(row.get("observation_count", "0") or 0) > 0
+                    else "",
+                    "absolute_midpoint_load_per_100",
+                ),
+                (
+                    "per 100 matched tokens"
+                    if _clean(row.get("weighting", "")) == "TOKEN"
+                    else "per 100 matched types"
+                ),
             )
             for row in records
             if _clean(row.get("absolute_midpoint_load", ""))
         ]
         _add_report_table(
             document,
-            ("Metric", "Profile", "Above", "Below", "Net", "Absolute"),
+            (
+                "Metric", "Profile", "Above", "Below", "Net", "Absolute",
+                "Above / 100", "Below / 100", "Net / 100", "Absolute / 100",
+                "Normalized denominator",
+            ),
             midpoint_rows,
+            font_size=6.8,
+        )
+        document.add_paragraph(
+            "Raw rating totals are not reader-facing results. Midpoint-relative loads "
+            "sum distance from 0.5; normalized values use the matched-token denominator "
+            "for token weighting and matched-type denominator for type weighting."
         )
 
 
@@ -1068,7 +1185,11 @@ def _profile_dashboard_rows(
         row
         for row in records
         if _clean(row.get("profile_id", ""))
-        in {"stopword_excluded-token_weighted", "stopword_excluded_token_weighted"}
+        in {
+            "STOPWORD_EXCLUDED__TOKEN",
+            "stopword_excluded-token_weighted",
+            "stopword_excluded_token_weighted",
+        }
     ]
     source = preferred or list(records)
     rows: list[tuple[str, str, str, str]] = []
@@ -1233,7 +1354,55 @@ def build_comprehensive_analysis_report(
     else:
         document.add_paragraph("No compatible lexical-profile rows were available for the dashboard.")
 
-    document.add_heading("3. Module Reporting Status", level=1)
+    document.add_heading("3. Coverage and Evidence Quality", level=1)
+    coverage_rows: list[tuple[str, ...]] = []
+    seen_coverage: set[tuple[str, str, str]] = set()
+    for row in profile_records:
+        source = _clean(row.get("source", row.get("source_id", "")))
+        module = _friendly_header(_clean(row.get("module_id", "")))
+        profile = _clean(row.get("profile_label", row.get("profile_id", "")))
+        key = (source, module, profile)
+        if key in seen_coverage:
+            continue
+        seen_coverage.add(key)
+        weighting = _clean(row.get("weighting", ""))
+        if weighting == "TYPE":
+            eligible = row.get("eligible_type_count", "")
+            matched = row.get("matched_type_count", "")
+            coverage = row.get("type_coverage", "")
+            denominator = "eligible types"
+        else:
+            eligible = row.get("eligible_token_count", "")
+            matched = row.get("matched_token_count", "")
+            coverage = row.get("token_coverage", "")
+            denominator = "eligible tokens"
+        coverage_rows.append(
+            (
+                source,
+                module,
+                profile,
+                _format_report_value(eligible, "eligible_token_count"),
+                _format_report_value(matched, "matched_token_count"),
+                _format_report_value(coverage, "coverage"),
+                denominator,
+            )
+        )
+    if coverage_rows:
+        _add_report_table(
+            document,
+            ("Resource", "Module", "Profile", "Eligible", "Matched", "Coverage", "Denominator"),
+            coverage_rows,
+            font_size=7.2,
+        )
+    else:
+        document.add_paragraph("No profile-aware coverage records were available.")
+    document.add_paragraph(
+        "Coverage is part of the result. Token weighting uses occurrence counts; "
+        "type weighting uses distinct matched lexical identities. Unmatched evidence "
+        "remains missing rather than receiving a neutral value."
+    )
+
+    document.add_heading("4. Module Reporting Status", level=1)
     status_rows = []
     first_reported_family = True
     for family in COMPREHENSIVE_REPORT_FAMILIES:
@@ -1250,7 +1419,7 @@ def build_comprehensive_analysis_report(
         status_rows.append((family.title, status, note))
     _add_report_table(document, ("Metric family", "Status", "Reason"), status_rows)
 
-    section_number = 4
+    section_number = 5
     for family in COMPREHENSIVE_REPORT_FAMILIES:
         profile_rows = family_profiles[family.family_id]
         dataset_files = family_files[family.family_id]
@@ -1266,6 +1435,32 @@ def build_comprehensive_analysis_report(
             _add_callout(document, "Interpretive caution", caution)
         if profile_rows:
             _add_profile_family_tables(document, profile_rows)
+            if family.family_id == "vad" and len(
+                {_clean(row.get("source_id", "")) for row in profile_rows}
+            ) > 1:
+                document.add_heading("Cross-Lexicon VAD Comparison", level=2)
+                document.add_paragraph(
+                    "The resource-specific values above remain primary. This comparison "
+                    "places active VAD sources beside one another without averaging them. "
+                    "Differences can reflect norming samples, coverage, scales, and source "
+                    "vocabularies rather than disagreement about a single true score."
+                )
+                comparison_rows = [
+                    (
+                        _clean(row.get("source", row.get("source_id", ""))),
+                        _clean(row.get("metric", row.get("metric_id", ""))),
+                        _clean(row.get("profile_label", row.get("profile_id", ""))),
+                        _format_report_value(row.get("value", ""), "value"),
+                        _format_report_value(row.get("token_coverage", ""), "token_coverage"),
+                    )
+                    for row in profile_rows
+                ]
+                _add_report_table(
+                    document,
+                    ("Resource", "Dimension", "Profile", "Normalized value", "Token coverage"),
+                    comparison_rows,
+                    font_size=7.2,
+                )
         for filename in dataset_files:
             fields, records = parsed[filename]
             _add_csv_dataset(document, filename, fields, records)
@@ -1283,7 +1478,7 @@ def build_comprehensive_analysis_report(
         _add_all_profile_matrix(document, all_profile_rows)
 
     document.add_page_break()
-    document.add_heading(f"{section_number}. Coverage, Warnings, and Limitations", level=1)
+    document.add_heading(f"{section_number}. Warnings and Limitations", level=1)
     section_number += 1
     unique_warnings = [warning for warning in dict.fromkeys(_clean(item) for item in warnings) if warning]
     if unique_warnings:

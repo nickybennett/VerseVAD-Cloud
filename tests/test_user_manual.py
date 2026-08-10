@@ -74,7 +74,7 @@ def test_comprehensive_user_manual_is_current_and_structurally_sound() -> None:
             "Export Current View and Export Complete Audit",
             "Classic, Dark, Lavender, Ocean, Crimson, and Forest",
             "REPRODUCIBILITY_README.txt",
-            "FILE_INVENTORY.txt",
+            "FILE_INVENTORY.csv",
         ):
             assert required in text
 

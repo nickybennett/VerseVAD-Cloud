@@ -345,8 +345,11 @@ unavailable; they never mean neutral or zero.
   departures receive extra influence.
 - **Mean absolute deviation from the text mean:** average absolute distance
   from the text's own mean; more linear than SD.
-- **Cumulative lexical load:** sum of included values; token weighting retains
-  length and repetition.
+- **Method-defined cumulative load:** reported only for compatible continuous
+  families. VAD uses midpoint-relative loads; emotion intensity and
+  sensorimotor dimensions retain their documented source-scale sums. Generic
+  cumulative AoA, Zipf, concreteness, association, and word-length loads are
+  not reported.
 - **Midpoint-deviation load:** summed distance above or below normalized 0.5.
   Per-observation or per-100 versions support comparisons across different
   lengths.
@@ -365,8 +368,10 @@ compact option for a focused analysis.
 fixed-profile results, compatible sections, coverage, exclusions, evidence,
 and provenance retained by the run. Exporting does not rerun the analysis.
 
-Research ZIPs include clean CSV tables, narrative Word reports where available,
-`REPRODUCIBILITY_README.txt`, and `FILE_INVENTORY.txt`. CSV values retain
+Complete Audit ZIPs use numbered domain folders and include clean CSV tables,
+narrative Word reports where available,
+`08_REPRODUCIBILITY/REPRODUCIBILITY_README.txt`, and
+`08_REPRODUCIBILITY/FILE_INVENTORY.csv`. CSV values retain
 available precision even though the interface rounds most numbers to three
 decimal places. JSON is not required.
 

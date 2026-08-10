@@ -32,6 +32,18 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Unified Single Poem, Compare Poems, and Other Text reporting around a shared
+  metric-capability contract: categorical associations now expose rates rather
+  than invalid dispersion/load statistics; continuous families enforce the
+  one-observation dispersion rule; VAD uses explicit midpoint loads and matched
+  token/type denominators; and profile-aware charts and lexical contributors
+  remain synchronized with their visible scope and weighting.
+- Reorganized Complete Audit bundles into numbered analytical domains with a
+  richer metric dictionary, coverage summary, structured warnings, resource
+  provenance, reproducibility guide, and machine-readable file inventory.
+- Expanded comprehensive Word reports with evidence-quality guidance,
+  source-specific cross-lexicon comparison, canonical profile labels, and only
+  statistically meaningful central tendency, dispersion, and accumulation.
 - Corpus/research-project dashboards now apply the universal lexical scope and
   within-poem token/type weighting to both pooled-observation and equal-work VAD
   summaries, expose per-poem and whole-corpus eligible token counts by scope,

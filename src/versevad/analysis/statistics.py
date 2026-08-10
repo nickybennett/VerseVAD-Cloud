@@ -23,18 +23,23 @@ def descriptive_statistics(values: Iterable[float]) -> DescriptiveStatistics:
         )
 
     if len(observations) == 1:
-        first_quartile = observations[0]
-        third_quartile = observations[0]
+        # A single observed value supports a location statement, but it does
+        # not supply an empirical distribution.  Do not manufacture zero
+        # dispersion or zero range from an unavailable estimate.
+        first_quartile = None
+        third_quartile = None
+        population_standard_deviation = None
     else:
         quartiles = statistics.quantiles(observations, n=4, method="inclusive")
         first_quartile = quartiles[0]
         third_quartile = quartiles[2]
+        population_standard_deviation = statistics.pstdev(observations)
 
     return DescriptiveStatistics(
         count=len(observations),
         mean=statistics.fmean(observations),
         median=statistics.median(observations),
-        population_standard_deviation=statistics.pstdev(observations),
+        population_standard_deviation=population_standard_deviation,
         minimum=min(observations),
         first_quartile=first_quartile,
         third_quartile=third_quartile,

@@ -352,8 +352,11 @@ unavailable; they never mean neutral or zero.
   departures receive extra influence.
 - **Mean absolute deviation from the text mean:** average absolute distance
   from the text's own mean; more linear than SD.
-- **Cumulative lexical load:** sum of included values; token weighting retains
-  length and repetition.
+- **Method-defined cumulative load:** reported only for compatible continuous
+  families. VAD uses midpoint-relative loads; emotion intensity and
+  sensorimotor dimensions retain their documented source-scale sums. Generic
+  cumulative AoA, Zipf, concreteness, association, and word-length loads are
+  not reported.
 - **Midpoint-deviation load:** summed distance above or below normalized 0.5.
   Per-observation or per-100 versions support comparisons across different
   lengths.
@@ -373,7 +376,7 @@ fixed-profile results, compatible sections, coverage, exclusions, evidence,
 and provenance retained by the run. Exporting does not rerun the analysis.
 
 Every analytical workspace exposes a principal scan-friendly comprehensive Word
-report: `VerseVAD_analysis_report.docx` for Single Poem and Other Text,
+report: `00_START_HERE/VerseVAD_Analysis_Report.docx` for Single Poem and Other Text,
 `VerseVAD_comprehensive_comparison_report.docx` for Compare Poems, and
 `corpus_report.docx` for Saved Projects and Personal Corpus. The interface also
 offers the report as a direct DOCX download after preparation. Reports include
@@ -386,8 +389,10 @@ calculated compatible profile and identify high-volume evidence retained in the
 companion files. Report displays round suitable numeric values to three decimal
 places; this does not alter stored or exported data.
 
-Research ZIPs include clean CSV tables, comprehensive or module-specific Word reports,
-`REPRODUCIBILITY_README.txt`, and `FILE_INVENTORY.txt`. CSV values retain
+Complete Audit ZIPs use numbered domain folders and include clean CSV tables,
+comprehensive or module-specific Word reports,
+`08_REPRODUCIBILITY/REPRODUCIBILITY_README.txt`, and
+`08_REPRODUCIBILITY/FILE_INVENTORY.csv`. CSV values retain
 available precision even though the interface rounds most numbers to three
 decimal places. JSON is not required.
 

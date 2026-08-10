@@ -568,6 +568,7 @@ class LexicalTrajectoryPoint:
     lexicon_id: str
     lexicon: str
     analysis_view: str
+    weighting: str
     line_number: int
     stanza_number: int
     source_text: str
@@ -1941,8 +1942,9 @@ def lexical_trajectory_views(
     *,
     lexicon_id: str,
     analysis_view: str = "All matched tokens",
+    weighting: str = "token",
 ) -> tuple[LexicalTrajectoryPoint, ...]:
-    """Return source-specific token-weighted VAD and concreteness means by line.
+    """Return source- and profile-specific VAD/concreteness means by line.
 
     Concreteness is rescaled from its source 1-5 range to 0-1 only for the
     overlaid chart. Its source-scale mean remains alongside the normalized
@@ -1966,6 +1968,8 @@ def lexical_trajectory_views(
         "Content words only",
     }:
         raise ValueError(f"Unknown lexical-trajectory analysis view: {analysis_view}")
+    if weighting not in {"token", "type"}:
+        raise ValueError(f"Unknown lexical-trajectory weighting: {weighting}")
     from versevad.analysis_profiles import (
         LexicalScope,
         phrase_adjusted_eligible_ids,
@@ -1995,21 +1999,39 @@ def lexical_trajectory_views(
         ),
     )
     vad_by_line: dict[int, list] = {}
+    vad_types_by_line: dict[int, set[str]] = {}
     for match in result.matches:
         included = match.included and set(match.token_ids).issubset(
             eligible_token_ids
         )
         if not included or match.normalized_scores is None:
             continue
+        if weighting == "type":
+            identity = (match.matched_lookup_form or match.matched_term or match.match_id).casefold()
+            seen = vad_types_by_line.setdefault(match.line_number, set())
+            if identity in seen:
+                continue
+            seen.add(identity)
         vad_by_line.setdefault(match.line_number, []).append(match.normalized_scores)
 
     concreteness_by_line: dict[int, list[float]] = {}
+    concreteness_types_by_line: dict[int, set[str]] = {}
     if workspace.concreteness is not None:
         for row in workspace.concreteness.token_audit:
             if not row.included or row.rating is None:
                 continue
             if row.token_id not in eligible_token_ids:
                 continue
+            if weighting == "type":
+                identity = str(
+                    row.matched_lookup_form
+                    or row.matched_source_term
+                    or row.normalized_form
+                ).casefold()
+                seen = concreteness_types_by_line.setdefault(row.line_number, set())
+                if identity in seen:
+                    continue
+                seen.add(identity)
             concreteness_by_line.setdefault(row.line_number, []).append(row.rating)
 
     rows = []
@@ -2026,6 +2048,7 @@ def lexical_trajectory_views(
                 lexicon_id=lexicon_id,
                 lexicon=result.lexicon_metadata.display_name,
                 analysis_view=analysis_view,
+                weighting=weighting,
                 line_number=line.ordinal,
                 stanza_number=next(
                     (
@@ -2072,6 +2095,7 @@ def lexical_trajectory_csv(workspace: WorkspaceAnalysis) -> bytes:
         "lexicon_id",
         "lexicon",
         "analysis_view",
+        "weighting",
         "line_number",
         "stanza_number",
         "source_text",
@@ -2087,20 +2111,21 @@ def lexical_trajectory_csv(workspace: WorkspaceAnalysis) -> bytes:
     for result in workspace.results:
         if result.vad_summary is None:
             continue
-        views = ["All matched tokens"]
-        if result.stopword_coverage is not None:
-            views.append("Stopwords excluded")
+        views = ["All matched tokens", "Stopwords excluded", "Content words only"]
         for view in views:
-            for row in lexical_trajectory_views(
-                workspace,
-                lexicon_id=result.lexicon_metadata.lexicon_id,
-                analysis_view=view,
-            ):
-                rows.append(
-                    {
+            for weighting in ("token", "type"):
+                for row in lexical_trajectory_views(
+                    workspace,
+                    lexicon_id=result.lexicon_metadata.lexicon_id,
+                    analysis_view=view,
+                    weighting=weighting,
+                ):
+                    rows.append(
+                        {
                         "lexicon_id": row.lexicon_id,
                         "lexicon": row.lexicon,
                         "analysis_view": row.analysis_view,
+                        "weighting": row.weighting,
                         "line_number": row.line_number,
                         "stanza_number": row.stanza_number,
                         "source_text": row.source_text,
@@ -2133,8 +2158,8 @@ def lexical_trajectory_csv(workspace: WorkspaceAnalysis) -> bytes:
                         "concreteness_matched_tokens": (
                             row.concreteness_matched_tokens
                         ),
-                    }
-                )
+                        }
+                    )
     return _csv_bytes(fields, rows)
 
 
@@ -3413,7 +3438,7 @@ def scholar_summary_csv(workspace: WorkspaceAnalysis) -> bytes:
                         f"{dimension.label} load per 100 observations",
                         dimension.load_per_100_observations,
                         "summed ratings per 100 observations",
-                        "Length-normalized cumulative lexical load.",
+                        "Source-scale load per 100 matched observations.",
                     ),
                 ):
                     rows.append(
@@ -5127,6 +5152,7 @@ def _build_detailed_export_zip(
             rows.append(
                 {
                     "profile_id": item.profile.id,
+                    "profile_label": item.profile.label,
                     "scope": item.profile.scope.value,
                     "weighting": item.profile.weighting.value,
                     "module_id": item.module_id,
@@ -5378,13 +5404,354 @@ def _build_detailed_export_zip(
                 source_sha256=workspace.document.text_sha256,
             ),
         )
-        export_files["FILE_INVENTORY.txt"] = b""
-        for _attempt in range(3):
-            export_files["FILE_INVENTORY.txt"] = build_file_inventory(
-                export_files,
-                export_mode=export_mode,
-                profile_ids=selected_ids,
+        if export_mode == "complete_audit":
+            from versevad.metric_capabilities import metric_capabilities
+
+            profile_rows = workspace_profile_metrics(workspace)
+            selected_rows = tuple(
+                row for row in profile_rows if row.profile in selected_profiles
             )
+
+            resource_metadata: dict[str, dict[str, str]] = {}
+            for result in workspace.results:
+                resource_metadata[result.lexicon_metadata.lexicon_id] = {
+                    "version": result.lexicon_metadata.version,
+                    "sha256": result.lexicon_validation.source_sha256,
+                    "citation": result.lexicon_metadata.citation,
+                    "license_information": result.lexicon_metadata.license_notice,
+                    "adapter_version": result.lexicon_metadata.adapter_version,
+                }
+            for result, _exporter in optional_results:
+                if result is None:
+                    continue
+                status = getattr(result, "resource_status", None)
+                if status is None:
+                    continue
+                resource_metadata[status.resource_id] = {
+                    "version": status.version,
+                    "sha256": status.source_sha256,
+                    "citation": "",
+                    "license_information": "See the module manifest and documentation.",
+                    "adapter_version": "",
+                }
+
+            domain_by_module = {
+                "vad": "Affect",
+                "emotion_association": "Affect",
+                "emotion_intensity": "Affect",
+                "concreteness": "Experience and imagery",
+                "sensorimotor": "Experience and imagery",
+                "frequency": "Lexical accessibility and style",
+                "aoa": "Lexical accessibility and style",
+                "word_length": "Lexical accessibility and style",
+            }
+
+            metric_summary_rows = [
+                {
+                    "domain": domain_by_module.get(row.module_id, "Other"),
+                    "module": row.module_id,
+                    "resource": row.source_label,
+                    "resource_version": resource_metadata.get(row.source_id, {}).get("version", ""),
+                    "metric_group": row.module_id,
+                    "module_id": row.module_id,
+                    "metric_id": row.metric_id,
+                    "metric_label": row.metric_label,
+                    "scope": row.profile.scope.label,
+                    "scope_id": row.profile.scope.value,
+                    "weighting": row.profile.weighting.label,
+                    "profile_label": row.profile.label,
+                    "value": row.value,
+                    "unit": row.unit,
+                    "observations": row.observation_count,
+                    "denominator": (
+                        f"{row.coverage.matched_token_count} matched tokens"
+                        if row.profile.weighting.value == "TOKEN"
+                        else f"{row.coverage.matched_type_count} matched types"
+                    ),
+                    "coverage": (
+                        row.coverage.token_coverage
+                        if row.profile.weighting.value == "TOKEN"
+                        else row.coverage.type_coverage
+                    ),
+                    "statistic_type": (
+                        "categorical_rate"
+                        if metric_capabilities(row.module_id).supports_categorical_rate
+                        else "mean"
+                    ),
+                    "interpretive_level": "primary",
+                    "availability": "available" if row.value is not None else "unavailable",
+                    "note": metric_capabilities(row.module_id).primary_caution,
+                }
+                for row in selected_rows
+            ]
+            metric_summary_fields = tuple(metric_summary_rows[0]) if metric_summary_rows else (
+                "domain", "module", "resource", "resource_version", "metric_group",
+                "module_id", "metric_id", "metric_label", "scope", "scope_id",
+                "weighting", "profile_label", "value", "unit", "observations",
+                "denominator", "coverage", "statistic_type", "interpretive_level",
+                "availability", "note",
+            )
+            metric_summary = _csv_bytes(metric_summary_fields, metric_summary_rows)
+
+            dictionary_rows = []
+            for row in {
+                (item.module_id, item.metric_id, item.source_id): item
+                for item in profile_rows
+            }.values():
+                capability = metric_capabilities(row.module_id)
+                dictionary_rows.append(
+                    {
+                        "module_id": row.module_id,
+                        "metric_id": row.metric_id,
+                        "metric": row.metric_label,
+                        "source_id": row.source_id,
+                        "source": row.source_label,
+                        "measurement_kind": capability.measurement_kind,
+                        "unit": row.unit,
+                        "dispersion_supported": capability.supports_dispersion,
+                        "raw_accumulation_supported": capability.supports_raw_accumulation,
+                        "normalized_accumulation_supported": capability.supports_normalized_accumulation,
+                        "midpoint_deviation_supported": capability.supports_midpoint_deviation,
+                        "denominator_kind": capability.denominator_kind,
+                        "supports_central_tendency": capability.supports_central_tendency,
+                        "supports_categorical_rate": capability.supports_categorical_rate,
+                        "supports_token_weighting": capability.supports_token_weighting,
+                        "supports_type_weighting": capability.supports_type_weighting,
+                        "supports_lexical_contributors": capability.supports_lexical_contributors,
+                        "supports_structural_breakdown": capability.supports_structural_breakdown,
+                        "supports_visualization": capability.supports_visualization,
+                        "token_weighted_interpretation": "Each included matched token occurrence contributes; repetitions contribute repeatedly.",
+                        "type_weighted_interpretation": "Each distinct matched lexical type contributes once; repetitions do not add weight.",
+                        "primary_caution": capability.primary_caution,
+                    }
+                )
+            metric_dictionary = _csv_bytes(
+                tuple(dictionary_rows[0]) if dictionary_rows else (
+                    "module_id", "metric_id", "metric", "source_id", "source",
+                    "measurement_kind", "unit", "dispersion_supported",
+                    "raw_accumulation_supported", "normalized_accumulation_supported",
+                    "midpoint_deviation_supported", "denominator_kind",
+                    "supports_central_tendency", "supports_categorical_rate",
+                    "supports_token_weighting", "supports_type_weighting",
+                    "supports_lexical_contributors", "supports_structural_breakdown",
+                    "supports_visualization", "token_weighted_interpretation",
+                    "type_weighted_interpretation", "primary_caution",
+                ),
+                dictionary_rows,
+            )
+
+            coverage_rows = [
+                {
+                    "source_id": row.source_id,
+                    "source": row.source_label,
+                    "module_id": row.module_id,
+                    "metric_id": row.metric_id,
+                    "profile": row.profile.label,
+                    "weighting": row.profile.weighting.label,
+                    "eligible_tokens": row.coverage.eligible_token_count,
+                    "matched_tokens": row.coverage.matched_token_count,
+                    "token_coverage": row.coverage.token_coverage,
+                    "eligible_types": row.coverage.eligible_type_count,
+                    "matched_types": row.coverage.matched_type_count,
+                    "type_coverage": row.coverage.type_coverage,
+                    "observations": row.observation_count,
+                    "type_identity_rule": row.coverage.type_identity_rule,
+                }
+                for row in selected_rows
+            ]
+            coverage_summary = _csv_bytes(
+                tuple(coverage_rows[0]) if coverage_rows else (
+                    "source_id", "source", "module_id", "metric_id", "profile",
+                    "weighting", "eligible_tokens", "matched_tokens", "token_coverage",
+                    "eligible_types", "matched_types", "type_coverage", "observations",
+                    "type_identity_rule",
+                ),
+                coverage_rows,
+            )
+            warning_rows = [
+                {
+                    "severity": "caution",
+                    "domain": "Analysis",
+                    "module": "",
+                    "resource": "",
+                    "profile": "",
+                    "warning_code": f"analysis_warning_{index}",
+                    "warning": message,
+                    "interpretive_consequence": "Review before drawing conclusions from the affected evidence.",
+                    "recommended_handling": "Inspect the relevant module coverage and audit evidence.",
+                }
+                for index, message in enumerate(dict.fromkeys(warning_messages), start=1)
+            ]
+            warnings_csv = _csv_bytes(
+                (
+                    "severity", "domain", "module", "resource", "profile",
+                    "warning_code", "warning", "interpretive_consequence",
+                    "recommended_handling",
+                ),
+                warning_rows,
+            )
+            resource_rows = []
+            for resource_id, metadata in sorted(resource_metadata.items()):
+                source_label = next(
+                    (
+                        row.source_label
+                        for row in profile_rows
+                        if row.source_id == resource_id
+                    ),
+                    resource_id,
+                )
+                resource_rows.append(
+                    {
+                        "resource_id": resource_id,
+                        "resource": source_label,
+                        "resource_version": metadata.get("version", ""),
+                        "adapter_version": metadata.get("adapter_version", ""),
+                        "source_sha256": metadata.get("sha256", ""),
+                        "citation": metadata.get("citation", ""),
+                        "license_information": metadata.get("license_information", ""),
+                    }
+                )
+            resource_manifest = _csv_bytes(
+                (
+                    "resource_id", "resource", "resource_version", "adapter_version",
+                    "source_sha256", "citation", "license_information",
+                ),
+                resource_rows,
+            )
+            file_guide_rows = [
+                {"file": "00_START_HERE/VerseVAD_Analysis_Report.docx", "domain": "All", "module": "All", "data_level": "summary", "what_it_answers": "What does the analysis report in readable form?", "when_to_use_it": "Begin here", "primary_or_technical": "primary", "important_caution": "Rounded for readability; CSV retains available precision."},
+                {"file": "00_START_HERE/metric_summary.csv", "domain": "All", "module": "Profile-aware lexical modules", "data_level": "summary", "what_it_answers": "What are the selected-profile results?", "when_to_use_it": "Statistical analysis and citation", "primary_or_technical": "primary", "important_caution": "Interpret with coverage and resource identity."},
+                {"file": "00_START_HERE/profile_comparison.csv", "domain": "All", "module": "Profile-aware lexical modules", "data_level": "descriptive detail", "what_it_answers": "How sensitive are results to scope and weighting?", "when_to_use_it": "Profile sensitivity analysis", "primary_or_technical": "supporting", "important_caution": "Compare like-for-like resources and units."},
+                {"file": "00_START_HERE/coverage_summary.csv", "domain": "All", "module": "Profile-aware lexical modules", "data_level": "summary", "what_it_answers": "How much eligible evidence was matched?", "when_to_use_it": "Before interpretation", "primary_or_technical": "primary", "important_caution": "Token and type denominators are distinct."},
+                {"file": "07_PROCESSING_AUDIT/", "domain": "Processing", "module": "Shared preprocessing", "data_level": "token audit", "what_it_answers": "How was source text represented and analyzed?", "when_to_use_it": "Traceability and debugging", "primary_or_technical": "technical", "important_caution": "Model outputs are not corrected ground truth."},
+                {"file": "08_REPRODUCIBILITY/", "domain": "Reproducibility", "module": "All", "data_level": "provenance", "what_it_answers": "Which files, versions, resources, and hashes define this run?", "when_to_use_it": "Audit and replication", "primary_or_technical": "technical", "important_caution": "Retain with the analytical files."},
+            ]
+            file_guide = _csv_bytes(tuple(file_guide_rows[0]), file_guide_rows)
+            start_here = (
+                "VerseVAD Complete Audit\n"
+                "=======================\n\n"
+                "Audit schema version: 2\n\n"
+                "Start with VerseVAD_Analysis_Report.docx for a readable analytical "
+                "overview. Use metric_summary.csv for the selected profile values, "
+                "coverage_summary.csv before interpretation, and metric_dictionary.csv "
+                "for measurement semantics.\n\n"
+                "Researchers can use profile_comparison.csv and the numbered module "
+                "folders. Auditors should continue to 07_PROCESSING_AUDIT and "
+                "08_REPRODUCIBILITY. CSV values retain available full precision; a "
+                "blank value means unavailable, not zero.\n"
+            ).encode("utf-8")
+
+            def audit_path(filename: str) -> str:
+                lower = filename.casefold()
+                phase2_paths = {
+                    "phase2_vad_summary.csv": "01_AFFECT/vad/summary.csv",
+                    "phase2_emotion_associations.csv": "01_AFFECT/emotion_association/summary.csv",
+                    "phase2_emotion_intensity.csv": "01_AFFECT/emotion_intensity/summary.csv",
+                    "phase2_cross_lexicon_comparison.csv": "01_AFFECT/vad/cross_lexicon_comparison.csv",
+                    "phase2_match_audit.csv": "01_AFFECT/lexical_match_audit.csv",
+                    "phase2_coverage.csv": "01_AFFECT/coverage.csv",
+                    "phase2_manifest.csv": "08_REPRODUCIBILITY/affect_lexicon_manifest.csv",
+                }
+                if lower in phase2_paths:
+                    return phase2_paths[lower]
+                module_paths = (
+                    ("vader_sentiment", "01_AFFECT/vader"),
+                    ("concreteness", "02_EXPERIENCE_AND_IMAGERY/concreteness"),
+                    ("sensorimotor", "02_EXPERIENCE_AND_IMAGERY/sensorimotor"),
+                    ("frequency", "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency"),
+                    ("aoa", "03_LEXICAL_ACCESSIBILITY_AND_STYLE/age_of_acquisition"),
+                    ("readability", "03_LEXICAL_ACCESSIBILITY_AND_STYLE/readability"),
+                    ("lexical_style", "03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style"),
+                    ("pronunciation", "04_SOUND_AND_FORM/pronunciation"),
+                    ("meter", "04_SOUND_AND_FORM/meter"),
+                    ("phonological", "04_SOUND_AND_FORM/rhyme_and_sound"),
+                    ("rhyme", "04_SOUND_AND_FORM/rhyme_and_sound"),
+                    ("inherited_form", "04_SOUND_AND_FORM/inherited_form"),
+                    ("poetry_id", "05_COMPARATIVE_PROFILES/poetry_id"),
+                    ("versemap", "05_COMPARATIVE_PROFILES/versemap"),
+                )
+                for prefix, folder in module_paths:
+                    if lower.startswith(f"{prefix}_"):
+                        return f"{folder}/{filename[len(prefix) + 1:]}"
+                if lower == "lexical_trajectory.csv":
+                    return "06_CROSS_MODULE_ANALYSIS/lexical_trajectory/values.csv"
+                if lower == "vad_by_part_of_speech.csv":
+                    return "06_CROSS_MODULE_ANALYSIS/vad_by_part_of_speech.csv"
+                if lower.startswith("profile_metrics_"):
+                    return f"05_COMPARATIVE_PROFILES/{filename}"
+                if lower.startswith("processing_"):
+                    return f"07_PROCESSING_AUDIT/{filename.removeprefix('processing_')}"
+                if lower in {"csv_reading_guide.csv", "scholar_summary.csv"}:
+                    return f"08_REPRODUCIBILITY/{filename}"
+                return f"07_PROCESSING_AUDIT/{filename}"
+
+            report = export_files.pop("VerseVAD_analysis_report.docx")
+            readme = export_files.pop("REPRODUCIBILITY_README.txt")
+            export_files.pop("FILE_INVENTORY.txt", None)
+            organized = {
+                audit_path(filename): content
+                for filename, content in export_files.items()
+            }
+            organized.update(
+                {
+                    "00_START_HERE/START_HERE.txt": start_here,
+                    "00_START_HERE/VerseVAD_Analysis_Report.docx": report,
+                    "00_START_HERE/metric_summary.csv": metric_summary,
+                    "00_START_HERE/metric_dictionary.csv": metric_dictionary,
+                    "00_START_HERE/coverage_summary.csv": coverage_summary,
+                    "00_START_HERE/profile_comparison.csv": profile_csv(
+                        frozenset(
+                            AnalysisProfile(scope, weighting)
+                            for scope, weighting in ALL_COMPATIBLE_PROFILES
+                        )
+                    ),
+                    "00_START_HERE/warnings.csv": warnings_csv,
+                    "00_START_HERE/file_guide.csv": file_guide,
+                    "08_REPRODUCIBILITY/REPRODUCIBILITY_README.txt": readme,
+                    "08_REPRODUCIBILITY/resource_manifest.csv": resource_manifest,
+                }
+            )
+            organized["08_REPRODUCIBILITY/master_manifest.csv"] = b""
+            organized["08_REPRODUCIBILITY/FILE_INVENTORY.csv"] = b""
+            inventory_rows = [
+                {
+                    "path": path,
+                    "filename": Path(path).name,
+                    "domain": path.split("/", 1)[0],
+                    "module": path.split("/")[1] if path.count("/") > 1 else "",
+                    "data_level": "provenance" if path.startswith("08_") else "analytical evidence",
+                    "purpose": "See 00_START_HERE/file_guide.csv and module report.",
+                    "profiles": selected_ids,
+                    "resource": "",
+                    "bytes": "" if path.endswith(("master_manifest.csv", "FILE_INVENTORY.csv")) else len(content),
+                    "sha256": "" if path.endswith(("master_manifest.csv", "FILE_INVENTORY.csv")) else hashlib.sha256(content).hexdigest(),
+                }
+                for path, content in sorted(organized.items())
+            ]
+            organized["08_REPRODUCIBILITY/FILE_INVENTORY.csv"] = _csv_bytes(
+                tuple(inventory_rows[0]), inventory_rows
+            )
+            manifest_rows = [
+                {
+                    "path": path,
+                    "audit_schema_version": 2,
+                    "sha256": "" if path.endswith("master_manifest.csv") else hashlib.sha256(content).hexdigest(),
+                    "bytes": "" if path.endswith("master_manifest.csv") else len(content),
+                }
+                for path, content in sorted(organized.items())
+            ]
+            organized["08_REPRODUCIBILITY/master_manifest.csv"] = _csv_bytes(
+                ("path", "audit_schema_version", "sha256", "bytes"), manifest_rows
+            )
+            export_files = organized
+        else:
+            export_files["FILE_INVENTORY.txt"] = b""
+            for _attempt in range(3):
+                export_files["FILE_INVENTORY.txt"] = build_file_inventory(
+                    export_files,
+                    export_mode=export_mode,
+                    profile_ids=selected_ids,
+                )
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, mode="w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for filename, content in export_files.items():

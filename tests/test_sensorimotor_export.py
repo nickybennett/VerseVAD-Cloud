@@ -126,13 +126,13 @@ def test_sensorimotor_workspace_and_complete_audit_bundle(
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         names = set(bundle.namelist())
         assert names >= {
-            "sensorimotor_summary.csv",
-            "sensorimotor_dominant_dimensions.csv",
-            "sensorimotor_by_structure.csv",
-            "sensorimotor_terms.csv",
-            "sensorimotor_observations.csv",
-            "sensorimotor_unmatched.csv",
-            "sensorimotor_manifest.csv",
-            "sensorimotor_report.docx",
-            "VerseVAD_analysis_report.docx",
+            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/summary.csv",
+            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/dominant_dimensions.csv",
+            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/by_structure.csv",
+            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/terms.csv",
+            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/observations.csv",
+            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/unmatched.csv",
+            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/manifest.csv",
+            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/report.docx",
+            "00_START_HERE/VerseVAD_Analysis_Report.docx",
         }

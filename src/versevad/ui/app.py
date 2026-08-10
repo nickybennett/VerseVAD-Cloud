@@ -214,7 +214,11 @@ from versevad.poetry_id import (
 from versevad.ui.poetry_id import render_poetry_id
 from versevad.ui.inherited_form import render_inherited_form
 from versevad.ui.interactive_annotation import render_interactive_annotation
-from versevad.analysis_profiles import LexicalScope, ProfileSelection
+from versevad.analysis_profiles import (
+    LexicalScope,
+    ProfileSelection,
+    display_profile_order,
+)
 from versevad.ui.profile_controls import render_report_profile_controls
 from versevad.ui.profile_tables import (
     primary_profile_metric,
@@ -222,7 +226,11 @@ from versevad.ui.profile_tables import (
     selected_profile_metrics,
 )
 from versevad.ui.profile_details import (
+    affect_continuous_profile_detail,
+    categorical_affect_contributors,
     continuous_profile_detail,
+    representative_contributors,
+    render_representative_contributors,
     select_detail_profile,
 )
 from versevad.module_capabilities import fixed_profile_notice
@@ -3012,15 +3020,16 @@ if workspace_page in {"Single Poem", "Other Text"}:
         else:
             st.subheader("Lexical Trajectory")
             st.write(
-                "Each line shows token-weighted mean normative VAD evidence for "
+                "Each line shows profile-specific mean normative VAD evidence for "
                 "one selected lexicon. Concreteness is overlaid when that optional "
                 "module was enabled. Blank or unmatched physical lines remain gaps."
             )
             source_ids = [
                 result.lexicon_metadata.lexicon_id for result in vad_sources
             ]
-            if st.session_state.get("lexical_trajectory_source") not in source_ids:
-                st.session_state["lexical_trajectory_source"] = source_ids[0]
+            trajectory_source_key = f"{report_state_key}_lexical_trajectory_source"
+            if st.session_state.get(trajectory_source_key) not in source_ids:
+                st.session_state[trajectory_source_key] = source_ids[0]
             trajectory_source = st.selectbox(
                 "Trajectory VAD source",
                 options=source_ids,
@@ -3029,7 +3038,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     for result in vad_sources
                     if result.lexicon_metadata.lexicon_id == value
                 ),
-                key="lexical_trajectory_source",
+                key=trajectory_source_key,
                 help=(
                     "Sources remain separate. Changing this display choice retains "
                     "the Affective Evidence report section."
@@ -3040,19 +3049,34 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 LexicalScope.STOPWORD_EXCLUDED: "Stopwords excluded",
                 LexicalScope.CONTENT_WORDS: "Content words only",
             }
-            trajectory = tuple(
-                point
-                for scope in profile_state.selection.scopes
-                for point in lexical_trajectory_views(
-                    workspace,
-                    lexicon_id=trajectory_source,
-                    analysis_view=trajectory_view_labels[scope],
+            trajectory_profiles = display_profile_order(profile_state.selection)
+            if len(trajectory_profiles) == 1:
+                trajectory_profile = trajectory_profiles[0]
+                st.caption(f"Trajectory profile: **{trajectory_profile.label}**")
+            else:
+                profile_by_label = {
+                    profile.label: profile for profile in trajectory_profiles
+                }
+                selected_trajectory_label = st.selectbox(
+                    "Trajectory profile",
+                    options=tuple(profile_by_label),
+                    key=f"{report_state_key}_lexical_trajectory_profile",
+                    help=(
+                        "Choose one of the globally enabled scope/weighting profiles. "
+                        "The graph and evidence table update together."
+                    ),
                 )
+                trajectory_profile = profile_by_label[selected_trajectory_label]
+            trajectory = lexical_trajectory_views(
+                workspace,
+                lexicon_id=trajectory_source,
+                analysis_view=trajectory_view_labels[trajectory_profile.scope],
+                weighting=trajectory_profile.weighting.value.casefold(),
             )
             trajectory_frame = pd.DataFrame(
                 [
                     {
-                        "Profile": row.analysis_view,
+                        "Profile": trajectory_profile.label,
                         "Line": row.line_number,
                         "Text": row.source_text,
                         "Valence": row.valence_mean,
@@ -3128,7 +3152,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         ),
                         legend=alt.Legend(title=None, orient="top"),
                     ),
-                    strokeDash=alt.StrokeDash("Profile:N", title="Lexical scope"),
+                    strokeDash=alt.StrokeDash("Profile:N", title="Analysis profile"),
                     tooltip=[
                         alt.Tooltip("Line:Q", format=".0f"),
                         "Text:N",
@@ -4415,6 +4439,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 f"{(profile_metric.coverage.eligible_type_count if profile_metric is not None else summary.eligible_unique_type_count):,} unique normalized "
                 "surface types were rated. Unmatched values remain missing."
             )
+            render_representative_contributors(
+                detail,
+                low_label="Lowest-rated / more abstract examples",
+                high_label="Highest-rated / more concrete examples",
+            )
 
             band_columns = st.columns(2)
             selected_values = detail.values if detail is not None else ()
@@ -4762,6 +4791,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 f"{(profile_metric.coverage.matched_token_count if profile_metric is not None else summary.matched_token_count):,} of "
                 f"{(profile_metric.coverage.eligible_token_count if profile_metric is not None else summary.eligible_token_count):,} eligible token occurrences "
                 "matched. Unmatched words remain missing rather than Zipf zero."
+            )
+            render_representative_contributors(
+                detail,
+                low_label="Lowest Zipf / rarer examples",
+                high_label="Highest Zipf / more frequent examples",
             )
 
             st.markdown("**Configured Zipf distribution**")
@@ -5435,6 +5469,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 f"Early means <= {aoa.configuration.early_acquired_max:g}; "
                 f"later means >= {aoa.configuration.later_acquired_min:g}. "
                 "These bands are configurable orientation aids."
+            )
+            render_representative_contributors(
+                detail,
+                low_label="Earlier-acquired examples",
+                high_label="Later-acquired examples",
             )
 
             st.markdown("**Distribution and source-response evidence**")
@@ -6812,10 +6851,58 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     st.markdown(f"**{dimension.title()}**")
                     st.write(VAD_DEFINITIONS[dimension])
             st.caption(
-                "Means, within-text dispersion, cumulative loads, length-normalized "
+                "Means, within-text dispersion, cumulative loads, per-100 "
                 "midpoint deviations, mean-centered volatility, coverage, and exact "
                 "denominators are organized in the expandable profile sections above."
             )
+            vad_results = tuple(
+                result for result in workspace.results if result.vad_summary is not None
+            )
+            if vad_results:
+                with st.expander("Representative VAD Lexical Contributors", expanded=False):
+                    contributor_profile = select_detail_profile(
+                        profile_state.selection,
+                        key=f"{report_state_key}_vad_contributor_profile",
+                    )
+                    result_by_source = {
+                        result.lexicon_metadata.display_name: result
+                        for result in vad_results
+                    }
+                    if len(result_by_source) == 1:
+                        selected_vad_result = next(iter(result_by_source.values()))
+                        st.caption(
+                            f"Source: **{selected_vad_result.lexicon_metadata.display_name}**"
+                        )
+                    else:
+                        selected_vad_source = st.selectbox(
+                            "VAD contributor source",
+                            options=tuple(result_by_source),
+                            key=f"{report_state_key}_vad_contributor_source",
+                            help=(
+                                "Contributor values remain source-specific; VerseVAD "
+                                "does not average evidence across VAD lexicons."
+                            ),
+                        )
+                        selected_vad_result = result_by_source[selected_vad_source]
+                    for dimension in ("valence", "arousal", "dominance"):
+                        st.markdown(f"##### {dimension.title()}")
+                        detail = affect_continuous_profile_detail(
+                            workspace,
+                            selected_vad_result,
+                            profile=contributor_profile,
+                            module_id="vad",
+                            metric_id=f"{dimension}_mean",
+                            value_getter=lambda match, name=dimension: (
+                                float(getattr(match.normalized_scores, name))
+                                if match.normalized_scores is not None
+                                else None
+                            ),
+                        )
+                        render_representative_contributors(
+                            detail,
+                            low_label=f"Lowest-{dimension} matched words",
+                            high_label=f"Highest-{dimension} matched words",
+                        )
     with emotion_tab:
         render_configurable_profile_table(
             workspace,
@@ -6855,6 +6942,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
             row
             for row in emotion_profile_rows
             if row.module_id == "emotion_intensity"
+        )
+        emotion_visual_profile = (
+            select_detail_profile(
+                profile_state.selection,
+                key=f"{report_state_key}_emotion_visual_profile",
+            )
+            if associations or sentiments or intensities
+            else None
         )
         if not associations and not sentiments and not intensities:
             st.info(
@@ -6976,13 +7071,15 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     for row in associations
                 ]
             )
-            if len(profile_state.selection.profiles) == 1:
-                st.bar_chart(
-                    rounded_display_data(
-                        association_frame.set_index("Category")[["Association proportion"]]
-                    ),
-                    height=300,
-                )
+            association_chart_frame = association_frame.loc[
+                association_frame["Profile"] == emotion_visual_profile.label
+            ]
+            st.bar_chart(
+                rounded_display_data(
+                    association_chart_frame.set_index("Category")[["Association proportion"]]
+                ),
+                height=300,
+            )
             render_dataframe(
                 association_frame.style.format(
                     {
@@ -7014,13 +7111,15 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     for row in sentiments
                 ]
             )
-            if len(profile_state.selection.profiles) == 1:
-                st.bar_chart(
-                    rounded_display_data(
-                        sentiment_frame.set_index("Sentiment")[["Association proportion"]]
-                    ),
-                    height=220,
-                )
+            sentiment_chart_frame = sentiment_frame.loc[
+                sentiment_frame["Profile"] == emotion_visual_profile.label
+            ]
+            st.bar_chart(
+                rounded_display_data(
+                    sentiment_chart_frame.set_index("Sentiment")[["Association proportion"]]
+                ),
+                height=220,
+            )
             render_dataframe(
                 sentiment_frame.style.format(
                     {
@@ -7064,6 +7163,103 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 width="stretch",
             )
             st.caption("A missing word-category pair remains missing; VerseVAD does not enter a zero.")
+
+        affect_evidence_results = tuple(
+            result
+            for result in workspace.results
+            if result.category_statistics or result.intensity_statistics
+        )
+        if affect_evidence_results:
+            with st.expander("Representative Emotion Lexical Contributors", expanded=False):
+                contributor_profile = emotion_visual_profile
+                association_results = tuple(
+                    result for result in affect_evidence_results if result.category_statistics
+                )
+                if association_results:
+                    st.markdown("##### Categorical Emotion Associations")
+                    st.caption(
+                        "These are representative binary matches, not a ranking of "
+                        "association strength. Token-weighted displays prioritize "
+                        "occurrence count; type-weighted displays use stable first appearance."
+                    )
+                    association_result = association_results[0]
+                    association_rows = []
+                    for category_stat in association_result.category_statistics:
+                        records = categorical_affect_contributors(
+                            workspace,
+                            association_result,
+                            profile=contributor_profile,
+                            category=category_stat.category,
+                        )
+                        if not records:
+                            continue
+                        association_rows.append(
+                            {
+                                "Category": category_stat.category.title(),
+                                "Representative matched terms": ", ".join(
+                                    (
+                                        f"{record['Word / expression']} Ã—{record['Occurrences']}"
+                                        if int(record["Occurrences"]) > 1
+                                        else str(record["Word / expression"])
+                                    )
+                                    for record in records
+                                ),
+                                "Source": association_result.lexicon_metadata.display_name,
+                                "Profile": contributor_profile.label,
+                            }
+                        )
+                    if association_rows:
+                        render_dataframe(
+                            pd.DataFrame(association_rows),
+                            hide_index=True,
+                            width="stretch",
+                        )
+                intensity_results = tuple(
+                    result for result in affect_evidence_results if result.intensity_statistics
+                )
+                if intensity_results:
+                    st.markdown("##### Strongest Emotion-Intensity Matches")
+                    intensity_result = intensity_results[0]
+                    intensity_rows = []
+                    for category_stat in intensity_result.intensity_statistics:
+                        detail = affect_continuous_profile_detail(
+                            workspace,
+                            intensity_result,
+                            profile=contributor_profile,
+                            module_id="emotion_intensity",
+                            metric_id=f"{category_stat.category}_intensity",
+                            value_getter=lambda match, category=category_stat.category: (
+                                dict(match.intensities).get(category)
+                            ),
+                            type_identity_suffix=category_stat.category,
+                        )
+                        if detail is None or not detail.observations:
+                            continue
+                        _lowest, strongest = representative_contributors(detail)
+                        for rank, record in enumerate(strongest, start=1):
+                            intensity_rows.append(
+                                {
+                                    "Category": category_stat.category.title(),
+                                    "Rank": rank,
+                                    "Word / expression": record["Word / expression"],
+                                    "Normative intensity": record["Value"],
+                                    "Occurrences": record["Occurrences"],
+                                    "Source": intensity_result.lexicon_metadata.display_name,
+                                    "Profile": contributor_profile.label,
+                                }
+                            )
+                    if intensity_rows:
+                        render_dataframe(
+                            pd.DataFrame(intensity_rows).style.format(
+                                {"Normative intensity": "{:.3f}"}
+                            ),
+                            hide_index=True,
+                            width="stretch",
+                        )
+                        st.caption(
+                            "Terms are ranked by the source's normative category-specific "
+                            "intensity, not by interpretive importance in the poem."
+                        )
 
     with evidence_tab:
         st.subheader("Match Evidence")
@@ -7523,8 +7719,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
         st.info(
             "Each ZIP contains CSV data, a narrative Word report, "
-            "REPRODUCIBILITY_README.txt, and FILE_INVENTORY.txt. Complete Audit "
-            "adds every compatible profile and fixed-profile module; Current View "
+            "a reproducibility guide, and a CSV file inventory. Complete Audit "
+            "uses numbered domain folders, adds every compatible profile and "
+            "fixed-profile module, and records exact resource provenance; Current View "
             "contains only the selected report family and profiles. VerseVAD does "
             "not generate JSON or XLSX analysis exports. When explicitly selected "
             "above, research notes "
@@ -7562,7 +7759,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             ("Token-weighted", "Every matched occurrence contributes, including repetitions."),
             ("Type-weighted", "Each distinct matched lexicon entry contributes once."),
             ("Work-weighted corpus", "Each eligible work contributes one work-level mean regardless of length."),
-            ("Cumulative lexical load", "A length-sensitive sum of matched normative ratings or midpoint deviations."),
+            ("Method-defined cumulative load", "A length- and repetition-sensitive sum reported only when the metric defines a defensible accumulation. VAD uses midpoint-relative loads; emotion intensity and sensorimotor dimensions retain documented source-scale sums."),
             ("Normalized VAD", "A derived 0-1 version used for legitimate side-by-side VAD comparison."),
             ("Normative lexical concreteness", "A matched source rating from 1 (very abstract or language-based) to 5 (very concrete or experience-based)."),
             ("Rated-token coverage", "The share of eligible lexical token occurrences assigned a source rating; missing tokens stay missing."),

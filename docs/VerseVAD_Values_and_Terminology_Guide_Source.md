@@ -140,9 +140,11 @@ A work-level VAD mean is the arithmetic mean of included lexicon ratings under a
 
 ## Lexical Trajectory
 
-The **Lexical Trajectory** chart repeats the same token-weighted lookup logic
-line by line. It plots valence, arousal, and dominance from one selected VAD
-source, plus concreteness when that resource is available. Original
+The **Lexical Trajectory** chart repeats the selected report profile's lookup
+logic line by line. Token weighting retains repeated matched occurrences;
+type weighting uses one included lexical type per line. It plots valence,
+arousal, and dominance from one selected VAD source, plus concreteness when that
+resource is available. Original
 concreteness values from 1 to 5 are linearly normalized to 0 to 1 for the
 overlay only:
 
@@ -864,17 +866,16 @@ metric, scale, phrase policy, and other settings must be held constant.
 
 # 12. Cumulative Normative Lexical Load
 
-**Cumulative normative lexical load** is VerseVAD's length- and repetition-sensitive family of sums over included normalized ratings. Longer works and repeated matches can accumulate larger totals.
+**Cumulative normative lexical load** is VerseVAD's family of explicitly
+defined length- and repetition-sensitive sums. It is not generated for every
+numeric variable. VAD uses midpoint-relative loads, emotion intensity uses the
+raw sum of supplied intensity scores, and sensorimotor dimensions use their
+documented source-scale accumulation. VerseVAD does not report generic
+cumulative loads for AoA, Zipf frequency, concreteness, or word length.
 
 The word **load** here means an accumulated numeric total. It does not mean experimentally measured cognitive load, emotional burden, or effect on a reader.
 
 Let `x_i` be an included normalized rating and let the normalized midpoint be 0.5.
-
-## Rating Total
-
-`rating_total = sum(x_i)`
-
-The rating total adds the normalized source ratings. It grows with the number of included matches and their rating levels. Because its zero is the bottom of the normalized scale rather than the midpoint, it is usually less interpretable than the midpoint-centered loads.
 
 ## Above-Midpoint Load
 
@@ -914,15 +915,17 @@ Use cumulative loads when length and repetition are part of the research questio
 - consider a per-token statistic if the question requires length adjustment;
 - compare the same lexicon, dimension, view, and matching policy.
 
-## Length-Normalized Midpoint Deviation
+## Midpoint Deviation per Matched Token or Type
 
 VerseVAD divides the directional midpoint loads by the included matched
-observation count when the research question requires comparison across
+token-occurrence count under token weighting or matched lexical-type count
+under type weighting when the research question requires comparison across
 differently sized poems:
 
 `midpoint_deviation_per_match = midpoint_load / N`
 
-The **per 100 matches** value is exactly `100 * midpoint_deviation_per_match`.
+The **per 100 matched tokens/types** value is exactly
+`100 * midpoint_deviation_per_match`.
 It is the same rate on a more readable scale. It does not add information and
 should not be interpreted as a separate measure.
 

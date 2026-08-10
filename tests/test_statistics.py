@@ -14,14 +14,16 @@ def test_empty_observations_remain_missing() -> None:
     assert result.maximum is None
 
 
-def test_single_observation_has_zero_dispersion_and_defined_quartiles() -> None:
+def test_single_observation_retains_location_but_not_inferred_dispersion() -> None:
     result = descriptive_statistics([4.0])
 
     assert result.count == 1
     assert result.mean == 4.0
-    assert result.population_standard_deviation == 0.0
-    assert result.first_quartile == 4.0
-    assert result.third_quartile == 4.0
+    assert result.population_standard_deviation is None
+    assert result.first_quartile is None
+    assert result.third_quartile is None
+    assert result.minimum == 4.0
+    assert result.maximum == 4.0
 
 
 def test_population_statistics_are_documented_and_deterministic() -> None:

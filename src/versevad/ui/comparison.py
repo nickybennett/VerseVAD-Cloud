@@ -151,7 +151,7 @@ _PANEL_ORDER = {
 _PANEL_NOTES = {
     "VAD Profile": (
         "Compare source-specific VAD means, within-poem lexical dispersion, "
-        "and cumulative lexical loads without merging lexicons."
+        "and midpoint-relative loads without merging lexicons."
     ),
     "Emotion Association, Intensity & Sentiment": (
         "Compare NRC association/intensity evidence and VADER polarity under "
@@ -161,7 +161,7 @@ _PANEL_NOTES = {
         "Compare PoetryID candidates and distances as descriptive profile "
         "evidence, not declarations of a poem's emotion or identity."
     ),
-    "Concreteness": "Compare matched normative concreteness and its lexical load.",
+    "Concreteness": "Compare matched normative concreteness, dispersion, and coverage.",
     "Sensorimotor Imagery & Embodiment": (
         "Compare Lancaster perceptual-modality and action-effector evidence."
     ),
@@ -345,14 +345,16 @@ def _comparison_metric_family(
                 or identifier.endswith("per_100")
             )
         ):
-            return "Length-Normalized Midpoint Deviation"
+            return "Midpoint Deviation per Matched Token/Type"
         if is_cumulative:
-            return "Cumulative Lexical Load"
+            return "Cumulative Midpoint Loads"
         return "VAD Means"
     if panel == "Emotion Association, Intensity & Sentiment":
         if identifier.startswith("vader."):
             return "VADER Sentiment"
         if identifier.startswith("emotion_intensity."):
+            if is_cumulative:
+                return "Cumulative Emotion Intensity Load"
             return (
                 "Emotion-Intensity Dispersion"
                 if is_dispersion
@@ -364,8 +366,6 @@ def _comparison_metric_family(
     if panel == "Concreteness":
         if is_dispersion:
             return "Concreteness Dispersion"
-        if is_cumulative:
-            return "Cumulative Concreteness"
         return "Mean Concreteness"
     if panel == "Sensorimotor Imagery & Embodiment":
         if is_dispersion:
@@ -376,8 +376,6 @@ def _comparison_metric_family(
     if panel == "Frequency & Rarity":
         if is_dispersion:
             return "Frequency and Rarity Dispersion"
-        if is_cumulative:
-            return "Cumulative Frequency Loads"
         return (
             "Mean Rarity"
             if identifier.startswith("rarity.")
@@ -390,8 +388,6 @@ def _comparison_metric_family(
             return "Traditional Readability"
         if is_dispersion:
             return "Age-of-Acquisition Dispersion"
-        if is_cumulative:
-            return "Cumulative Age of Acquisition"
         return "Mean Age of Acquisition"
     if panel == "Language Profile":
         return "Part-of-Speech Profile"
@@ -404,7 +400,7 @@ def _comparison_metric_family(
     if is_dispersion:
         return "Within-Poem Dispersion"
     if is_cumulative:
-        return "Cumulative Lexical Load"
+        return "Method-Defined Cumulative Load"
     if "coverage" in identifier or "matched" in label:
         return "Coverage and Evidence"
     return "Summary Metrics"
@@ -413,21 +409,21 @@ def _comparison_metric_family(
 _FAMILY_ORDER = {
     "VAD Profile": (
         "VAD Means",
-        "Cumulative Lexical Load",
-        "Length-Normalized Midpoint Deviation",
+        "Cumulative Midpoint Loads",
+        "Midpoint Deviation per Matched Token/Type",
         "Mean-Centered Lexical Volatility",
         "Within-Poem Dispersion",
     ),
     "Emotion Association, Intensity & Sentiment": (
         "NRC Emotion and Polarity Associations",
         "Emotion Intensity Means",
+        "Cumulative Emotion Intensity Load",
         "VADER Sentiment",
         "Emotion-Intensity Dispersion",
     ),
     "PoetryID": ("PoetryID Archetypes",),
     "Concreteness": (
         "Mean Concreteness",
-        "Cumulative Concreteness",
         "Concreteness Dispersion",
     ),
     "Sensorimotor Imagery & Embodiment": (
@@ -438,14 +434,12 @@ _FAMILY_ORDER = {
     "Frequency & Rarity": (
         "Mean Frequency",
         "Mean Rarity",
-        "Cumulative Frequency Loads",
         "Frequency and Rarity Dispersion",
     ),
     "Acquisition & Readability": (
         "VerseVAD Poetic Reading Ease",
         "Traditional Readability",
         "Mean Age of Acquisition",
-        "Cumulative Age of Acquisition",
         "Age-of-Acquisition Dispersion",
     ),
 }
@@ -1026,7 +1020,7 @@ def _render_comparison_results(comparison: PoemComparison) -> None:
                 "- Compare values only within the same source, scale, scope, and weighting.\n"
                 "- Read coverage and denominators before interpreting a difference.\n"
                 "- Population standard deviation describes lexical dispersion within each poem; it is not uncertainty in the mean.\n"
-                "- Cumulative load preserves repetition and length in the token view; the per-100 counterpart supports length-normalized comparison.\n"
+                "- Method-defined cumulative load preserves repetition and length in the token view; VAD per-100 rows divide midpoint load by matched tokens or types for comparison.\n"
                 "- A missing value means the evidence was unavailable, not neutral."
             )
 
@@ -1807,7 +1801,7 @@ def _render_comparison_set_panel(
                     "These values describe variation among matched observations "
                     "inside each poem. They are not cross-poem uncertainty."
                 )
-            elif family == "Length-Normalized Midpoint Deviation":
+            elif family == "Midpoint Deviation per Matched Token/Type":
                 st.caption(
                     "Use these rates—not raw cumulative loads—to compare poems of "
                     "different lengths. Per-observation and per-100 values are the "
@@ -1815,7 +1809,7 @@ def _render_comparison_set_panel(
                 )
             elif family == "Mean-Centered Lexical Volatility":
                 st.caption(
-                    "These length-normalized rates measure dispersion around each "
+                    "These length-neutral rates measure dispersion around each "
                     "poem's own VAD mean. Mean absolute deviation weights departures "
                     "linearly; population SD above emphasizes extremes. Neither "
                     "measure preserves lexical order."
