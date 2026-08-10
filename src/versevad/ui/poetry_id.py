@@ -247,23 +247,29 @@ def render_poetry_id(
         for item in eligible_assignments
         if item.source_analysis_id == selected_source
     ]
-    available_profiles = list(requested)
-    profile_key = f"{key_prefix}_profile"
-    _clear_invalid_widget_value(profile_key, available_profiles)
-    selected_profile = st.selectbox(
+    available_profile_ids = [f"{view}::{weighting}" for view, weighting in requested]
+    profile_by_id = {
+        f"{view}::{weighting}": (view, weighting)
+        for view, weighting in requested
+    }
+    profile_signature = "__".join(available_profile_ids)
+    profile_key = f"{key_prefix}_profile__{profile_signature}"
+    _clear_invalid_widget_value(profile_key, available_profile_ids)
+    selected_profile_id = st.selectbox(
         "PoetryID scope and weighting",
-        options=available_profiles,
+        options=available_profile_ids,
         format_func=lambda value: (
-            f"{_ANALYSIS_VIEW_LABELS[value[0]]} · "
-            f"{_WEIGHTING_LABELS[value[1]]}"
+            f"{_ANALYSIS_VIEW_LABELS[profile_by_id[value][0]]} · "
+            f"{_WEIGHTING_LABELS[profile_by_id[value][1]]}"
         ),
         key=profile_key,
-        disabled=len(available_profiles) == 1,
+        disabled=len(available_profile_ids) == 1,
         help=(
             "Choose among the lexical scopes and aggregation weightings "
             "currently enabled in the report controls."
         ),
     )
+    selected_profile = profile_by_id[selected_profile_id]
     assignment = next(
         (
             item

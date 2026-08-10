@@ -1575,6 +1575,7 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     assert selectors["PoetryID scope and weighting"].options == [
         "Stopwords excluded · Token-weighted"
     ]
+    assert selectors["PoetryID scope and weighting"].disabled
     profile_controls = {field.label: field for field in app.multiselect}
     assert profile_controls["Lexical scope"].options == [
         "All lexical tokens",
@@ -1595,6 +1596,39 @@ def test_interface_renders_poetry_id_maps_scales_and_non_json_downloads() -> Non
     )
     lexical_scope.set_value(["Stopword-excluded"])
     app.run(timeout=60)
+    weighting = next(
+        field
+        for field in app.multiselect
+        if field.label == "Aggregation weighting"
+    )
+    weighting.set_value(["Type-weighted"])
+    app.run(timeout=60)
+    poetry_id_profile = next(
+        field
+        for field in app.selectbox
+        if field.label == "PoetryID scope and weighting"
+    )
+    assert poetry_id_profile.options == [
+        "Stopwords excluded · Type-weighted"
+    ]
+    assert poetry_id_profile.disabled
+    weighting = next(
+        field
+        for field in app.multiselect
+        if field.label == "Aggregation weighting"
+    )
+    weighting.set_value(["Token-weighted", "Type-weighted"])
+    app.run(timeout=60)
+    poetry_id_profile = next(
+        field
+        for field in app.selectbox
+        if field.label == "PoetryID scope and weighting"
+    )
+    assert poetry_id_profile.options == [
+        "Stopwords excluded · Token-weighted",
+        "Stopwords excluded · Type-weighted",
+    ]
+    assert not poetry_id_profile.disabled
     assert _section_navigation(app, "Report section").value == (
         "Affective Evidence"
     )
