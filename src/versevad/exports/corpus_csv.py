@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import zipfile
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from enum import Enum
 from typing import Iterable, Mapping, Sequence
 
@@ -38,6 +39,71 @@ from versevad.analysis_profiles import (
 from versevad.module_capabilities import CapabilityCategory, MODULE_CAPABILITIES
 
 CORPUS_EXPORT_API_VERSION = 1
+
+
+_ELIGIBLE_TYPE_COUNT_PATTERN = re.compile(r"([\d,]+)\s+eligible\s+types", re.I)
+
+
+def _repair_type_weighted_metadata(
+    metrics: Sequence[CorpusMetricRecord],
+) -> tuple[CorpusMetricRecord, ...]:
+    """Normalize legacy type rows whose values were saved with token metadata.
+
+    Completed runs already contain the correct type-weighted statistic and a
+    canonical ``type_coverage`` row whose denominator records the eligible type
+    count.  Use that retained evidence to repair the exported audit metadata;
+    new runs are written correctly by the repository itself.
+    """
+
+    eligible_types: dict[tuple[str, str, str, str, str], int] = {}
+    for row in metrics:
+        if row.weighting.casefold() != "type" or row.metric != "type_coverage":
+            continue
+        match = _ELIGIBLE_TYPE_COUNT_PATTERN.search(row.denominator)
+        if match is None:
+            continue
+        key = (
+            row.run_id,
+            row.text_id,
+            row.text_version_id,
+            row.lexicon_id,
+            row.analysis_view,
+        )
+        eligible_types[key] = int(match.group(1).replace(",", ""))
+
+    repaired: list[CorpusMetricRecord] = []
+    for row in metrics:
+        if row.weighting.casefold() != "type":
+            repaired.append(row)
+            continue
+        key = (
+            row.run_id,
+            row.text_id,
+            row.text_version_id,
+            row.lexicon_id,
+            row.analysis_view,
+        )
+        eligible_count = eligible_types.get(key)
+        if not eligible_count:
+            repaired.append(row)
+            continue
+        coverage = row.observations / eligible_count
+        denominator = row.denominator
+        if row.metric != "type_coverage":
+            denominator = (
+                f"{row.observations} observations; {row.observations}/"
+                f"{eligible_count} eligible types matched"
+            )
+        repaired.append(
+            replace(
+                row,
+                denominator=denominator,
+                matched_tokens=row.observations,
+                lexical_tokens=eligible_count,
+                coverage=coverage,
+            )
+        )
+    return tuple(repaired)
 _FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
@@ -157,6 +223,25 @@ def build_corpus_export_bundle(
 
     if export_mode not in {"current_view", "complete_audit"}:
         raise ValueError(f"Unknown export mode: {export_mode}")
+    metrics = _repair_type_weighted_metadata(tuple(metrics))
+    module_metrics = tuple(module_metrics)
+    module_coverage = tuple(module_coverage)
+    module_results = tuple(module_results)
+    module_aggregates = tuple(module_aggregates)
+    module_warnings = tuple(module_warnings)
+    calculated_module_names = {
+        row.module_name
+        for rows in (
+            module_metrics,
+            module_coverage,
+            module_results,
+            module_aggregates,
+            module_warnings,
+        )
+        for row in rows
+    }
+    if metrics:
+        calculated_module_names.add("vad")
     selection = profile_selection or ProfileSelection()
     view_ids = {
         LexicalScope.ALL_LEXICAL: "all_matched",
@@ -195,10 +280,16 @@ def build_corpus_export_bundle(
             "poetry_id", "vader_sentiment",
         },
         "Lexical Character, Imagery & Embodiment": {
-            "concreteness", "frequency", "aoa", "sensorimotor",
+            "concreteness",
+            "lexical_frequency",
+            "age_of_acquisition",
+            "sensorimotor_imagery_and_embodiment",
+            "readability",
         },
         "Sound & Form": {
-            "pronunciation", "meter", "performance_meter", "phonology",
+            "pronunciation_prosody_foundation",
+            "candidate_meter_and_rhythmic_regularity",
+            "rhyme_and_phonological_patterns",
             "inherited_form",
         },
         "Structure": {"lexical_style"},
@@ -354,6 +445,23 @@ def build_corpus_export_bundle(
     )
     report_profile_rows: list[dict[str, object]] = []
     for profile in profiles:
+        type_weighted = profile.weighting.casefold() == "type"
+        pooled_coverage = {
+            "eligible_token_count": "" if type_weighted else profile.lexical_tokens,
+            "matched_token_count": "" if type_weighted else profile.matched_observations,
+            "token_coverage": "" if type_weighted else profile.volume_coverage,
+            "eligible_type_count": profile.lexical_tokens if type_weighted else "",
+            "matched_type_count": profile.matched_observations if type_weighted else "",
+            "type_coverage": profile.volume_coverage if type_weighted else "",
+        }
+        empty_coverage = {
+            "eligible_token_count": "",
+            "matched_token_count": "",
+            "token_coverage": "",
+            "eligible_type_count": "",
+            "matched_type_count": "",
+            "type_coverage": "",
+        }
         common = {
             "scope": profile.analysis_view,
             "weighting": profile.weighting,
@@ -379,8 +487,7 @@ def build_corpus_export_bundle(
                     "minimum": "",
                     "maximum": "",
                     "observation_count": profile.matched_observations,
-                    "eligible_token_count": profile.lexical_tokens,
-                    "token_coverage": profile.volume_coverage,
+                    **pooled_coverage,
                 },
                 {
                     **common,
@@ -397,8 +504,7 @@ def build_corpus_export_bundle(
                     "minimum": profile.poem_mean_minimum,
                     "maximum": profile.poem_mean_maximum,
                     "observation_count": profile.works_included,
-                    "eligible_token_count": "",
-                    "token_coverage": "",
+                    **empty_coverage,
                 },
             )
         )
@@ -418,7 +524,11 @@ def build_corpus_export_bundle(
         "maximum",
         "observation_count",
         "eligible_token_count",
+        "matched_token_count",
         "token_coverage",
+        "eligible_type_count",
+        "matched_type_count",
+        "type_coverage",
         "unit",
     )
     report_files = dict(bundle)
@@ -432,8 +542,8 @@ def build_corpus_export_bundle(
             report_profile_rows,
         )
     module_report_filenames = {
-        "phonology": "corpus_rhyme_phonological_aggregates.csv",
-        "performance_meter": "corpus_meter_aggregates.csv",
+        "rhyme_and_phonological_patterns": "corpus_rhyme_phonological_aggregates.csv",
+        "candidate_meter_and_rhythmic_regularity": "corpus_meter_aggregates.csv",
     }
     for module_name in sorted({row.module_name for row in module_aggregates}):
         selected_aggregates = tuple(
@@ -479,6 +589,7 @@ def build_corpus_export_bundle(
             included_profiles,
             source_sha256="; ".join(text.text_sha256 for text in texts),
         ),
+        calculated_modules=tuple(sorted(calculated_module_names)),
     )
     selected_ids = ", ".join(profile.id for profile in included_profiles)
     fixed_modules = tuple(

@@ -2063,24 +2063,24 @@ class ProjectRepository:
                 item.profile.scope.value,
                 item.profile.weighting.value,
             )
+            type_weighted = item.profile.weighting.value == "TYPE"
+            matched_count = (
+                coverage.matched_type_count
+                if type_weighted
+                else coverage.matched_token_count
+            )
+            eligible_count = (
+                coverage.eligible_type_count
+                if type_weighted
+                else coverage.eligible_token_count
+            )
+            coverage_value = (
+                coverage.type_coverage
+                if type_weighted
+                else coverage.token_coverage
+            )
             if coverage_key not in recorded_coverage:
                 recorded_coverage.add(coverage_key)
-                type_weighted = item.profile.weighting.value == "TYPE"
-                matched_count = (
-                    coverage.matched_type_count
-                    if type_weighted
-                    else coverage.matched_token_count
-                )
-                eligible_count = (
-                    coverage.eligible_type_count
-                    if type_weighted
-                    else coverage.eligible_token_count
-                )
-                coverage_value = (
-                    coverage.type_coverage
-                    if type_weighted
-                    else coverage.token_coverage
-                )
                 if coverage_value is not None:
                     canonical_rows.append(
                         (
@@ -2097,9 +2097,9 @@ class ProjectRepository:
                             f"{'types' if type_weighted else 'tokens'}",
                             float(coverage_value),
                             matched_count,
-                            coverage.matched_token_count,
-                            coverage.eligible_token_count,
-                            coverage.token_coverage,
+                            matched_count,
+                            eligible_count,
+                            coverage_value,
                         )
                     )
             values: tuple[tuple[str, float | None, str], ...] = (
@@ -2231,14 +2231,15 @@ class ProjectRepository:
                         scale,
                         (
                             f"{item.observation_count} observations; "
-                            f"{coverage.matched_token_count}/"
-                            f"{coverage.eligible_token_count} eligible tokens matched"
+                            f"{matched_count}/"
+                            f"{eligible_count} eligible "
+                            f"{'types' if type_weighted else 'tokens'} matched"
                         ),
                         float(value),
                         item.observation_count,
-                        coverage.matched_token_count,
-                        coverage.eligible_token_count,
-                        coverage.token_coverage,
+                        matched_count,
+                        eligible_count,
+                        coverage_value,
                     )
                 )
         return canonical_rows

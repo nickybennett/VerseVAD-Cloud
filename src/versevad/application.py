@@ -5126,6 +5126,7 @@ def _build_detailed_export_zip(
         weightings=tuple(profile[1] for profile in ALL_COMPATIBLE_PROFILES),
     )
     selected_profiles = frozenset(selection.profiles)
+    all_profile_metrics = workspace_profile_metrics(workspace)
 
     section_profile_modules = {
         "Affective Evidence": frozenset(
@@ -5143,7 +5144,7 @@ def _build_detailed_export_zip(
         module_ids: frozenset[str] | None = None,
     ) -> bytes:
         rows = []
-        for item in workspace_profile_metrics(workspace):
+        for item in all_profile_metrics:
             if item.profile not in profiles:
                 continue
             if module_ids is not None and item.module_id not in module_ids:
@@ -5227,6 +5228,12 @@ def _build_detailed_export_zip(
             (workspace.poetry_id, export_poetry_id_bundle),
             (workspace.inherited_form, export_inherited_form_bundle),
             (workspace.versemap, export_versemap_bundle),
+        )
+        calculated_module_names = {item.module_id for item in all_profile_metrics}
+        calculated_module_names.update(
+            result.module_result.module_name
+            for result, _exporter in optional_results
+            if result is not None
         )
         section_modules = {
             "Affective Evidence": {"vader_sentiment", "poetry_id"},
@@ -5403,11 +5410,12 @@ def _build_detailed_export_zip(
                 included_profiles,
                 source_sha256=workspace.document.text_sha256,
             ),
+            calculated_modules=tuple(sorted(calculated_module_names)),
         )
         if export_mode == "complete_audit":
             from versevad.metric_capabilities import metric_capabilities
 
-            profile_rows = workspace_profile_metrics(workspace)
+            profile_rows = all_profile_metrics
             selected_rows = tuple(
                 row for row in profile_rows if row.profile in selected_profiles
             )

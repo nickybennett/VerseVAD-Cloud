@@ -32,6 +32,10 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Corrected comprehensive report module-status classification, corpus VAD
+  matched-count reporting, legacy type-weighted denominator metadata, and
+  corpus VAD appendix naming/companion-file references across analytical
+  workspaces.
 - Unified Single Poem, Compare Poems, and Other Text reporting around a shared
   metric-capability contract: categorical associations now expose rates rather
   than invalid dispersion/load statistics; continuous families enforce the

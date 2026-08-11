@@ -138,11 +138,32 @@ _PROFILE_FAMILY_BY_MODULE = {
 }
 
 
+_CALCULATED_FAMILY_BY_MODULE = {
+    **_PROFILE_FAMILY_BY_MODULE,
+    "vader_sentiment": "emotion",
+    "readability": "readability",
+    "lexical_style": "structure",
+    "pronunciation": "sound_form",
+    "meter": "sound_form",
+    "performance_meter": "sound_form",
+    "phonology": "sound_form",
+    "inherited_form": "sound_form",
+    "poetry_id": "poetry_id",
+    "versemap": "versemap",
+    "lexical_frequency": "lexical_accessibility",
+    "age_of_acquisition": "lexical_accessibility",
+    "sensorimotor_imagery_and_embodiment": "experience_imagery",
+    "pronunciation_prosody_foundation": "sound_form",
+    "candidate_meter_and_rhythmic_regularity": "sound_form",
+    "rhyme_and_phonological_patterns": "sound_form",
+}
+
+
 _FILE_FAMILY_HINTS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("phase2_vad", "vad_by_part", "lexical_trajectory"), "vad"),
     (("phase2_emotion", "vader_sentiment"), "emotion"),
     (("concreteness", "sensorimotor"), "experience_imagery"),
-    (("frequency", "aoa"), "lexical_accessibility"),
+    (("frequency", "lexical_frequency", "aoa", "age_of_acquisition"), "lexical_accessibility"),
     (("readability",), "readability"),
     (("lexical_style",), "structure"),
     (("pronunciation", "meter", "rhyme", "phonological", "inherited_form"), "sound_form"),
@@ -918,6 +939,8 @@ def _add_csv_dataset(
 def _add_all_profile_matrix(
     document: Document,
     records: Sequence[Mapping[str, str]],
+    *,
+    companion_filename: str = "profile_metrics_all_compatible.csv",
 ) -> None:
     profiles = list(
         dict.fromkeys(_clean(row.get("profile_id", "")) for row in records)
@@ -969,7 +992,7 @@ def _add_all_profile_matrix(
     )
     document.add_paragraph(
         "This matrix reports the primary value for every compatible lexical profile. "
-        "The companion profile_metrics_all_compatible.csv retains full-precision "
+        f"The companion {companion_filename} retains full-precision "
         "statistics, counts, exclusions, and coverage. Statistical fields remain blank "
         "when they do not apply; cumulative fields are populated only for metric "
         "families with a defined additive interpretation."
@@ -1231,6 +1254,7 @@ def build_comprehensive_analysis_report(
     warnings: Sequence[str] = (),
     resources: Sequence[str] = (),
     methods_reproducibility: Sequence[str] = (),
+    calculated_modules: Sequence[str] = (),
 ) -> bytes:
     """Build the full readable analysis report directly from exported evidence."""
 
@@ -1255,6 +1279,11 @@ def build_comprehensive_analysis_report(
 
     family_files: dict[str, list[str]] = {
         family.family_id: [] for family in COMPREHENSIVE_REPORT_FAMILIES
+    }
+    calculated_families = {
+        family
+        for module in calculated_modules
+        if (family := _CALCULATED_FAMILY_BY_MODULE.get(_clean(module)))
     }
     excluded_inventory: list[tuple[str, str, str]] = []
     special_files = {
@@ -1335,7 +1364,7 @@ def build_comprehensive_analysis_report(
     )
     if export_mode == "current_view":
         document.add_paragraph(
-            "This Current View report includes the selected report family and the globally selected lexical scope/weighting profiles. Other module families are explicitly marked Not reported."
+            "This Current View report includes the selected report family and the globally selected lexical scope/weighting profiles. Calculated families outside the selected report section are identified separately from modules that were not calculated."
         )
     else:
         document.add_paragraph(
@@ -1366,7 +1395,7 @@ def build_comprehensive_analysis_report(
             continue
         seen_coverage.add(key)
         weighting = _clean(row.get("weighting", ""))
-        if weighting == "TYPE":
+        if weighting.casefold() in {"type", "type_weighted", "type-weighted"}:
             eligible = row.get("eligible_type_count", "")
             matched = row.get("matched_type_count", "")
             coverage = row.get("type_coverage", "")
@@ -1410,9 +1439,13 @@ def build_comprehensive_analysis_report(
         if present:
             status = "Reported"
             note = "Calculated evidence is included below."
-        elif export_mode == "current_view":
-            status = "Not reported"
-            note = "Outside the selected Current View or not enabled."
+        elif family.family_id in calculated_families and export_mode == "current_view":
+            status = "Calculated, not included"
+            selected_section = visible_section or "Current View"
+            note = f"Calculated, but not included in the selected {selected_section} report section."
+        elif family.family_id in calculated_families:
+            status = "Calculated; companion data only"
+            note = "Calculated evidence is retained in the companion audit files."
         else:
             status = "Not calculated"
             note = "Module disabled, unavailable, or unsupported for this text."
@@ -1470,12 +1503,26 @@ def build_comprehensive_analysis_report(
     )
     if export_mode == "complete_audit" and all_profile_rows:
         document.add_page_break()
-        document.add_heading(f"{section_number}. All Compatible Lexical Profiles", level=1)
+        corpus_profile_matrix = "corpus_vad_profiles.csv" in parsed
+        matrix_title = (
+            "All Compatible VAD Profiles"
+            if corpus_profile_matrix
+            else "All Compatible Lexical Profiles"
+        )
+        document.add_heading(f"{section_number}. {matrix_title}", level=1)
         section_number += 1
         document.add_paragraph(
             "This appendix records every calculated lexical scope and weighting combination. The main report emphasizes the selected profiles; this table preserves the complete compatible profile space."
         )
-        _add_all_profile_matrix(document, all_profile_rows)
+        _add_all_profile_matrix(
+            document,
+            all_profile_rows,
+            companion_filename=(
+                "corpus_vad_profiles.csv"
+                if corpus_profile_matrix
+                else "profile_metrics_all_compatible.csv"
+            ),
+        )
 
     document.add_page_break()
     document.add_heading(f"{section_number}. Warnings and Limitations", level=1)

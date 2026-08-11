@@ -33,6 +33,35 @@ from versevad.module_capabilities import CapabilityCategory, MODULE_CAPABILITIES
 COMPARISON_EXPORT_API_VERSION = 1
 
 
+def _calculated_modules(analysis) -> tuple[str, ...]:
+    modules: set[str] = set()
+    if any(result.vad_summary is not None for result in analysis.results):
+        modules.add("vad")
+    if any(result.category_statistics for result in analysis.results):
+        modules.add("emotion_association")
+    if any(result.intensity_statistics for result in analysis.results):
+        modules.add("emotion_intensity")
+    for attribute in (
+        "vader_sentiment",
+        "readability",
+        "concreteness",
+        "frequency",
+        "aoa",
+        "sensorimotor",
+        "pronunciation",
+        "meter",
+        "phonology",
+        "lexical_style",
+        "poetry_id",
+        "inherited_form",
+        "versemap",
+    ):
+        result = getattr(analysis, attribute, None)
+        if result is not None:
+            modules.add(result.module_result.module_name)
+    return tuple(sorted(modules))
+
+
 _COMPARISON_REPORT_FILENAMES = {
     "Affective Evidence": "comparison_phase2_vad.csv",
     "Emotion": "comparison_phase2_emotion.csv",
@@ -279,6 +308,7 @@ def export_poem_comparison_docx(
                 comparison.second.document.text_sha256,
             )
         ),
+        calculated_modules=_calculated_modules(comparison.first),
         analysis_profiles=(profile_label,),
         software_version=__version__,
         warnings=(
@@ -468,6 +498,7 @@ def export_poem_comparison_set_docx(
         text_id=comparison_set.comparison_set_id,
         result_id=comparison_set.comparison_set_id,
         source_sha256=source_sha256,
+        calculated_modules=_calculated_modules(comparison_set.analyses[0]),
         analysis_profiles=(profile_label,),
         software_version=__version__,
         warnings=(
@@ -626,6 +657,7 @@ def export_poem_comparison_set_bundle(
                 profiles,
                 source_sha256=source_sha256,
             ),
+            calculated_modules=_calculated_modules(first_analysis),
         )
     )
     selected_ids = ", ".join(profile.id for profile in profiles)
