@@ -12,6 +12,10 @@ magicEnabled = false
 [server]
 maxUploadSize = 5
 runOnSave = false
+# Community Cloud handles GitHub deployments itself. Disabling Streamlit's
+# recursive filesystem watcher avoids exhausting the hosted Linux inotify
+# allowance while retaining normal widget reruns and repository redeploys.
+fileWatcherType = "none"
 
 [theme]
 primaryColor = "#A34F32"

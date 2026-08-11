@@ -13,23 +13,57 @@ SOURCE_ROOT = PROJECT_ROOT / "src"
 if str(SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT))
 
-# The ordinary Windows and macOS launchers execute the source application
-# directly, so this private cloud-safety mode does not affect local installs.
-# Restore any pre-existing process value after the rerun so test harnesses and
-# embedded callers cannot accidentally inherit cloud-only storage semantics.
-_previous_cloud_mode = os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT")
-os.environ["VERSEVAD_CLOUD_DEPLOYMENT"] = "1"
-try:
-    # Streamlit re-executes this entrypoint for every widget interaction.
-    # Importing the UI module directly can become a no-op once Python has cached
-    # the module, leaving a blank page on a later rerun. Execute the source
-    # application afresh so hosted reruns follow the local launcher lifecycle.
-    runpy.run_path(
-        str(SOURCE_ROOT / "versevad" / "ui" / "app.py"),
-        run_name="__main__",
-    )
-finally:
-    if _previous_cloud_mode is None:
-        os.environ.pop("VERSEVAD_CLOUD_DEPLOYMENT", None)
-    else:
-        os.environ["VERSEVAD_CLOUD_DEPLOYMENT"] = _previous_cloud_mode
+
+_PROFILE_DETAILS_MODULE = "versevad.ui.profile_details"
+_REQUIRED_PROFILE_DETAIL_SYMBOLS = (
+    "affect_continuous_profile_detail",
+    "categorical_affect_contributors",
+    "continuous_profile_detail",
+    "representative_contributors",
+    "render_representative_contributors",
+    "select_detail_profile",
+)
+
+
+def _discard_incompatible_cached_modules() -> bool:
+    """Drop a helper cached before a live Community Cloud source update."""
+
+    module = sys.modules.get(_PROFILE_DETAILS_MODULE)
+    if module is None or all(
+        hasattr(module, symbol) for symbol in _REQUIRED_PROFILE_DETAIL_SYMBOLS
+    ):
+        return False
+    sys.modules.pop(_PROFILE_DETAILS_MODULE, None)
+    return True
+
+
+def main() -> None:
+    # Community Cloud can update the checked-out source without replacing the
+    # long-lived Python worker. Remove only a provably incompatible cached
+    # helper; ordinary widget reruns retain their normal module/session state.
+    _discard_incompatible_cached_modules()
+
+    # The ordinary Windows and macOS launchers execute the source application
+    # directly, so this private cloud-safety mode does not affect local installs.
+    # Restore any pre-existing process value after the rerun so test harnesses and
+    # embedded callers cannot accidentally inherit cloud-only storage semantics.
+    previous_cloud_mode = os.environ.get("VERSEVAD_CLOUD_DEPLOYMENT")
+    os.environ["VERSEVAD_CLOUD_DEPLOYMENT"] = "1"
+    try:
+        # Streamlit re-executes this entrypoint for every widget interaction.
+        # Importing the UI module directly can become a no-op once Python has cached
+        # the module, leaving a blank page on a later rerun. Execute the source
+        # application afresh so hosted reruns follow the local launcher lifecycle.
+        runpy.run_path(
+            str(SOURCE_ROOT / "versevad" / "ui" / "app.py"),
+            run_name="__main__",
+        )
+    finally:
+        if previous_cloud_mode is None:
+            os.environ.pop("VERSEVAD_CLOUD_DEPLOYMENT", None)
+        else:
+            os.environ["VERSEVAD_CLOUD_DEPLOYMENT"] = previous_cloud_mode
+
+
+if __name__ == "__main__":
+    main()

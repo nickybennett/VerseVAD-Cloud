@@ -32,6 +32,9 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Hardened the Community Cloud entrypoint against helper modules cached across
+  live source updates and disabled unnecessary hosted filesystem watching to
+  prevent Linux inotify exhaustion during redeployments.
 - Made the comprehensive Word report's primary VAD coverage column follow the
   row's weighting (token coverage for token-weighted profiles and type coverage
   for type-weighted profiles), and clarified pooled lexical-rating versus

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import ModuleType
+
+import streamlit_app
 
 from versevad.deployment import (
     CLOUD_SESSION_STATE_KEY,
@@ -25,6 +28,31 @@ def test_cloud_entrypoint_and_configuration_are_host_safe() -> None:
     assert 'address = "127.0.0.1"' not in configuration
     assert "headless = false" not in configuration
     assert "maxUploadSize = 5" in configuration
+    assert 'fileWatcherType = "none"' in configuration
+
+
+def test_cloud_entrypoint_discards_only_an_incompatible_cached_helper(
+    monkeypatch,
+) -> None:
+    stale = ModuleType("versevad.ui.profile_details")
+    monkeypatch.setitem(
+        streamlit_app.sys.modules,
+        "versevad.ui.profile_details",
+        stale,
+    )
+    assert streamlit_app._discard_incompatible_cached_modules()
+    assert "versevad.ui.profile_details" not in streamlit_app.sys.modules
+
+    current = ModuleType("versevad.ui.profile_details")
+    for symbol in streamlit_app._REQUIRED_PROFILE_DETAIL_SYMBOLS:
+        setattr(current, symbol, object())
+    monkeypatch.setitem(
+        streamlit_app.sys.modules,
+        "versevad.ui.profile_details",
+        current,
+    )
+    assert not streamlit_app._discard_incompatible_cached_modules()
+    assert streamlit_app.sys.modules["versevad.ui.profile_details"] is current
 
 
 def test_cloud_mode_accepts_only_explicit_true_values() -> None:
