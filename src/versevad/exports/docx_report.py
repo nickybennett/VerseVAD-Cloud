@@ -1015,6 +1015,12 @@ def _profile_display_rows(
         source = _clean(row.get("source", row.get("source_id", "")))
         metric = _clean(row.get("metric", row.get("metric_id", "")))
         profile = _clean(row.get("profile_label", row.get("profile_id", "")))
+        weighting = _clean(row.get("weighting", "")).casefold()
+        coverage_field = (
+            "type_coverage"
+            if weighting in {"type", "type_weighted", "type-weighted"}
+            else "token_coverage"
+        )
         primary.append(
             (
                 source,
@@ -1023,7 +1029,7 @@ def _profile_display_rows(
                 _format_report_value(row.get("value", ""), "value"),
                 _format_report_value(row.get("median", ""), "median"),
                 _format_report_value(row.get("observation_count", ""), "observation_count"),
-                _format_report_value(row.get("token_coverage", ""), "token_coverage"),
+                _format_report_value(row.get(coverage_field, ""), "coverage"),
                 _clean(row.get("unit", "")),
             )
         )
@@ -1080,6 +1086,8 @@ def _profile_display_rows(
 def _add_profile_family_tables(
     document: Document,
     records: Sequence[Mapping[str, str]],
+    *,
+    collection_report: bool = False,
 ) -> None:
     primary, distribution, cumulative = _profile_display_rows(records)
     document.add_heading("Primary values and coverage", level=2)
@@ -1090,18 +1098,32 @@ def _add_profile_family_tables(
         font_size=7.3,
     )
     if distribution:
-        document.add_heading("Within-text dispersion and volatility", level=2)
+        document.add_heading(
+            "Lexical and Between-Work Dispersion"
+            if collection_report
+            else "Within-text dispersion and volatility",
+            level=2,
+        )
         _add_report_table(
             document,
             ("Source", "Metric", "Profile", "Population SD", "IQR", "Min to Max", "Mean Abs. Deviation"),
             distribution,
             font_size=7.2,
         )
-        document.add_paragraph(
-            "Dispersion is reported only for continuous evidence with at least two "
-            "contributing observations. Categorical associations and one-observation "
-            "summaries are omitted rather than presented as zero variability."
-        )
+        if collection_report:
+            document.add_paragraph(
+                "For pooled-observation rows, Population SD describes dispersion among "
+                "the pooled matched lexical ratings. For equal-work rows, Population SD "
+                "describes between-work dispersion among the individual works' mean "
+                "values. These answer different questions and should not be treated as "
+                "interchangeable measures."
+            )
+        else:
+            document.add_paragraph(
+                "Dispersion is reported only for continuous evidence with at least two "
+                "contributing observations. Categorical associations and one-observation "
+                "summaries are omitted rather than presented as zero variability."
+            )
     if cumulative:
         has_intensity = any(
             _clean(row.get("module_id", "")) == "emotion_intensity"
@@ -1467,7 +1489,15 @@ def build_comprehensive_analysis_report(
         for caution in family.cautions:
             _add_callout(document, "Interpretive caution", caution)
         if profile_rows:
-            _add_profile_family_tables(document, profile_rows)
+            collection_report = any(
+                label in workspace_label.casefold()
+                for label in ("corpus", "project", "collection")
+            )
+            _add_profile_family_tables(
+                document,
+                profile_rows,
+                collection_report=collection_report,
+            )
             if family.family_id == "vad" and len(
                 {_clean(row.get("source_id", "")) for row in profile_rows}
             ) > 1:

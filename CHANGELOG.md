@@ -32,6 +32,10 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Made the comprehensive Word report's primary VAD coverage column follow the
+  row's weighting (token coverage for token-weighted profiles and type coverage
+  for type-weighted profiles), and clarified pooled lexical-rating versus
+  between-work dispersion in corpus reports.
 - Corrected comprehensive report module-status classification, corpus VAD
   matched-count reporting, legacy type-weighted denominator metadata, and
   corpus VAD appendix naming/companion-file references across analytical

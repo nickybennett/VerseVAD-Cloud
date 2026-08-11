@@ -63,7 +63,7 @@ def test_current_view_comprehensive_report_is_readable_and_deterministic() -> No
     assert "[Enter research question]" in text
     assert "0.572" in text
     assert "Valence, Arousal, and Dominance" in text
-    assert "Not reported" in text
+    assert "Not calculated" in text
 
 
 def test_complete_audit_report_marks_uncalculated_modules_and_lists_audit_files() -> None:
@@ -83,3 +83,38 @@ def test_complete_audit_report_marks_uncalculated_modules_and_lists_audit_files(
     assert "Not calculated" in text
     assert "phase2_token_audit.csv" in text
     assert "full-precision" in text.lower()
+
+
+def test_primary_profile_table_uses_weighting_appropriate_coverage() -> None:
+    type_profile = _profile_csv().decode("utf-8").replace(
+        "stopword_excluded-token_weighted,stopword_excluded,token_weighted",
+        "stopword_excluded-type_weighted,stopword_excluded,type_weighted",
+    ).encode("utf-8")
+    content = build_comprehensive_analysis_report(
+        export_files={"profile_metrics_selected.csv": type_profile},
+        text_title="Example Poem",
+        export_mode="current_view",
+    )
+    document = Document(io.BytesIO(content))
+    primary_table = next(
+        table
+        for table in document.tables
+        if table.rows and table.rows[0].cells[0].text == "Source"
+        and any(cell.text == "Coverage" for cell in table.rows[0].cells)
+    )
+    headings = [cell.text for cell in primary_table.rows[0].cells]
+    coverage_index = headings.index("Coverage")
+    assert primary_table.rows[1].cells[coverage_index].text == "91.7%"
+
+
+def test_corpus_report_distinguishes_pooled_and_between_work_dispersion() -> None:
+    content = build_comprehensive_analysis_report(
+        export_files={"profile_metrics_selected.csv": _profile_csv()},
+        text_title="Example Corpus",
+        export_mode="complete_audit",
+        workspace_label="Saved Projects / Corpus",
+    )
+    text = _document_text(content)
+    assert "Lexical and Between-Work Dispersion" in text
+    assert "pooled matched lexical ratings" in text
+    assert "between-work dispersion" in text
