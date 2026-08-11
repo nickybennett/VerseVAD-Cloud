@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 from docx import Document
 
+from versevad.exports.archive_contract import ANALYSIS_REPORT_PATHS
 from versevad.exports.docx_report import _normalize_docx
 from versevad.research_library import ResearchNote
 
@@ -163,7 +164,7 @@ def add_research_notes_to_audit_bundle(
     ) as output:
         for name in sorted(archive.namelist()):
             content = archive.read(name)
-            if name == "VerseVAD_analysis_report.docx":
+            if name in ANALYSIS_REPORT_PATHS:
                 content = append_research_notes_to_docx(
                     content,
                     notes,

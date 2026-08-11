@@ -37,6 +37,10 @@ from versevad.core.resources import (
     ResourceStatus,
 )
 from versevad.exports.aoa import export_aoa_bundle
+from versevad.exports.archive_contract import (
+    COMPLETE_AUDIT_ANALYSIS_REPORT_PATH,
+    FLAT_ANALYSIS_REPORT_PATH,
+)
 from versevad.exports.concreteness import export_concreteness_bundle
 from versevad.exports.docx_report import (
     build_comprehensive_analysis_report,
@@ -5036,7 +5040,10 @@ def csv_reading_guide() -> bytes:
     rows.extend(
         (
             {
-                "file": "VerseVAD_analysis_report.docx",
+                "file": (
+                    f"{FLAT_ANALYSIS_REPORT_PATH} (Current View) or "
+                    f"{COMPLETE_AUDIT_ANALYSIS_REPORT_PATH} (Complete Audit)"
+                ),
                 "what_it_answers": (
                     "What are the principal results in a readable narrative?"
                 ),
@@ -5389,7 +5396,7 @@ def _build_detailed_export_zip(
             warning_messages.extend(
                 warning.message for warning in workspace.poem_document.warnings
             )
-        export_files["VerseVAD_analysis_report.docx"] = build_comprehensive_analysis_report(
+        export_files[FLAT_ANALYSIS_REPORT_PATH] = build_comprehensive_analysis_report(
             export_files=export_files,
             text_title=workspace.document.title,
             author=author,
@@ -5627,7 +5634,7 @@ def _build_detailed_export_zip(
                 resource_rows,
             )
             file_guide_rows = [
-                {"file": "00_START_HERE/VerseVAD_Analysis_Report.docx", "domain": "All", "module": "All", "data_level": "summary", "what_it_answers": "What does the analysis report in readable form?", "when_to_use_it": "Begin here", "primary_or_technical": "primary", "important_caution": "Rounded for readability; CSV retains available precision."},
+                {"file": COMPLETE_AUDIT_ANALYSIS_REPORT_PATH, "domain": "All", "module": "All", "data_level": "summary", "what_it_answers": "What does the analysis report in readable form?", "when_to_use_it": "Begin here", "primary_or_technical": "primary", "important_caution": "Rounded for readability; CSV retains available precision."},
                 {"file": "00_START_HERE/metric_summary.csv", "domain": "All", "module": "Profile-aware lexical modules", "data_level": "summary", "what_it_answers": "What are the selected-profile results?", "when_to_use_it": "Statistical analysis and citation", "primary_or_technical": "primary", "important_caution": "Interpret with coverage and resource identity."},
                 {"file": "00_START_HERE/profile_comparison.csv", "domain": "All", "module": "Profile-aware lexical modules", "data_level": "descriptive detail", "what_it_answers": "How sensitive are results to scope and weighting?", "when_to_use_it": "Profile sensitivity analysis", "primary_or_technical": "supporting", "important_caution": "Compare like-for-like resources and units."},
                 {"file": "00_START_HERE/coverage_summary.csv", "domain": "All", "module": "Profile-aware lexical modules", "data_level": "summary", "what_it_answers": "How much eligible evidence was matched?", "when_to_use_it": "Before interpretation", "primary_or_technical": "primary", "important_caution": "Token and type denominators are distinct."},
@@ -5693,7 +5700,7 @@ def _build_detailed_export_zip(
                     return f"08_REPRODUCIBILITY/{filename}"
                 return f"07_PROCESSING_AUDIT/{filename}"
 
-            report = export_files.pop("VerseVAD_analysis_report.docx")
+            report = export_files.pop(FLAT_ANALYSIS_REPORT_PATH)
             readme = export_files.pop("REPRODUCIBILITY_README.txt")
             export_files.pop("FILE_INVENTORY.txt", None)
             organized = {
@@ -5703,7 +5710,7 @@ def _build_detailed_export_zip(
             organized.update(
                 {
                     "00_START_HERE/START_HERE.txt": start_here,
-                    "00_START_HERE/VerseVAD_Analysis_Report.docx": report,
+                    COMPLETE_AUDIT_ANALYSIS_REPORT_PATH: report,
                     "00_START_HERE/metric_summary.csv": metric_summary,
                     "00_START_HERE/metric_dictionary.csv": metric_dictionary,
                     "00_START_HERE/coverage_summary.csv": coverage_summary,

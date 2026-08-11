@@ -28,6 +28,7 @@ from versevad.exports.comparison import (
     export_poem_comparison_set_csv,
     export_poem_comparison_set_docx,
 )
+from versevad.exports.archive_contract import read_analysis_report
 from versevad.exports.lexicon_explorer import export_lexicon_explorer_docx
 from versevad.research_library import (
     LibraryItem,
@@ -669,7 +670,7 @@ def _results_only_bundle(context: ActiveResearchContext) -> bytes:
             analysis = payload["analysis"]
             audit_bundle = detailed_export_zip(analysis)
             with zipfile.ZipFile(io.BytesIO(audit_bundle)) as complete:
-                narrative = complete.read("VerseVAD_analysis_report.docx")
+                narrative = read_analysis_report(complete)
             archive.writestr(
                 "VerseVAD_saved_results_summary.csv",
                 scholar_summary_csv(analysis),

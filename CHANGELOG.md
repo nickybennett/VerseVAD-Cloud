@@ -32,6 +32,9 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Unified comprehensive-report and selected-profile ZIP member resolution
+  across flat Current View and reorganized Complete Audit bundles, including
+  single-text downloads, saved-analysis exports, and research-note appendices.
 - Hardened the Community Cloud entrypoint against helper modules cached across
   live source updates and disabled unnecessary hosted filesystem watching to
   prevent Linux inotify exhaustion during redeployments.

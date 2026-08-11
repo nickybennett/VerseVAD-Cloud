@@ -7440,6 +7440,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
 
     with download_tab:
+        from versevad.exports.archive_contract import (
+            read_analysis_report,
+            read_selected_profile_metrics,
+        )
         from versevad.exports.research_notes import (
             add_research_notes_to_audit_bundle,
         )
@@ -7641,11 +7645,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                     include_metadata=include_note_metadata,
                 )
                 with zipfile.ZipFile(io.BytesIO(audit_bundle)) as archive:
-                    narrative_report = archive.read(
-                        "VerseVAD_analysis_report.docx"
-                    )
-                    selected_summary = archive.read(
-                        "profile_metrics_selected.csv"
+                    narrative_report = read_analysis_report(archive)
+                    selected_summary = (
+                        read_selected_profile_metrics(archive)
+                        if export_mode == "current_view"
+                        else b""
                     )
                 prepared_exports = {
                     "signature": export_signature,

@@ -5,6 +5,9 @@ import zipfile
 
 from docx import Document
 
+from versevad.exports.archive_contract import (
+    COMPLETE_AUDIT_ANALYSIS_REPORT_PATH,
+)
 from versevad.exports.docx_report import (
     NarrativeReportProfile,
     build_narrative_report,
@@ -106,4 +109,23 @@ def test_audit_bundle_adds_csv_markdown_and_note_inclusive_docx() -> None:
                 io.BytesIO(archive.read("VerseVAD_analysis_report.docx"))
             ).paragraphs
         ]
+    assert "Research Notes" in paragraphs
+
+
+def test_complete_audit_bundle_appends_notes_to_nested_report() -> None:
+    source = io.BytesIO()
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr(COMPLETE_AUDIT_ANALYSIS_REPORT_PATH, _report())
+
+    updated = add_research_notes_to_audit_bundle(
+        source.getvalue(),
+        (_note(),),
+        include_metadata=False,
+    )
+
+    with zipfile.ZipFile(io.BytesIO(updated)) as archive:
+        report = archive.read(COMPLETE_AUDIT_ANALYSIS_REPORT_PATH)
+    paragraphs = [
+        paragraph.text for paragraph in Document(io.BytesIO(report)).paragraphs
+    ]
     assert "Research Notes" in paragraphs
