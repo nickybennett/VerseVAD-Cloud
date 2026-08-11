@@ -35,6 +35,7 @@ from versevad.exports.comparison import (
     export_poem_comparison_docx,
     export_poem_comparison_set_csv,
     export_poem_comparison_set_bundle,
+    export_poem_comparison_set_selected_csv,
 )
 from versevad.models import PhrasePolicy
 from versevad.module_capabilities import fixed_profile_notice
@@ -94,6 +95,16 @@ from versevad.analysis_profiles import (
     primary_display_profile,
 )
 from versevad.ui.profile_controls import render_report_profile_controls
+from versevad.ui.module_scope_overrides import (
+    active_override_modules,
+    render_override_controls_for_groups,
+)
+from versevad.report_profile_overrides import (
+    CONTENT_WORD_SCOPE_OVERRIDE_MODULES,
+    canonical_module_id,
+    effective_profiles,
+    profile_applies_to_module,
+)
 from versevad.ui.vad_overview import (
     overview_metric_matches_vad_preference,
     preferred_overview_vad_lexicon_id,
@@ -1866,6 +1877,23 @@ def _render_comparison_set_results(
     if report_section != "Export & Help":
         st.session_state["comparison_set_last_analytical_section"] = report_section
     profile_state = render_report_profile_controls("compare_poems")
+    override_groups = {
+        "Affective Evidence": ("emotion",),
+        "Lexical Character, Imagery & Embodiment": (
+            "concreteness",
+            "sensorimotor",
+            "frequency",
+            "aoa",
+        ),
+    }.get(report_section, ())
+    if override_groups:
+        with st.expander("Module-Specific Scope Overrides", expanded=False):
+            render_override_controls_for_groups(
+                "compare_poems",
+                override_groups,
+                profile_state.selection,
+            )
+    overridden_modules = active_override_modules("compare_poems")
     view_ids = {
         LexicalScope.ALL_LEXICAL: "all_matched",
         LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
@@ -1874,6 +1902,7 @@ def _render_comparison_set_results(
     frames: list[pd.DataFrame] = []
     configurable_prefixes = (
         "vad.",
+        "emotion.",
         "emotion_association.",
         "emotion_intensity.",
         "concreteness.",
@@ -1883,7 +1912,9 @@ def _render_comparison_set_results(
         "word_length.",
         "poetry_id.",
     )
-    for index, profile in enumerate(display_profile_order(profile_state.selection)):
+    primary_profile = primary_display_profile(profile_state.selection)
+    selected_profiles = frozenset(profile_state.selection.profiles)
+    for profile in effective_profiles(profile_state.selection, overridden_modules):
         profile_view = view_ids[profile.scope]
         profile_weighting = profile.weighting.value.casefold()
         profile_frame = _comparison_set_frame(
@@ -1893,12 +1924,25 @@ def _render_comparison_set_results(
         )
         if profile_frame.empty:
             continue
-        if index:
-            profile_frame = profile_frame[
-                profile_frame["Metric ID"].astype(str).str.startswith(
-                    configurable_prefixes
+        metric_ids = profile_frame["Metric ID"].fillna("").astype(str)
+        configurable = metric_ids.str.startswith(configurable_prefixes)
+        modules = metric_ids.map(canonical_module_id)
+        keep = (~configurable & (profile == primary_profile))
+        keep |= configurable & modules.map(
+            lambda module_id: (
+                profile_applies_to_module(
+                    profile,
+                    module_id=module_id,
+                    selection=profile_state.selection,
+                    overridden_modules=overridden_modules,
                 )
-            ]
+                if module_id in CONTENT_WORD_SCOPE_OVERRIDE_MODULES
+                else profile in selected_profiles
+            )
+        )
+        profile_frame = profile_frame[keep]
+        if profile_frame.empty:
+            continue
         profile_frame = profile_frame.copy()
         profile_frame["Profile"] = profile.label
         frames.append(profile_frame)
@@ -1907,7 +1951,6 @@ def _render_comparison_set_results(
         if frames
         else pd.DataFrame()
     )
-    primary_profile = primary_display_profile(profile_state.selection)
     analysis_view = view_ids[primary_profile.scope]
     weighting = primary_profile.weighting.value.casefold()
     poem_labels = _comparison_set_labels(comparison_set)
@@ -2116,6 +2159,7 @@ def _render_comparison_set_results(
             export_mode,
             visible_section,
             tuple(profile.id for profile in profile_state.selection.profiles),
+            tuple(sorted(overridden_modules)),
             tuple(
                 (note.note_id, note.updated_at)
                 for note in selected_notes
@@ -2130,16 +2174,19 @@ def _render_comparison_set_results(
             key="prepare_comparison_set_exports",
         ):
             with st.spinner("Preparing CSV, Word, and reproducibility files..."):
-                csv_content = export_poem_comparison_set_csv(
+                csv_content = export_poem_comparison_set_selected_csv(
                     comparison_set,
-                    analysis_view=analysis_view,
-                    weighting=weighting,
+                    selection=profile_state.selection,
+                    export_mode=export_mode,
+                    visible_section=visible_section,
+                    module_scope_overrides=overridden_modules,
                 )
                 bundle_content = export_poem_comparison_set_bundle(
                     comparison_set,
                     selection=profile_state.selection,
                     export_mode=export_mode,
                     visible_section=visible_section,
+                    module_scope_overrides=overridden_modules,
                 )
                 with zipfile.ZipFile(io.BytesIO(bundle_content)) as archive:
                     docx_content = archive.read(

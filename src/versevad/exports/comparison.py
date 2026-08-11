@@ -28,6 +28,14 @@ from versevad.exports.reproducibility import (
     methods_appendix_paragraphs,
 )
 from versevad.module_capabilities import CapabilityCategory, MODULE_CAPABILITIES
+from versevad.report_profile_overrides import (
+    CONTENT_WORD_SCOPE_OVERRIDE_MODULES,
+    canonical_module_id,
+    effective_profiles,
+    override_descriptions,
+    overrides_for_report_section,
+    profile_applies_to_module,
+)
 
 
 COMPARISON_EXPORT_API_VERSION = 1
@@ -352,6 +360,8 @@ def export_poem_comparison_set_csv(
     report_section: str = "",
     include_configurable: bool = True,
     include_fixed: bool = True,
+    profile_selection: ProfileSelection | None = None,
+    module_scope_overrides: frozenset[str] = frozenset(),
 ) -> bytes:
     """Export a long-form two-to-ten-poem comparison without pairwise deltas."""
 
@@ -389,6 +399,29 @@ def export_poem_comparison_set_csv(
             row.analysis_view in {"all_matched", "stopwords_excluded", "content_words"}
             and row.weighting in {"token", "type"}
         )
+        if configurable and profile_selection is not None:
+            profile = AnalysisProfile(
+                next(scope for scope in SCOPE_ORDER if {
+                    LexicalScope.ALL_LEXICAL: "all_matched",
+                    LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+                    LexicalScope.CONTENT_WORDS: "content_words",
+                }[scope] == row.analysis_view),
+                next(
+                    item for item in WEIGHTING_ORDER
+                    if item.value.casefold() == row.weighting
+                ),
+            )
+            module_id = canonical_module_id(row.metric_id)
+            if module_id in CONTENT_WORD_SCOPE_OVERRIDE_MODULES:
+                if not profile_applies_to_module(
+                    profile,
+                    module_id=module_id,
+                    selection=profile_selection,
+                    overridden_modules=module_scope_overrides,
+                ):
+                    continue
+            elif profile not in profile_selection.profiles:
+                continue
         if report_section:
             if report_section == "Overview":
                 if not (
@@ -457,6 +490,8 @@ def export_poem_comparison_set_docx(
     report_section: str = "",
     include_configurable: bool = True,
     include_fixed: bool = True,
+    profile_selection: ProfileSelection | None = None,
+    module_scope_overrides: frozenset[str] = frozenset(),
 ) -> bytes:
     """Build a comprehensive set-comparison report backed by the long-form CSV."""
 
@@ -467,6 +502,8 @@ def export_poem_comparison_set_docx(
         report_section=report_section,
         include_configurable=include_configurable,
         include_fixed=include_fixed,
+        profile_selection=profile_selection,
+        module_scope_overrides=module_scope_overrides,
     )
     titles = [
         analysis.request.title or f"Poem {index}"
@@ -535,13 +572,19 @@ def export_poem_comparison_set_bundle(
     selection: ProfileSelection,
     export_mode: str,
     visible_section: str = "",
+    module_scope_overrides: frozenset[str] = frozenset(),
 ) -> bytes:
     """Package selected or complete comparison profiles with an inventory."""
 
     if export_mode not in {"current_view", "complete_audit"}:
         raise ValueError(f"Unknown export mode: {export_mode}")
+    overridden_modules = (
+        overrides_for_report_section(visible_section, module_scope_overrides)
+        if export_mode == "current_view"
+        else frozenset()
+    )
     profiles = (
-        selection.profiles
+        effective_profiles(selection, overridden_modules)
         if export_mode == "current_view"
         else tuple(
             AnalysisProfile(scope, weighting)
@@ -566,6 +609,8 @@ def export_poem_comparison_set_bundle(
             weighting=weighting,
             report_section=(visible_section if export_mode == "current_view" else ""),
             include_fixed=False,
+            profile_selection=(selection if export_mode == "current_view" else None),
+            module_scope_overrides=overridden_modules,
         )
         files[f"comparison_{stem}.csv"] = profile_csv
         report_csvs.append((profile.label, profile_csv))
@@ -575,6 +620,8 @@ def export_poem_comparison_set_bundle(
             weighting=weighting,
             report_section=(visible_section if export_mode == "current_view" else ""),
             include_fixed=False,
+            profile_selection=(selection if export_mode == "current_view" else None),
+            module_scope_overrides=overridden_modules,
         )
     first_profile = profiles[0] if profiles else AnalysisProfile(
         LexicalScope.STOPWORD_EXCLUDED,
@@ -607,6 +654,21 @@ def export_poem_comparison_set_bundle(
             include_fixed=True,
         )
     report_files = _comparison_report_files(tuple(report_csvs))
+    exception_descriptions = override_descriptions(selection, overridden_modules)
+    if exception_descriptions:
+        files["module_scope_overrides.csv"] = _csv_rows_bytes(
+            [
+                {
+                    "module_id": module_id,
+                    "scope_override": "Content words only",
+                    "weighting": ", ".join(
+                        weighting.label for weighting in selection.weightings
+                    ),
+                    "note": "The global lexical scope remains unchanged.",
+                }
+                for module_id in sorted(overridden_modules)
+            ]
+        )
     report_title = "; ".join(
         analysis.request.title or f"Poem {position}"
         for position, analysis in enumerate(comparison_set.analyses, start=1)
@@ -641,6 +703,7 @@ def export_poem_comparison_set_bundle(
             result_id=comparison_set.comparison_set_id,
             source_sha256=source_sha256,
             analysis_profiles=tuple(profile.label for profile in profiles),
+            profile_exceptions=exception_descriptions,
             active_preset="Shared comparison profile",
             software_version=__version__,
             warnings=(
@@ -683,6 +746,7 @@ def export_poem_comparison_set_bundle(
             f"Comparison contains {len(comparison_set.analyses)} poems.",
             "Ranges are descriptive maximum-minus-minimum values, not significance tests.",
         ),
+        overrides=exception_descriptions,
         included_fixed_modules=tuple(
             module_id
             for module_id, capability in MODULE_CAPABILITIES.items()
@@ -707,6 +771,67 @@ def export_poem_comparison_set_bundle(
     return archive.getvalue()
 
 
+def export_poem_comparison_set_selected_csv(
+    comparison_set: PoemComparisonSet,
+    *,
+    selection: ProfileSelection,
+    export_mode: str = "current_view",
+    visible_section: str = "",
+    module_scope_overrides: frozenset[str] = frozenset(),
+) -> bytes:
+    """Return one long CSV containing the same profiles as the selected bundle."""
+
+    overridden_modules = (
+        overrides_for_report_section(visible_section, module_scope_overrides)
+        if export_mode == "current_view"
+        else frozenset()
+    )
+    profiles = (
+        effective_profiles(selection, overridden_modules)
+        if export_mode == "current_view"
+        else tuple(
+            AnalysisProfile(scope, weighting)
+            for scope in SCOPE_ORDER
+            for weighting in WEIGHTING_ORDER
+        )
+    )
+    view_ids = {
+        LexicalScope.ALL_LEXICAL: "all_matched",
+        LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+        LexicalScope.CONTENT_WORDS: "content_words",
+    }
+    rows: list[dict[str, str]] = []
+    for profile in profiles:
+        content = export_poem_comparison_set_csv(
+            comparison_set,
+            analysis_view=view_ids[profile.scope],
+            weighting=profile.weighting.value.casefold(),
+            report_section=(visible_section if export_mode == "current_view" else ""),
+            include_fixed=False,
+            profile_selection=(selection if export_mode == "current_view" else None),
+            module_scope_overrides=overridden_modules,
+        )
+        rows.extend(
+            dict(row)
+            for row in csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
+        )
+    if profiles:
+        first = profiles[0]
+        fixed = export_poem_comparison_set_csv(
+            comparison_set,
+            analysis_view=view_ids[first.scope],
+            weighting=first.weighting.value.casefold(),
+            report_section=(visible_section if export_mode == "current_view" else ""),
+            include_configurable=False,
+            include_fixed=True,
+        )
+        rows.extend(
+            dict(row)
+            for row in csv.DictReader(io.StringIO(fixed.decode("utf-8-sig")))
+        )
+    return _csv_rows_bytes(rows)
+
+
 __all__ = [
     "COMPARISON_EXPORT_API_VERSION",
     "export_poem_comparison_csv",
@@ -714,4 +839,5 @@ __all__ = [
     "export_poem_comparison_set_csv",
     "export_poem_comparison_set_docx",
     "export_poem_comparison_set_bundle",
+    "export_poem_comparison_set_selected_csv",
 ]

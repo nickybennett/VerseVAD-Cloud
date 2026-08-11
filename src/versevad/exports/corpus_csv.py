@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+import statistics
 import zipfile
 from dataclasses import asdict, replace
 from enum import Enum
@@ -37,6 +38,14 @@ from versevad.analysis_profiles import (
     ProfileSelection,
 )
 from versevad.module_capabilities import CapabilityCategory, MODULE_CAPABILITIES
+from versevad.report_profile_overrides import (
+    CONTENT_WORD_SCOPE_OVERRIDE_MODULES,
+    corpus_metric_module_id,
+    effective_profiles,
+    override_descriptions,
+    overrides_for_report_section,
+    profile_applies_to_module,
+)
 
 CORPUS_EXPORT_API_VERSION = 1
 
@@ -218,6 +227,7 @@ def build_corpus_export_bundle(
     export_mode: str = "complete_audit",
     report_section: str = "",
     active_preset: str = "",
+    module_scope_overrides: frozenset[str] = frozenset(),
 ) -> bytes:
     """Return a ZIP containing only CSV data and a narrative DOCX report."""
 
@@ -243,13 +253,19 @@ def build_corpus_export_bundle(
     if metrics:
         calculated_module_names.add("vad")
     selection = profile_selection or ProfileSelection()
+    overridden_modules = (
+        overrides_for_report_section(report_section, module_scope_overrides)
+        if export_mode == "current_view"
+        else frozenset()
+    )
+    exception_descriptions = override_descriptions(selection, overridden_modules)
     view_ids = {
         LexicalScope.ALL_LEXICAL: "all_matched",
         LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
         LexicalScope.CONTENT_WORDS: "content_words",
     }
     included_profiles = (
-        selection.profiles
+        effective_profiles(selection, overridden_modules)
         if export_mode == "current_view"
         else tuple(
             AnalysisProfile(scope, weighting)
@@ -263,17 +279,51 @@ def build_corpus_export_bundle(
         selected_weightings = {
             weighting.value.casefold() for weighting in selection.weightings
         }
+        scope_by_view = {value: key for key, value in view_ids.items()}
         exported_metrics = tuple(
             row
             for row in metrics
-            if row.analysis_view in selected_views
-            and row.weighting in selected_weightings
+            if row.analysis_view in scope_by_view
+            and row.weighting in {item.value.casefold() for item in WEIGHTING_ORDER}
+            and (
+                profile_applies_to_module(
+                    AnalysisProfile(
+                        scope_by_view[row.analysis_view],
+                        next(
+                            item for item in WEIGHTING_ORDER
+                            if item.value.casefold() == row.weighting
+                        ),
+                    ),
+                    module_id=corpus_metric_module_id(row.metric),
+                    selection=selection,
+                    overridden_modules=overridden_modules,
+                )
+                if corpus_metric_module_id(row.metric)
+                in CONTENT_WORD_SCOPE_OVERRIDE_MODULES
+                else row.analysis_view in selected_views
+                and row.weighting in selected_weightings
+            )
         )
         if report_section == "Overview":
             exported_metrics = tuple(
                 row for row in exported_metrics if row.metric == "vad_mean"
             )
-        elif report_section not in {"Affective Evidence", "Evidence & Diagnostics", ""}:
+        elif report_section == "Affective Evidence":
+            exported_metrics = tuple(
+                row
+                for row in exported_metrics
+                if row.metric.startswith("vad_")
+                or corpus_metric_module_id(row.metric)
+                in {"emotion_association", "emotion_intensity"}
+            )
+        elif report_section == "Lexical Character, Imagery & Embodiment":
+            exported_metrics = tuple(
+                row
+                for row in exported_metrics
+                if corpus_metric_module_id(row.metric)
+                in {"concreteness", "frequency", "aoa", "sensorimotor"}
+            )
+        elif report_section not in {"Evidence & Diagnostics", ""}:
             exported_metrics = ()
     selected_module_names = {
         "Affective Evidence": {
@@ -314,6 +364,21 @@ def build_corpus_export_bundle(
             row for row in module_aggregates if row.module_name in selected_module_names
         )
     bundle: dict[str, bytes] = {}
+    if exception_descriptions:
+        bundle["module_scope_overrides.csv"] = _csv_bytes(
+            ("module_id", "scope_override", "inherited_weighting", "note"),
+            [
+                {
+                    "module_id": module_id,
+                    "scope_override": "Content words only",
+                    "inherited_weighting": ", ".join(
+                        weighting.label for weighting in selection.weightings
+                    ),
+                    "note": "The global lexical scope remains unchanged.",
+                }
+                for module_id in sorted(overridden_modules)
+            ],
+        )
     project_row = {key: _value(value) for key, value in asdict(project).items()}
     bundle["corpus_project.csv"] = _csv_bytes(
         list(project_row),
@@ -403,7 +468,7 @@ def build_corpus_export_bundle(
         profile_rows,
     )
     scope_count_views = (
-        {view_ids[scope] for scope in selection.scopes}
+        {view_ids[profile.scope] for profile in included_profiles}
         if export_mode == "current_view"
         else set(view_ids.values())
     )
@@ -508,6 +573,75 @@ def build_corpus_export_bundle(
                 },
             )
         )
+    configurable_groups: dict[
+        tuple[str, str, str, str, str, str, str, str, str],
+        list[CorpusMetricRecord],
+    ] = {}
+    for row in exported_metrics:
+        module_id = corpus_metric_module_id(row.metric)
+        if module_id not in CONTENT_WORD_SCOPE_OVERRIDE_MODULES or row.value is None:
+            continue
+        configurable_groups.setdefault(
+            (
+                module_id,
+                row.lexicon_id,
+                row.lexicon,
+                row.metric,
+                row.dimension,
+                row.category,
+                row.analysis_view,
+                row.weighting,
+                row.scale,
+            ),
+            [],
+        ).append(row)
+    for (
+        module_id,
+        source_id,
+        source,
+        metric_id,
+        dimension,
+        category,
+        analysis_view,
+        weighting,
+        unit,
+    ), rows in configurable_groups.items():
+        values = tuple(float(row.value) for row in rows if row.value is not None)
+        eligible = sum(row.lexical_tokens for row in rows)
+        matched = sum(row.matched_tokens for row in rows)
+        type_weighted = weighting.casefold() == "type"
+        report_profile_rows.append(
+            {
+                "profile_id": f"{analysis_view}__{weighting}__equal_work",
+                "scope": analysis_view,
+                "weighting": weighting,
+                "module_id": module_id,
+                "source_id": source_id,
+                "source": source,
+                "metric_id": metric_id,
+                "metric": " ".join(
+                    part
+                    for part in (
+                        (dimension or category).replace("_", " ").title(),
+                        metric_id.replace(module_id + "_", "").replace("_", " ").title(),
+                    )
+                    if part
+                ),
+                "value": statistics.fmean(values),
+                "median": statistics.median(values),
+                "population_standard_deviation": statistics.pstdev(values),
+                "minimum": min(values),
+                "maximum": max(values),
+                "observation_count": len(values),
+                "eligible_token_count": "" if type_weighted else eligible,
+                "matched_token_count": "" if type_weighted else matched,
+                "token_coverage": "" if type_weighted else (matched / eligible if eligible else ""),
+                "eligible_type_count": eligible if type_weighted else "",
+                "matched_type_count": matched if type_weighted else "",
+                "type_coverage": (matched / eligible if eligible else "") if type_weighted else "",
+                "unit": unit,
+            }
+        )
     report_profile_fields = (
         "profile_id",
         "scope",
@@ -572,6 +706,7 @@ def build_corpus_export_bundle(
         result_id=project.updated_at,
         source_sha256="; ".join(text.text_sha256 for text in texts),
         analysis_profiles=tuple(profile.id for profile in included_profiles),
+        profile_exceptions=exception_descriptions,
         active_preset=active_preset,
         source_notes=project.description,
         software_version=__version__,
@@ -624,6 +759,7 @@ def build_corpus_export_bundle(
             f"Corpus: {project.title}; {len(texts)} works.",
             "Works remain separate; collection summaries do not concatenate poem texts.",
         ),
+        overrides=exception_descriptions,
         included_fixed_modules=fixed_modules,
         export_timestamp=project.updated_at,
     )

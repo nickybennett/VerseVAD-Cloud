@@ -10,6 +10,7 @@ from versevad.analysis_profiles import (
     AggregationWeighting,
     AnalysisProfile,
     LexicalScope,
+    ProfileSelection,
 )
 from versevad.analysis.phase2 import analyze_lexicon, compare_lexicons
 from versevad.application import (
@@ -41,6 +42,7 @@ from versevad.application import (
     vad_views,
 )
 from versevad.models import PhrasePolicy
+from versevad.db import ProjectRepository
 from versevad.phase2_validation import (
     phase2_synthetic_emotion_lexicon,
     phase2_synthetic_intensity_lexicon,
@@ -695,6 +697,36 @@ def test_detailed_download_starts_with_friendly_files_and_retains_audit(
         )
 
 
+def test_current_view_export_applies_scope_exception_only_to_target_module(
+    synthetic_workspace,
+) -> None:
+    archive = detailed_export_zip(
+        synthetic_workspace,
+        use_cache=False,
+        profile_selection=ProfileSelection(),
+        export_mode="current_view",
+        visible_section="Affective Evidence",
+        module_scope_overrides=("emotion_association", "emotion_intensity"),
+    )
+
+    with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+        rows = _csv_rows(bundle.read("profile_metrics_selected.csv"))
+        override_rows = _csv_rows(bundle.read("module_scope_overrides.csv"))
+
+    vad_rows = [row for row in rows if row["module_id"] == "vad"]
+    emotion_rows = [
+        row
+        for row in rows
+        if row["module_id"] in {"emotion_association", "emotion_intensity"}
+    ]
+    assert vad_rows and {row["scope"] for row in vad_rows} == {"STOPWORD_EXCLUDED"}
+    assert emotion_rows and {row["scope"] for row in emotion_rows} == {"CONTENT_WORDS"}
+    assert {row["module_id"] for row in override_rows} == {
+        "emotion_association",
+        "emotion_intensity",
+    }
+
+
 def test_profile_semantics_suppress_invalid_generic_statistics(
     synthetic_workspace,
 ) -> None:
@@ -733,6 +765,31 @@ def test_type_weighted_association_rate_uses_type_denominator(
     assert row.value == pytest.approx(
         row.coverage.matched_type_count / row.coverage.eligible_type_count
     )
+
+
+def test_persisted_type_weighted_metrics_use_type_metadata(
+    synthetic_workspace,
+) -> None:
+    profile = AnalysisProfile(LexicalScope.ALL_LEXICAL, AggregationWeighting.TYPE)
+    expected = next(
+        item
+        for item in workspace_profile_metrics(synthetic_workspace)
+        if item.module_id == "emotion_association"
+        and item.metric_id == "fear_association"
+        and item.profile == profile
+    )
+    persisted = next(
+        row
+        for row in ProjectRepository._metric_rows(synthetic_workspace)
+        if row[3] == "all_matched"
+        and row[4] == "emotion_association_fear_association_mean"
+        and row[7] == "type"
+    )
+    assert "eligible types matched" in persisted[9]
+    assert persisted[11] == expected.observation_count
+    assert persisted[12] == expected.coverage.matched_type_count
+    assert persisted[13] == expected.coverage.eligible_type_count
+    assert persisted[14] == pytest.approx(expected.coverage.type_coverage)
 
 
 def test_workspace_can_run_pronunciation_without_an_affective_lexicon(

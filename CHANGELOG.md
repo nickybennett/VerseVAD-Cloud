@@ -32,12 +32,15 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Added the module-specific **Content Words Only (Scope Override)** for
+  emotional association/intensity, concreteness, sensorimotor imagery and
+  embodiment, frequency/rarity, and age of acquisition. It preserves global
+  token/type weighting, leaves other modules unchanged, and is recorded in
+  Current View reports while Complete Audit retains all compatible profiles.
+
 - Unified comprehensive-report and selected-profile ZIP member resolution
   across flat Current View and reorganized Complete Audit bundles, including
   single-text downloads, saved-analysis exports, and research-note appendices.
-- Hardened the Community Cloud entrypoint against helper modules cached across
-  live source updates and disabled unnecessary hosted filesystem watching to
-  prevent Linux inotify exhaustion during redeployments.
 - Made the comprehensive Word report's primary VAD coverage column follow the
   row's weighting (token coverage for token-weighted profiles and type coverage
   for type-weighted profiles), and clarified pooled lexical-rating versus

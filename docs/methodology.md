@@ -60,6 +60,23 @@ Compact orientation cards use `STOPWORD_EXCLUDED × TOKEN` even when several
 profiles are enabled. This stabilizes headline displays while the accompanying
 tables retain and explicitly label the full selected profile cross-product.
 
+### Module-specific content-word reporting exception
+
+The interface label **Content Words Only (Scope Override)** is a post-analysis
+reporting exception, not a fourth scope and not a second global scope system.
+It is available only for emotional association/intensity, concreteness,
+sensorimotor imagery/embodiment, frequency/rarity, and age of acquisition.
+When enabled, the affected module uses `CONTENT_WORDS` with the aggregation
+weighting or weightings selected globally. Other modules continue to use the
+global scope selection. Because all six compatible profiles are reconstructed
+from retained evidence, the exception does not repeat preprocessing or lexical
+matching.
+
+Current View interfaces and exports label and preserve this exception. A
+Current View export records both the affected module and its inherited
+weighting. Complete Audit exports ignore the exception for filtering purposes
+and continue to include all six compatible profile combinations.
+
 Scope-relative coverage is:
 
 `token coverage = matched eligible token positions / eligible token positions`

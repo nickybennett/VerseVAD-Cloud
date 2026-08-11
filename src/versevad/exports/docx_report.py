@@ -1270,6 +1270,7 @@ def build_comprehensive_analysis_report(
     result_id: str = "",
     source_sha256: str = "",
     analysis_profiles: Sequence[str] = (),
+    profile_exceptions: Sequence[str] = (),
     active_preset: str = "",
     source_notes: str = "",
     software_version: str = "",
@@ -1372,6 +1373,10 @@ def build_comprehensive_analysis_report(
             ("Analysis date and time", analysis_timestamp or "Not recorded"),
             ("VerseVAD version", software_version or "Not recorded"),
             ("Analysis profile", ", ".join(analysis_profiles) or "Not recorded"),
+            (
+                "Module-specific scope exceptions",
+                "; ".join(profile_exceptions) or "None",
+            ),
             ("Module preset", active_preset or "Custom"),
             ("Source / bibliographic notes", source_notes),
         ),
@@ -1386,7 +1391,7 @@ def build_comprehensive_analysis_report(
     )
     if export_mode == "current_view":
         document.add_paragraph(
-            "This Current View report includes the selected report family and the globally selected lexical scope/weighting profiles. Calculated families outside the selected report section are identified separately from modules that were not calculated."
+            "This Current View report includes the selected report family and the globally selected lexical scope/weighting profiles. Any documented module-specific scope exception is identified in the metadata above and applies only to that module. Calculated families outside the selected report section are identified separately from modules that were not calculated."
         )
     else:
         document.add_paragraph(

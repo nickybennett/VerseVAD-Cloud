@@ -220,6 +220,10 @@ from versevad.analysis_profiles import (
     display_profile_order,
 )
 from versevad.ui.profile_controls import render_report_profile_controls
+from versevad.ui.module_scope_overrides import (
+    active_override_modules,
+    render_content_word_scope_override,
+)
 from versevad.ui.profile_tables import (
     primary_profile_metric,
     render_configurable_profile_table,
@@ -2822,8 +2826,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
     if active_report_section != "Export & Help":
         st.session_state[last_report_key] = active_report_section
     with report_controls_container:
+        report_workspace_id = "other_text" if is_other_text else "single_poem"
         profile_state = render_report_profile_controls(
-            "other_text" if is_other_text else "single_poem",
+            report_workspace_id,
             annotation_active=(active_report_section == "Interactive Annotation"),
         )
     # Transitional aliases keep the established detailed panels aligned with
@@ -4303,14 +4308,19 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         st.warning(warning.message)
 
     with sensorimotor_tab:
+        sensorimotor_selection = render_content_word_scope_override(
+            report_workspace_id,
+            "sensorimotor",
+            profile_state.selection,
+        )
         render_configurable_profile_table(
             workspace,
-            profile_state.selection,
+            sensorimotor_selection,
             module_ids=("sensorimotor",),
             heading="Selected Sensorimotor Profiles",
         )
         sensorimotor_primary = select_detail_profile(
-            profile_state.selection,
+            sensorimotor_selection,
             key=f"{report_state_key}_sensorimotor_detail_profile",
         )
         if sensorimotor_primary.scope is LexicalScope.CONTENT_WORDS:
@@ -4333,9 +4343,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
             )
 
     with concreteness_tab:
+        concreteness_selection = render_content_word_scope_override(
+            report_workspace_id,
+            "concreteness",
+            profile_state.selection,
+        )
         render_configurable_profile_table(
             workspace,
-            profile_state.selection,
+            concreteness_selection,
             module_ids=("concreteness",),
             heading="Selected Concreteness Profiles",
         )
@@ -4352,7 +4367,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             summary = concreteness.summary
             detail = continuous_profile_detail(
                 workspace,
-                profile_state.selection,
+                concreteness_selection,
                 module_id="concreteness",
                 metric_id="concreteness_mean",
                 audit_rows=concreteness.token_audit,
@@ -4694,9 +4709,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.caption(resource.license_notice)
 
     with frequency_tab:
+        frequency_selection = render_content_word_scope_override(
+            report_workspace_id,
+            "frequency",
+            profile_state.selection,
+        )
         render_configurable_profile_table(
             workspace,
-            profile_state.selection,
+            frequency_selection,
             module_ids=("frequency",),
             heading="Selected Frequency Profiles",
         )
@@ -4713,7 +4733,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             summary = frequency.summary
             detail = continuous_profile_detail(
                 workspace,
-                profile_state.selection,
+                frequency_selection,
                 module_id="frequency",
                 metric_id="frequency_mean",
                 audit_rows=frequency.token_audit,
@@ -5090,9 +5110,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 st.caption(resource.license_notice)
 
     with aoa_tab:
+        aoa_selection = render_content_word_scope_override(
+            report_workspace_id,
+            "aoa",
+            profile_state.selection,
+        )
         render_configurable_profile_table(
             workspace,
-            profile_state.selection,
+            aoa_selection,
             module_ids=("aoa",),
             heading="Selected Lexical Accessibility Profiles",
         )
@@ -5384,7 +5409,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             summary = aoa.summary
             detail = continuous_profile_detail(
                 workspace,
-                profile_state.selection,
+                aoa_selection,
                 module_id="aoa",
                 metric_id="aoa_mean",
                 audit_rows=aoa.token_audit,
@@ -6897,15 +6922,20 @@ if workspace_page in {"Single Poem", "Other Text"}:
                             high_label=f"Highest-{dimension} matched words",
                         )
     with emotion_tab:
+        emotion_selection = render_content_word_scope_override(
+            report_workspace_id,
+            "emotion",
+            profile_state.selection,
+        )
         render_configurable_profile_table(
             workspace,
-            profile_state.selection,
+            emotion_selection,
             module_ids=("emotion_association", "emotion_intensity"),
             heading="Selected Emotion Profiles",
         )
         emotion_profile_rows = selected_profile_metrics(
             workspace,
-            profile_state.selection,
+            emotion_selection,
             module_ids=("emotion_association", "emotion_intensity"),
         )
         associations = tuple(
@@ -6938,7 +6968,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
         )
         emotion_visual_profile = (
             select_detail_profile(
-                profile_state.selection,
+                emotion_selection,
                 key=f"{report_state_key}_emotion_visual_profile",
             )
             if associations or sentiments or intensities
@@ -7562,6 +7592,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
             if export_mode_label == "Export Current View"
             else "complete_audit"
         )
+        module_scope_overrides = active_override_modules(report_workspace_id)
         exportable_sections = tuple(
             section for section in report_sections if section != "Export & Help"
         )
@@ -7591,6 +7622,8 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 + ",".join(
                     profile.id for profile in profile_state.selection.profiles
                 )
+                + "|module_scope_overrides:"
+                + ",".join(sorted(module_scope_overrides))
                 + "|metadata:"
                 + "|".join(
                     str(st.session_state.get(key, ""))
@@ -7638,6 +7671,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         )
                         if value
                     ),
+                    module_scope_overrides=tuple(sorted(module_scope_overrides)),
                 )
                 audit_bundle = add_research_notes_to_audit_bundle(
                     audit_bundle,

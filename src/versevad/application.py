@@ -5111,6 +5111,7 @@ def _build_detailed_export_zip(
     author: str = "",
     analysis_timestamp: str = "",
     source_notes: str = "",
+    module_scope_overrides: tuple[str, ...] = (),
 ) -> bytes:
     """Create the complete audit bundle temporarily and return an in-memory ZIP."""
 
@@ -5125,6 +5126,13 @@ def _build_detailed_export_zip(
         methods_appendix_paragraphs,
     )
     from versevad.workspace_profiles import workspace_profile_metrics
+    from versevad.report_profile_overrides import (
+        CONTENT_WORD_SCOPE_OVERRIDE_MODULES,
+        effective_profiles,
+        override_descriptions,
+        overrides_for_report_section,
+        profile_applies_to_module,
+    )
 
     if export_mode not in {"current_view", "complete_audit"}:
         raise ValueError(f"Unknown export mode: {export_mode}")
@@ -5132,7 +5140,16 @@ def _build_detailed_export_zip(
         scopes=tuple(profile[0] for profile in ALL_COMPATIBLE_PROFILES),
         weightings=tuple(profile[1] for profile in ALL_COMPATIBLE_PROFILES),
     )
+    overridden_modules = (
+        overrides_for_report_section(visible_section, module_scope_overrides)
+        if export_mode == "current_view"
+        else frozenset()
+    )
     selected_profiles = frozenset(selection.profiles)
+    effective_selected_profiles = frozenset(
+        effective_profiles(selection, overridden_modules)
+    )
+    exception_descriptions = override_descriptions(selection, overridden_modules)
     all_profile_metrics = workspace_profile_metrics(workspace)
 
     section_profile_modules = {
@@ -5149,10 +5166,21 @@ def _build_detailed_export_zip(
         profiles: frozenset[AnalysisProfile],
         *,
         module_ids: frozenset[str] | None = None,
+        apply_module_overrides: bool = False,
     ) -> bytes:
         rows = []
         for item in all_profile_metrics:
-            if item.profile not in profiles:
+            if apply_module_overrides and item.module_id in CONTENT_WORD_SCOPE_OVERRIDE_MODULES:
+                if not profile_applies_to_module(
+                    item.profile,
+                    module_id=item.module_id,
+                    selection=selection,
+                    overridden_modules=overridden_modules,
+                ):
+                    continue
+            elif apply_module_overrides and item.profile not in selected_profiles:
+                continue
+            elif item.profile not in profiles:
                 continue
             if module_ids is not None and item.module_id not in module_ids:
                 continue
@@ -5291,9 +5319,25 @@ def _build_detailed_export_zip(
             else None
         )
         export_files["profile_metrics_selected.csv"] = profile_csv(
-            selected_profiles,
+            effective_selected_profiles,
             module_ids=selected_module_ids,
+            apply_module_overrides=(export_mode == "current_view"),
         )
+        if exception_descriptions:
+            export_files["module_scope_overrides.csv"] = _csv_bytes(
+                ("module_id", "scope_override", "inherited_weighting", "note"),
+                [
+                    {
+                        "module_id": module_id,
+                        "scope_override": "Content words only",
+                        "inherited_weighting": ", ".join(
+                            weighting.label for weighting in selection.weightings
+                        ),
+                        "note": "The global lexical scope remains unchanged.",
+                    }
+                    for module_id in sorted(overridden_modules)
+                ],
+            )
         if export_mode == "complete_audit":
             export_files["profile_metrics_all_compatible.csv"] = profile_csv(
                 frozenset(
@@ -5309,9 +5353,11 @@ def _build_detailed_export_zip(
         if export_mode == "complete_audit":
             export_files["scholar_summary.csv"] = summary_csv
         export_files["csv_reading_guide.csv"] = csv_reading_guide()
-        selected_ids = ", ".join(profile.id for profile in selection.profiles)
+        selected_ids = ", ".join(
+            profile.id for profile in effective_profiles(selection, overridden_modules)
+        )
         included_profiles = (
-            selection.profiles
+            effective_profiles(selection, overridden_modules)
             if export_mode == "current_view"
             else tuple(
                 AnalysisProfile(scope, weighting)
@@ -5349,6 +5395,7 @@ def _build_detailed_export_zip(
             resources=resources,
             overrides=(
                 "Pronunciation and meter overrides are recorded in their module manifests when supplied.",
+                *exception_descriptions,
             ),
             included_fixed_modules=tuple(
                 module_id
@@ -5407,7 +5454,8 @@ def _build_detailed_export_zip(
             text_id=workspace.document.text_id,
             result_id=workspace.document.text_version_id,
             source_sha256=workspace.document.text_sha256,
-            analysis_profiles=tuple(profile.id for profile in selection.profiles),
+            analysis_profiles=tuple(profile.id for profile in included_profiles),
+            profile_exceptions=exception_descriptions,
             active_preset=active_preset,
             source_notes=source_notes,
             software_version=__version__,
@@ -5787,6 +5835,7 @@ def detailed_export_zip(
     author: str = "",
     analysis_timestamp: str = "",
     source_notes: str = "",
+    module_scope_overrides: tuple[str, ...] = (),
 ) -> bytes:
     """Return a bounded cached export for an immutable completed analysis."""
 
@@ -5824,6 +5873,7 @@ def detailed_export_zip(
                 profile_selection.profiles if profile_selection is not None else ()
             )
         ),
+        tuple(sorted(module_scope_overrides)),
     )
     content, _lookup = EXPORT_CACHE.get_or_compute(
         key,
@@ -5838,6 +5888,7 @@ def detailed_export_zip(
             author=author,
             analysis_timestamp=analysis_timestamp,
             source_notes=source_notes,
+            module_scope_overrides=tuple(sorted(module_scope_overrides)),
         ),
         enabled=use_cache,
         validator=lambda value: (

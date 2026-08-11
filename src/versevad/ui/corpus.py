@@ -92,6 +92,14 @@ from versevad.ui.profile_controls import (
     render_report_profile_controls,
     report_profile_state,
 )
+from versevad.ui.module_scope_overrides import (
+    active_override_modules,
+    render_content_word_scope_override,
+)
+from versevad.report_profile_overrides import (
+    corpus_metric_module_id,
+    selection_for_module,
+)
 from versevad.versemap import (
     MODEL_FILENAME,
     POET_PROFILE_FILENAME,
@@ -1255,6 +1263,110 @@ def _humanize_metric(value: str) -> str:
         .replace("Mattr", "MATTR")
         .replace("Mtld", "MTLD")
     )
+
+
+def _render_canonical_corpus_module_profiles(
+    rows,
+    *,
+    module_id: str,
+    profile_selection: ProfileSelection,
+    overridden_modules: frozenset[str],
+    selected_text_id: str | None,
+) -> bool:
+    """Render retained scope-aware rows for one configurable lexical module."""
+
+    effective = selection_for_module(
+        profile_selection,
+        module_id,
+        overridden_modules,
+    )
+    view_ids = {
+        LexicalScope.ALL_LEXICAL: "all_matched",
+        LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
+        LexicalScope.CONTENT_WORDS: "content_words",
+    }
+    views = {view_ids[scope] for scope in effective.scopes}
+    weightings = {
+        weighting.value.casefold() for weighting in effective.weightings
+    }
+    selected = tuple(
+        row
+        for row in rows
+        if corpus_metric_module_id(row.metric) == module_id
+        and row.analysis_view in views
+        and row.weighting in weightings
+        and (selected_text_id is None or row.text_id == selected_text_id)
+    )
+    if not selected:
+        return False
+    scope_labels = {
+        "all_matched": "All lexical tokens",
+        "stopwords_excluded": "Stopword-excluded",
+        "content_words": "Content words only",
+    }
+    frame = pd.DataFrame(
+        [
+            {
+                "Poem": row.title,
+                "Source": row.lexicon,
+                "Metric": _humanize_metric(row.metric),
+                "Dimension": (row.dimension or row.category or "â€”").title(),
+                "Profile": (
+                    f"{scope_labels[row.analysis_view]} Â· "
+                    f"{row.weighting.title()}-weighted"
+                ),
+                "Value": row.value,
+                "Matched Observations": row.observations,
+                "Coverage": row.coverage,
+            }
+            for row in selected
+        ]
+    )
+    st.markdown("#### Selected Scope-Aware Profiles")
+    if selected_text_id is None:
+        grouped = (
+            frame.groupby(
+                ["Source", "Metric", "Dimension", "Profile"],
+                dropna=False,
+                as_index=False,
+            )
+            .agg(
+                **{
+                    "Equal-Work Mean": ("Value", "mean"),
+                    "Poem-Level SD": ("Value", lambda values: values.std(ddof=0)),
+                    "Works Included": ("Value", "count"),
+                    "Mean Coverage": ("Coverage", "mean"),
+                }
+            )
+        )
+        render_dataframe(
+            grouped.style.format(
+                {
+                    "Equal-Work Mean": "{:.3f}",
+                    "Poem-Level SD": "{:.3f}",
+                    "Mean Coverage": "{:.1%}",
+                },
+                na_rep="â€”",
+            ),
+            hide_index=True,
+            width="stretch",
+            height=min(460, 76 + len(grouped) * 35),
+        )
+        st.caption(
+            "Equal-work means give each included poem one poem-level value; "
+            "Poem-Level SD describes variation among those poem values."
+        )
+    else:
+        render_dataframe(
+            frame.drop(columns=("Poem",)).style.format(
+                {"Value": "{:.3f}", "Coverage": "{:.1%}"},
+                na_rep="â€”",
+            ),
+            hide_index=True,
+            width="stretch",
+            height=min(460, 76 + len(frame) * 35),
+        )
+    return True
 
 
 def _corpus_metric_family(metric_id: str) -> str:
@@ -2502,6 +2614,12 @@ def _render_completed_corpus_results(
 
     state_prefix = f"corpus_result_{project_id}_{scope_id}"
     if report_family == "Affective Evidence":
+        render_content_word_scope_override(
+            f"corpus_{project_id}",
+            "emotion",
+            profile_state.selection,
+        )
+        overridden_modules = active_override_modules(f"corpus_{project_id}")
         view_ids = {
             LexicalScope.ALL_LEXICAL: "all_matched",
             LexicalScope.STOPWORD_EXCLUDED: "stopwords_excluded",
@@ -2530,6 +2648,18 @@ def _render_completed_corpus_results(
             state_prefix=state_prefix,
             profile_selection=profile_state.selection,
         )
+        all_profile_metrics = repository.list_latest_metrics(
+            project_id,
+            text_id=selected_text_id,
+        )
+        for emotion_module in ("emotion_association", "emotion_intensity"):
+            _render_canonical_corpus_module_profiles(
+                all_profile_metrics,
+                module_id=emotion_module,
+                profile_selection=profile_state.selection,
+                overridden_modules=overridden_modules,
+                selected_text_id=selected_text_id,
+            )
         return
     if report_family == "Evidence & Diagnostics":
         diagnostic_modules = tuple(
@@ -2594,6 +2724,32 @@ def _render_completed_corpus_results(
         ),
         key=f"{state_prefix}_module_{project_id}",
     )
+    override_group_by_module = {
+        "concreteness": "concreteness",
+        "frequency": "frequency",
+        "lexical_frequency": "frequency",
+        "aoa": "aoa",
+        "age_of_acquisition": "aoa",
+        "sensorimotor": "sensorimotor",
+        "sensorimotor_imagery_and_embodiment": "sensorimotor",
+    }
+    override_group = override_group_by_module.get(selected_module)
+    canonical_module_id = (
+        {
+            "lexical_frequency": "frequency",
+            "age_of_acquisition": "aoa",
+            "sensorimotor_imagery_and_embodiment": "sensorimotor",
+        }.get(selected_module, selected_module)
+        if override_group
+        else ""
+    )
+    if override_group:
+        render_content_word_scope_override(
+            f"corpus_{project_id}",
+            override_group,
+            profile_state.selection,
+        )
+    overridden_modules = active_override_modules(f"corpus_{project_id}")
     module_metrics = repository.list_latest_module_metrics(
         project_id,
         text_id=selected_text_id,
@@ -2610,6 +2766,29 @@ def _render_completed_corpus_results(
         for row in repository.list_latest_module_aggregates(project_id)
         if row.module_name == selected_module
     )
+    scope_aware_rendered = False
+    if canonical_module_id:
+        scope_aware_rendered = _render_canonical_corpus_module_profiles(
+            repository.list_latest_metrics(project_id, text_id=selected_text_id),
+            module_id=canonical_module_id,
+            profile_selection=profile_state.selection,
+            overridden_modules=overridden_modules,
+            selected_text_id=selected_text_id,
+        )
+    if scope_aware_rendered:
+        module_metrics = tuple(
+            row
+            for row in module_metrics
+            if corpus_metric_module_id(row.metric_id) != canonical_module_id
+        )
+        module_aggregates = tuple(
+            row
+            for row in module_aggregates
+            if corpus_metric_module_id(row.metric_id) != canonical_module_id
+        )
+        if not module_metrics and not module_aggregates:
+            return
+        st.markdown("#### Additional Fixed or Structural Module Detail")
     _render_corpus_modules(
         repository,
         project_id,
@@ -4375,6 +4554,8 @@ def _render_export_tab(
     repository: ProjectRepository,
     project_id: str,
     preprocessor: TextPreprocessor,
+    *,
+    profile_workspace_id: str | None = None,
 ) -> None:
     project = repository.get_project(project_id)
     st.subheader("Research Export & Downloads")
@@ -4445,12 +4626,15 @@ def _render_export_tab(
             ),
             key=f"corpus_export_section_{project_id}",
         )
-    profile_state = report_profile_state(f"corpus_{project_id}")
+    profile_workspace_id = profile_workspace_id or f"corpus_{project_id}"
+    profile_state = report_profile_state(profile_workspace_id)
+    module_scope_overrides = active_override_modules(profile_workspace_id)
     prepared_key = f"prepared_corpus_export_{project_id}"
     signature = (
         export_mode,
         visible_section,
         tuple(profile.id for profile in profile_state.selection.profiles),
+        tuple(sorted(module_scope_overrides)),
         project.updated_at,
     )
     prepare_label = (
@@ -4497,6 +4681,7 @@ def _render_export_tab(
                 active_preset=str(
                     st.session_state.get(f"corpus_preset_{project_id}", "Custom")
                 ),
+                module_scope_overrides=module_scope_overrides,
             )
         with zipfile.ZipFile(io.BytesIO(export_bundle)) as archive:
             report = archive.read("corpus_report.docx")

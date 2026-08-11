@@ -96,6 +96,15 @@ ordinary **Stopword-excluded · Token-weighted** profile so their headline value
 remain stable and directly comparable. Detailed result tables show every
 enabled scope/weighting combination and label each row's profile explicitly.
 
+Five report areas also offer **Content Words Only (Scope Override)**:
+Emotional Association and Intensity, Concreteness, Sensorimotor Imagery and
+Embodiment, Frequency and Rarity, and Age of Acquisition. This optional
+checkbox changes only that module's visible report rows to content-word scope;
+it does not change the global selector or any other module. The module inherits
+every globally selected token/type weighting. **Export Current View** applies
+and records the exception for the displayed report area. **Export Complete
+Audit** remains an all-six-profile audit and does not use the exception.
+
 ### Fixed analytical profiles
 
 Some methods require a fixed input definition and therefore do not change with

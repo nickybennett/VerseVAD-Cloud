@@ -24,6 +24,7 @@ from versevad.exports.comparison import (
     export_poem_comparison_set_bundle,
     export_poem_comparison_set_csv,
     export_poem_comparison_set_docx,
+    export_poem_comparison_set_selected_csv,
 )
 from versevad.analysis_profiles import ProfileSelection
 from versevad.phase2_validation import (
@@ -335,6 +336,32 @@ def test_comparison_set_complete_audit_contains_principal_word_report(
         report_xml = report_archive.read("word/document.xml").decode("utf-8")
     assert "Complete Audit Report" in report_xml
     assert "Comparison set: Poem A; Poem B; Poem C" in report_xml
+
+
+def test_comparison_current_view_scope_exception_replaces_only_emotion_profiles(
+    poem_comparison_set,
+) -> None:
+    content = export_poem_comparison_set_selected_csv(
+        poem_comparison_set,
+        selection=ProfileSelection(),
+        export_mode="current_view",
+        visible_section="Affective Evidence",
+        module_scope_overrides=frozenset(
+            {"emotion_association", "emotion_intensity"}
+        ),
+    )
+    rows = list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))
+    vad_rows = [row for row in rows if row["metric_id"].startswith("vad.")]
+    emotion_rows = [
+        row
+        for row in rows
+        if row["metric_id"].startswith(("emotion.", "emotion_intensity."))
+    ]
+
+    assert vad_rows and {row["analysis_view"] for row in vad_rows} == {
+        "stopwords_excluded"
+    }
+    assert {row["analysis_view"] for row in emotion_rows} <= {"content_words"}
 
 
 def test_comparison_display_values_are_arrow_safe() -> None:
