@@ -1137,6 +1137,11 @@ def test_interface_deletes_only_exactly_confirmed_project(tmp_path, monkeypatch)
     )
     active_project.set_value(disposable.project_id)
     app.run(timeout=30)
+    project_settings_navigation = next(
+        field for field in app.selectbox if field.label == "Project section"
+    )
+    project_settings_navigation.set_value("Project Settings")
+    app.run(timeout=30)
 
     confirmation = next(
         field

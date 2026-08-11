@@ -3748,23 +3748,11 @@ def _render_project_settings_tab(
     )
 
     def delete_confirmed_project() -> None:
-        try:
-            repository.delete_project(
-                project_id,
-                confirmation_title=str(
-                    st.session_state.get(confirmation_key, "")
-                ),
-            )
-            st.session_state.pop("active_corpus_project", None)
-            st.session_state.pop(confirmation_key, None)
-            st.session_state.pop("corpus_project_error", None)
-            st.session_state["corpus_project_flash"] = (
-                f'Project "{project.title}" was deleted from this computer.'
-            )
-        except (KeyError, ValueError, RuntimeError) as error:
-            st.session_state["corpus_project_error"] = (
-                f"The project was not deleted: {error}"
-            )
+        st.session_state["_pending_corpus_project_delete"] = (
+            project_id,
+            project.title,
+            str(st.session_state.get(confirmation_key, "")),
+        )
 
     st.button(
         "Delete this project",
@@ -4561,6 +4549,40 @@ def render_corpus_workspace(
     """Render the persistent local-project branch of the Streamlit application."""
 
     repository = _project_repository_for_path(str(default_database_path()))
+    pending_delete = st.session_state.pop(
+        "_pending_corpus_project_delete",
+        None,
+    )
+    if isinstance(pending_delete, tuple) and len(pending_delete) == 3:
+        pending_id, pending_title, confirmation_title = pending_delete
+        try:
+            repository.delete_project(
+                str(pending_id),
+                confirmation_title=str(confirmation_title),
+            )
+        except KeyError:
+            if any(
+                item.project_id == str(pending_id)
+                for item in repository.list_projects()
+            ):
+                st.session_state["corpus_project_error"] = (
+                    "The project could not be deleted because its saved record "
+                    "could not be resolved."
+                )
+            else:
+                st.session_state["corpus_project_flash"] = (
+                    f'Project "{pending_title}" was deleted from this computer.'
+                )
+        except (ValueError, RuntimeError) as error:
+            st.session_state["corpus_project_error"] = (
+                f"The project was not deleted: {error}"
+            )
+        else:
+            st.session_state["corpus_project_flash"] = (
+                f'Project "{pending_title}" was deleted from this computer.'
+            )
+        if st.session_state.get("active_corpus_project") == str(pending_id):
+            st.session_state.pop("active_corpus_project", None)
     with st.sidebar:
         st.markdown("### Saved Projects")
         st.success("Projects, texts, notes, and results stay on this computer.")
@@ -4668,14 +4690,4 @@ def render_corpus_workspace(
         else:
             raise RuntimeError(
                 f"Unknown corpus project section: {active_project_section!r}"
-            )
-
-    if active_project_section != "Analyze & Compare":
-        with project_containers["Analyze & Compare"]:
-            _render_analysis_tab(
-                repository,
-                project_id,
-                preprocessor,
-                resource_readiness,
-                show_completed_results=False,
             )
