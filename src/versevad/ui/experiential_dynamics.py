@@ -21,16 +21,19 @@ from versevad.experiential_dynamics import (
 def _render_poem(title: str, original_text: str) -> None:
     st.markdown("#### Poem")
     st.caption(title)
+    # Keep the poem inside one uninterrupted HTML block. Raw newlines—especially
+    # blank or indented lines—can otherwise be reinterpreted by Markdown as
+    # paragraphs or code blocks instead of remaining part of the poem.
+    poem_html = escape(original_text).replace("\r\n", "\n").replace("\r", "\n")
+    poem_html = poem_html.replace("\n", "<br>")
     st.markdown(
-        """
-        <div style="border:1px solid var(--secondary-background-color);
-             border-radius:0.75rem;padding:1rem 1.1rem;max-height:68vh;overflow:auto;
-             position:sticky;top:5.5rem;">
-          <pre style="white-space:pre-wrap;overflow-wrap:anywhere;margin:0;
-               font-family:Georgia,'Times New Roman',serif;font-size:1rem;line-height:1.65;
-               color:var(--text-color);background:transparent;">{}</pre>
-        </div>
-        """.format(escape(original_text)),
+        (
+            '<div style="border:1px solid var(--secondary-background-color);'
+            'border-radius:0.75rem;padding:1.25rem 1.4rem;max-height:76vh;overflow:auto;'
+            'position:sticky;top:5.5rem;white-space:pre-wrap;tab-size:4;'
+            'overflow-wrap:break-word;font-family:inherit;font-size:1rem;line-height:1.65;'
+            f'color:var(--text-color);background:transparent;">{poem_html}</div>'
+        ),
         unsafe_allow_html=True,
     )
 
@@ -53,7 +56,7 @@ def render_experiential_assessment(
     st.caption(
         "Experimental reader-response framework · 16 items · 1-5 response scale"
     )
-    poem_column, assessment_column = st.columns((0.43, 0.57), gap="large")
+    poem_column, assessment_column = st.columns((2, 1), gap="large")
     with poem_column:
         _render_poem(title, original_text)
     with assessment_column:
