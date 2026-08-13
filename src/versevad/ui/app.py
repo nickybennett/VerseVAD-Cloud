@@ -2860,33 +2860,34 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "Open it now, or optionally record your structured impression "
                 "before the lexical measurements are shown.",
             )
-            action_column, _spacer = st.columns((0.72, 0.28))
-            with action_column:
-                if st.button(
-                    "View Analysis",
-                    type="primary",
-                    width="stretch",
-                    key="experiential_dynamics_view_analysis",
-                ):
-                    st.session_state[
-                        "experiential_dynamics_report_revealed"
-                    ] = True
-                    st.rerun()
-                if measurements.available:
+            if st.button(
+                "View Analysis",
+                type="primary",
+                width="stretch",
+                key="experiential_dynamics_view_analysis",
+            ):
+                st.session_state[
+                    "experiential_dynamics_report_revealed"
+                ] = True
+                st.rerun()
+            if measurements.available:
+                _left_space, dynamics_action, _right_space = st.columns((1, 2, 1))
+                with dynamics_action:
                     if st.button(
                         "Complete Experiential Dynamics First",
                         type="tertiary",
+                        width="stretch",
                         key="experiential_dynamics_begin_pre_assessment",
                     ):
                         st.session_state[
                             "experiential_dynamics_pre_assessment_open"
                         ] = True
                         st.rerun()
-                else:
-                    st.caption(
-                        "Experiential Dynamics is unavailable for this result: "
-                        + measurements.unavailable_reason
-                    )
+            else:
+                st.caption(
+                    "Experiential Dynamics is unavailable for this result: "
+                    + measurements.unavailable_reason
+                )
             st.stop()
 
     st.divider()
