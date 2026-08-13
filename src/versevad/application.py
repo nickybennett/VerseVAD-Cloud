@@ -47,6 +47,9 @@ from versevad.exports.docx_report import (
     build_narrative_report_from_summary_csv,
 )
 from versevad.exports.frequency import export_frequency_bundle
+from versevad.exports.experiential_dynamics import (
+    export_experiential_dynamics_bundle,
+)
 from versevad.exports.inherited_form import export_inherited_form_bundle
 from versevad.exports.lexical_style import export_lexical_style_bundle
 from versevad.exports.meter import export_meter_bundle
@@ -59,6 +62,13 @@ from versevad.exports.readability import export_readability_bundle
 from versevad.exports.sensorimotor import export_sensorimotor_bundle
 from versevad.exports.sentiment import export_vader_sentiment_bundle
 from versevad.exports.versemap import export_versemap_bundle
+from versevad.experiential_dynamics import (
+    EXPERIENTIAL_DYNAMICS_CONFIGURATION,
+    ExperientialDynamicsMeasurements,
+    ExperientialDynamicsResult,
+    build_measurements as build_experiential_dynamics_measurements,
+    unavailable_measurements as unavailable_experiential_dynamics_measurements,
+)
 from versevad.lexical_semantic.concreteness import (
     ConcretenessAnalysisResult,
     ConcretenessConfiguration,
@@ -471,6 +481,7 @@ class AnalysisRequest:
     )
     include_versemap: bool = False
     versemap_configuration: VerseMapConfiguration = VerseMapConfiguration()
+    include_experiential_dynamics_measurements: bool = False
     analysis_cache_enabled: bool = True
     performance_diagnostics: bool = True
 
@@ -495,6 +506,8 @@ class WorkspaceAnalysis:
     poetry_id: PoetryIDAnalysisResult | None = None
     inherited_form: InheritedFormAnalysisResult | None = None
     versemap: VerseMapAnalysisResult | None = None
+    experiential_dynamics_measurements: ExperientialDynamicsMeasurements | None = None
+    experiential_dynamics: ExperientialDynamicsResult | None = None
     performance: AnalysisPerformanceReport | None = None
 
 
@@ -1172,6 +1185,77 @@ def run_workspace_analysis(
             )
         )
     results = tuple(result_rows)
+    experiential_vad_result: Phase2AnalysisResult | None = None
+    experiential_unavailable_reason = ""
+    if request.include_experiential_dynamics_measurements:
+        fixed_experiential_stopwords = build_stopword_policy(
+            mode=StopwordMode.STANDARD,
+            protected_words=DEFAULT_PROTECTED_WORDS,
+            custom_additions=(),
+            custom_removals=(),
+        )
+        experiential_spec = LEXICON_SPEC_BY_ID[
+            EXPERIENTIAL_DYNAMICS_CONFIGURATION.vad_source_id
+        ]
+        experiential_vad_result = next(
+            (
+                candidate
+                for candidate in results
+                if candidate.lexicon_metadata.lexicon_id
+                == EXPERIENTIAL_DYNAMICS_CONFIGURATION.vad_source_id
+                and request.phrase_policy is PhrasePolicy.PHRASE_PREFERRED
+                and not request.review_rules
+                and candidate.stopword_policy.active_list_sha256
+                == fixed_experiential_stopwords.active_list_sha256
+            ),
+            None,
+        )
+        try:
+            if experiential_vad_result is None:
+                experiential_vad_result = cached_operation(
+                    "experiential_dynamics_vad_measurement",
+                    {
+                        "text_version_id": document.text_version_id,
+                        "text_sha256": document.text_sha256,
+                        "preprocessing": poem_document.preprocessing,
+                        "lexicon_id": experiential_spec.lexicon_id,
+                        "source_sha256": experiential_spec.expected_sha256,
+                        "source_root": source_root.resolve(),
+                        "phrase_policy": PhrasePolicy.PHRASE_PREFERRED,
+                        "lexicon_eligibility_policy": LEXICON_ELIGIBILITY_POLICY_ID,
+                        "minimum_match_requirement": 1,
+                        "stopword_policy": fixed_experiential_stopwords,
+                        "scenario_id": (
+                            EXPERIENTIAL_DYNAMICS_CONFIGURATION.methodology_version
+                        ),
+                    },
+                    lambda: analyze_lexicon(
+                        document,
+                        load_lexicon(
+                            experiential_spec.lexicon_id,
+                            str(source_root.resolve()),
+                        ),
+                        prepared_processor,
+                        phrase_policy=PhrasePolicy.PHRASE_PREFERRED,
+                        minimum_match_requirement=1,
+                        stopword_policy=fixed_experiential_stopwords,
+                        scenario_id=(
+                            EXPERIENTIAL_DYNAMICS_CONFIGURATION.methodology_version
+                        ),
+                    ),
+                    validator=lambda value: (
+                        isinstance(value, Phase2AnalysisResult)
+                        and value.document.text_version_id
+                        == document.text_version_id
+                        and value.lexicon_metadata.lexicon_id
+                        == EXPERIENTIAL_DYNAMICS_CONFIGURATION.vad_source_id
+                    ),
+                )
+        except (OSError, ValueError, WorkspaceAnalysisError) as error:
+            experiential_unavailable_reason = (
+                "Experiential Dynamics requires the validated NRC VAD Lexicon "
+                f"v2.1 resource. Technical detail: {error}"
+            )
     versemap_source_results: tuple[Phase2AnalysisResult, ...] = ()
     if request.include_versemap:
         fixed_stopword_policy = build_stopword_policy(
@@ -1279,6 +1363,78 @@ def run_workspace_analysis(
             )
         except ConcretenessModuleError as error:
             raise WorkspaceAnalysisError(str(error)) from error
+    experiential_measurements: ExperientialDynamicsMeasurements | None = None
+    if request.include_experiential_dynamics_measurements:
+        if experiential_vad_result is None:
+            experiential_measurements = unavailable_experiential_dynamics_measurements(
+                document.text_version_id,
+                experiential_unavailable_reason
+                or "The fixed NRC VAD Lexicon v2.1 measurement is unavailable.",
+            )
+        else:
+            experiential_concreteness = (
+                concreteness
+                if (
+                    concreteness is not None
+                    and not concreteness.configuration.exclude_proper_nouns
+                    and concreteness.configuration.activate_multiword_expressions
+                )
+                else None
+            )
+            if experiential_concreteness is None:
+                module = concreteness_module or ConcretenessModule(resource_root)
+                fixed_concreteness_configuration = ConcretenessConfiguration(
+                    exclude_proper_nouns=False,
+                    activate_multiword_expressions=True,
+                    minimum_rated_tokens=1,
+                    scenario_id="experiential-dynamics-concreteness-1.0",
+                )
+                try:
+                    experiential_concreteness = cached_operation(
+                        "experiential_dynamics_concreteness_measurement",
+                        {
+                            "text_sha256": document.text_sha256,
+                            "text_version_id": document.text_version_id,
+                            "preprocessing": poem_document.preprocessing,
+                            "configuration": fixed_concreteness_configuration,
+                            "module_version": module.version,
+                            "resource_root": resource_root.resolve(),
+                        },
+                        lambda: module.analyze_detailed(
+                            module_input,
+                            fixed_concreteness_configuration,
+                        ),
+                        validator=lambda value: (
+                            isinstance(value, ConcretenessAnalysisResult)
+                            and value.module_result.text_version_id
+                            == document.text_version_id
+                        ),
+                        enabled=concreteness_module is None,
+                    )
+                except (ConcretenessModuleError, OSError, ValueError) as error:
+                    experiential_measurements = (
+                        unavailable_experiential_dynamics_measurements(
+                            document.text_version_id,
+                            "Experiential Dynamics requires the validated "
+                            "Brysbaert concreteness resource. Technical detail: "
+                            f"{error}",
+                        )
+                    )
+            if experiential_measurements is None and experiential_concreteness is not None:
+                try:
+                    experiential_measurements = (
+                        build_experiential_dynamics_measurements(
+                            experiential_vad_result,
+                            experiential_concreteness,
+                        )
+                    )
+                except ValueError as error:
+                    experiential_measurements = (
+                        unavailable_experiential_dynamics_measurements(
+                            document.text_version_id,
+                            str(error),
+                        )
+                    )
     sensorimotor = None
     if request.include_sensorimotor:
         module = sensorimotor_module or SensorimotorModule(resource_root)
@@ -1839,6 +1995,7 @@ def run_workspace_analysis(
         poetry_id=poetry_id,
         inherited_form=inherited_form,
         versemap=versemap,
+        experiential_dynamics_measurements=experiential_measurements,
         performance=performance_report,
     )
 
@@ -5270,6 +5427,8 @@ def _build_detailed_export_zip(
             for result, _exporter in optional_results
             if result is not None
         )
+        if workspace.experiential_dynamics is not None:
+            calculated_module_names.add("experiential_dynamics")
         section_modules = {
             "Affective Evidence": {"vader_sentiment", "poetry_id"},
             "Lexical Character, Imagery & Embodiment": {
@@ -5296,6 +5455,22 @@ def _build_detailed_export_zip(
             if result is not None and include_module:
                 export_files.update(exporter(result, text_title=title))
                 included_module_names.add(module_name)
+        include_experiential_export = (
+            workspace.experiential_dynamics is not None
+            and workspace.experiential_dynamics_measurements is not None
+            and (
+                export_mode == "complete_audit"
+                or visible_section in {"", "Overview", "Affective Evidence"}
+            )
+        )
+        if include_experiential_export:
+            export_files.update(
+                export_experiential_dynamics_bundle(
+                    workspace.experiential_dynamics,
+                    workspace.experiential_dynamics_measurements,
+                )
+            )
+            included_module_names.add("experiential_dynamics")
         if workspace.poem_document is not None and (
             export_mode == "complete_audit" or visible_section == "Structure"
         ):
@@ -5370,6 +5545,14 @@ def _build_detailed_export_zip(
             f"adapter {result.lexicon_metadata.adapter_version}; source SHA-256 {result.lexicon_validation.source_sha256}"
             for result in workspace.results
         )
+        if include_experiential_export:
+            resources = resources + tuple(
+                dict.fromkeys(
+                    f"{item.source_label}; version {item.source_version}; "
+                    f"fixed Experiential Dynamics source; source SHA-256 {item.source_sha256}"
+                    for item in workspace.experiential_dynamics_measurements.dimensions
+                )
+            )
         preprocessing = (
             (
                 f"Recipe {first_result.preprocessing.recipe_id}; pipeline "
@@ -5407,6 +5590,7 @@ def _build_detailed_export_zip(
                     "phonology": ("phonology",),
                     "inherited_form": ("inherited_form",),
                     "versemap": ("versemap",),
+                    "experiential_dynamics": ("experiential_dynamics",),
                     "lexical_style": ("structure",),
                 }.items()
                 if source_module in included_module_names
@@ -5736,6 +5920,8 @@ def _build_detailed_export_zip(
                 for prefix, folder in module_paths:
                     if lower.startswith(f"{prefix}_"):
                         return f"{folder}/{filename[len(prefix) + 1:]}"
+                if lower.startswith("experiential_dynamics_"):
+                    return f"06_CROSS_MODULE_ANALYSIS/experiential_dynamics/{filename}"
                 if lower == "lexical_trajectory.csv":
                     return "06_CROSS_MODULE_ANALYSIS/lexical_trajectory/values.csv"
                 if lower == "vad_by_part_of_speech.csv":
@@ -5859,6 +6045,11 @@ def detailed_export_zip(
         _module_result_id(workspace.poetry_id),
         _module_result_id(workspace.inherited_form),
         _module_result_id(workspace.versemap),
+        (
+            workspace.experiential_dynamics.assessment_id
+            if workspace.experiential_dynamics is not None
+            else ""
+        ),
         export_mode,
         visible_section,
         workspace_label,

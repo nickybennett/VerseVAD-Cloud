@@ -173,6 +173,21 @@ def test_text_workspace_state_is_isolated_and_clear_is_targeted() -> None:
     assert state["poem_text"] == "other text"
 
 
+def test_experiential_dynamics_state_belongs_only_to_single_poem() -> None:
+    state: dict[str, object] = {}
+    activate_workspace_state(state, "Single Poem")
+    state["experiential_dynamics_text_version_id"] = "version-1"
+    state["experiential_dynamics_response_V1"] = 4
+
+    activate_workspace_state(state, "Other Text")
+    assert "experiential_dynamics_text_version_id" not in state
+    assert "experiential_dynamics_response_V1" not in state
+
+    activate_workspace_state(state, "Single Poem")
+    assert state["experiential_dynamics_text_version_id"] == "version-1"
+    assert state["experiential_dynamics_response_V1"] == 4
+
+
 def test_text_workspace_upload_widget_is_never_restored() -> None:
     upload = object()
     state: dict[str, object] = {}

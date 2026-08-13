@@ -79,6 +79,7 @@ _SINGLE_TEXT_STATE_KEYS = frozenset(
         "one_poem_custom_stopword_additions",
         "one_poem_custom_stopword_removals",
         "interactive_annotation_settings",
+        "experiential_dynamics_report_revealed",
         "single_poem_report_profiles_scopes",
         "single_poem_report_profiles_weightings",
         "single_poem_report_profiles_annotation_scope",
@@ -311,6 +312,16 @@ def _analysis_versions(analysis: WorkspaceAnalysis) -> dict[str, object]:
                 or getattr(result, "module_version", "")
             ),
         }
+    if analysis.experiential_dynamics is not None:
+        versions["experiential_dynamics"] = {
+            "assessment_id": analysis.experiential_dynamics.assessment_id,
+            "methodology_version": (
+                analysis.experiential_dynamics.configuration.methodology_version
+            ),
+            "questionnaire_version": (
+                analysis.experiential_dynamics.configuration.questionnaire_version
+            ),
+        }
     return versions
 
 
@@ -438,6 +449,7 @@ def active_research_context(workspace: str) -> ActiveResearchContext | None:
                             "poetry_id",
                             "inherited_form",
                             "versemap",
+                            "experiential_dynamics",
                         )
                         if getattr(analysis, name) is not None
                     ),

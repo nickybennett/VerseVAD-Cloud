@@ -1477,6 +1477,25 @@ def build_comprehensive_analysis_report(
             status = "Not calculated"
             note = "Module disabled, unavailable, or unsupported for this text."
         status_rows.append((family.title, status, note))
+    experiential_present = bool(
+        parsed.get("experiential_dynamics_summary.csv", ([], []))[1]
+    )
+    if experiential_present:
+        status_rows.append(
+            (
+                "Experiential Dynamics",
+                "Reported",
+                "The reader-derived assessment and fixed lexical comparison are included below.",
+            )
+        )
+    elif "experiential_dynamics" in calculated_modules and export_mode == "current_view":
+        status_rows.append(
+            (
+                "Experiential Dynamics",
+                "Calculated, not included",
+                f"Completed, but not included in the selected {visible_section or 'Current View'} report section.",
+            )
+        )
     _add_report_table(document, ("Metric family", "Status", "Reason"), status_rows)
 
     section_number = 5
@@ -1532,6 +1551,102 @@ def build_comprehensive_analysis_report(
         for filename in dataset_files:
             fields, records = parsed[filename]
             _add_csv_dataset(document, filename, fields, records)
+
+    experiential_rows = parsed.get(
+        "experiential_dynamics_summary.csv", ([], [])
+    )[1]
+    if experiential_rows:
+        document.add_page_break()
+        document.add_heading(f"{section_number}. Experiential Dynamics", level=1)
+        section_number += 1
+        first = experiential_rows[0]
+        document.add_paragraph(
+            "Experiential Dynamics is an experimental comparison of fixed lexical "
+            "V/A/D/concreteness measurements with a structured reader assessment. "
+            "The signed Dynamic Gap is experienced minus measured; it identifies a "
+            "relationship, not the cause of a divergence."
+        )
+        _add_metadata_table(
+            document,
+            (
+                ("Dynamic Signature", _clean(first.get("dynamic_signature", ""))),
+                ("Compact code", _clean(first.get("compact_code", ""))),
+                ("Assessment timing", _clean(first.get("assessment_timing", ""))),
+                ("Methodology version", _clean(first.get("methodology_version", ""))),
+                ("Questionnaire version", _clean(first.get("questionnaire_version", ""))),
+                (
+                    "Fixed lexical profile",
+                    _clean(
+                        first.get(
+                            "fixed_profile_label",
+                            f"{first.get('fixed_scope', '')} · {first.get('fixed_weighting', '')}",
+                        )
+                    ),
+                ),
+                (
+                    "Agreement tolerance",
+                    _format_report_value(
+                        first.get("agreement_tolerance", ""),
+                        "agreement_tolerance",
+                    ),
+                ),
+            ),
+        )
+        _add_report_table(
+            document,
+            (
+                "Dimension",
+                "Relationship",
+                "Measured 0-1",
+                "Experienced 0-1",
+                "Dynamic Gap",
+                "Response SD",
+            ),
+            [
+                (
+                    _clean(row.get("dimension_label", row.get("dimension", ""))),
+                    _clean(row.get("relationship_label", "")),
+                    _format_report_value(row.get("measured_normalized_0_1", ""), "value"),
+                    _format_report_value(row.get("experienced_normalized_0_1", ""), "value"),
+                    _format_report_value(
+                        row.get("dynamic_gap_experienced_minus_measured", ""),
+                        "value",
+                    ),
+                    _format_report_value(
+                        row.get("reader_response_population_sd", ""),
+                        "population_standard_deviation",
+                    ),
+                )
+                for row in experiential_rows
+            ],
+            font_size=7.4,
+        )
+        response_rows = parsed.get(
+            "experiential_dynamics_responses.csv", ([], [])
+        )[1]
+        if response_rows:
+            document.add_heading("Reader-derived responses", level=2)
+            _add_report_table(
+                document,
+                ("Item", "Dimension", "Response", "Selected description"),
+                [
+                    (
+                        _clean(row.get("item_id", "")),
+                        _clean(row.get("dimension", "")).title(),
+                        _clean(row.get("numeric_response_1_5", "")),
+                        _clean(row.get("selected_response", "")),
+                    )
+                    for row in response_rows
+                ],
+                font_size=7.1,
+            )
+        _add_callout(
+            document,
+            "Interpretive prompt",
+            "Consider whether sound, rhythm, repetition, syntax, imagery, narrative "
+            "situation, or structure may contribute to a difference. These are "
+            "questions for close reading, not computed causal findings.",
+        )
 
     all_profile_fields, all_profile_rows = parsed.get(
         "profile_metrics_all_compatible.csv", ([], [])

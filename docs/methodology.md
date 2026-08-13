@@ -1323,6 +1323,94 @@ choice are presentation state. Full saved analyses may restore them, but they
 remain outside analytical configuration and have no effect on historical
 result identity or recalculation.
 
+## Experiential Dynamics (experimental; Single Poem only)
+
+Experiential Dynamics compares reproducible lexical measurements with a
+structured reader or analyst assessment of the poem as a composed whole. It
+does not identify the reader's emotion, the poem's meaning, or the cause of a
+measured/experienced difference. Methodology version
+`experiential-dynamics-1.0` uses questionnaire version
+`reader-response-16-v1`.
+
+The measurement profile is fixed and independent of the global report
+selector:
+
+- valence, arousal, and dominance use NRC VAD Lexicon v2.1, version 2.1
+  (March 2025), normalized 0–1 values;
+- concreteness uses the Brysbaert, Warriner, and Kuperman 2014 supplementary
+  ratings on their source 1–5 scale;
+- lexical scope is **Stopword-excluded** using VerseVAD's recorded standard
+  list-based policy and protected terms;
+- aggregation is **Token-weighted**, so repeated matched words contribute
+  repeatedly; and
+- exact phrase handling follows the fixed phrase-preferred matching policy.
+
+The four questions for each dimension use an ordered 1–5 response scale:
+
+| Dimension | Standardized whole-poem prompts |
+| --- | --- |
+| Valence | emotional atmosphere; framing of the central situation; dominant emotional direction; emotional residue |
+| Arousal | activation or intensity; tension or pressure; movement or pacing; energetic force |
+| Dominance | agency or control; undergoing versus influencing events; constraint versus freedom; mastery or command |
+| Concreteness | physical tangibility; sensory evocation; visual/spatial imaginability; perceptible imagery/action versus abstract statement |
+
+The interface retains the exact prompt, selected option, and numeric response
+for all sixteen items. For each dimension, the raw experienced composite is
+the arithmetic mean of its four responses:
+
+`raw experienced mean = (q1 + q2 + q3 + q4) / 4`
+
+The reader composite is normalized to 0–1:
+
+`E = (raw experienced mean - 1) / 4`
+
+NRC VAD's normalized lexical means are used directly as measured values `M`.
+The Brysbaert mean is normalized only for this comparison:
+
+`M_concreteness = (source-scale concreteness mean - 1) / 4`
+
+The original Brysbaert mean remains recorded. The signed **Dynamic Gap** is:
+
+`Δ = E - M`
+
+The centralized agreement tolerance is `τ = 0.10` on the normalized scale:
+
+- `Δ < -0.10`: Experienced Lower than Measured;
+- `-0.10 ≤ Δ ≤ +0.10`: Agreement; and
+- `Δ > +0.10`: Experienced Higher than Measured.
+
+The boundaries are inclusive of Agreement. The four relationship labels,
+always ordered Valence · Arousal · Dominance · Concreteness, form the Dynamic
+Signature:
+
+| Dimension | Experienced Lower | Agreement | Experienced Higher |
+| --- | --- | --- | --- |
+| Valence | Darkened | Valence-Matched | Brightened |
+| Arousal | Subdued | Arousal-Matched | Charged |
+| Dominance | Constrained | Dominance-Matched | Empowered |
+| Concreteness | Dissolved | Concreteness-Matched | Evoked |
+
+This compositional vocabulary yields `3^4 = 81` possible signatures. Compact
+codes use `↓`, `=`, and `↑`, such as `V↓ A↑ D↓ C↑`. No separate archetype name
+or probability is inferred.
+
+VerseVAD also records the population standard deviation of the four responses
+within each dimension. This is response-cohesion metadata only; it does not
+change the Dynamic Signature. Assessment timing is recorded as Pre-analysis
+when completed before report exposure and Post-analysis otherwise. A submitted
+pre-analysis record is immutable. Exports retain methodology/configuration IDs,
+resource versions and hashes, scope and weighting, agreement tolerance,
+coverage and denominators, all responses, raw and normalized composites,
+measured values, gaps, labels, signature, compact code, response dispersion,
+timing, and timestamp.
+
+Coverage remains source-relative. Missing resources or insufficient matched
+evidence make Experiential Dynamics unavailable rather than substituting a
+different lexicon or treating missing observations as zero. Sound, rhythm,
+repetition, syntax, imagery, narrative situation, and structure may be useful
+interpretive hypotheses for a gap, but the module does not calculate them as
+causes.
+
 ## Inherited-form candidate ranking
 
 Inherited Form Analysis is a rule-based candidate-ranking system over 169

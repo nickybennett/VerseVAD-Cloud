@@ -9,7 +9,7 @@ import os
 import sys
 import zipfile
 from contextlib import contextmanager
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -51,6 +51,7 @@ _application_was_reloaded = (
             "LexicalStyleConfiguration",
             "PoetryIDConfiguration",
             "InheritedFormConfiguration",
+            "ExperientialDynamicsMeasurements",
             "installed_resource_readiness",
         )
     )
@@ -102,6 +103,7 @@ if _application_was_reloaded:
         "versevad.poetry_id.engine",
         "versevad.poetry_id.integration",
         "versevad.poetry_id",
+        "versevad.experiential_dynamics",
         "versevad.inherited_form.profiles",
         "versevad.inherited_form.engine",
         "versevad.inherited_form",
@@ -114,6 +116,7 @@ if _application_was_reloaded:
         "versevad.exports.phonology",
         "versevad.exports.lexical_style",
         "versevad.exports.poetry_id",
+        "versevad.exports.experiential_dynamics",
         "versevad.exports.inherited_form",
         "versevad.exports.sentiment",
         "versevad.exports.readability",
@@ -123,6 +126,7 @@ if _application_was_reloaded:
         "versevad.versemap",
         "versevad.exports.versemap",
         "versevad.ui.poetry_id",
+        "versevad.ui.experiential_dynamics",
         "versevad.ui.inherited_form",
         "versevad.ui.versemap",
         "versevad.ui.sensorimotor",
@@ -180,6 +184,7 @@ from versevad.lexical_semantic.frequency import (
 from versevad.lexical_semantic.sensorimotor import SensorimotorConfiguration
 from versevad.lexical_style import LexicalStyleConfiguration
 from versevad.inherited_form import InheritedFormConfiguration
+from versevad.experiential_dynamics import AssessmentTiming
 from versevad.models import PhrasePolicy
 from versevad.preprocessing import SpacyEnglishPreprocessor
 from versevad.prosody.pronunciation import (
@@ -212,6 +217,10 @@ from versevad.poetry_id import (
     ThresholdProfile,
 )
 from versevad.ui.poetry_id import render_poetry_id
+from versevad.ui.experiential_dynamics import (
+    render_experiential_assessment,
+    render_experiential_panel,
+)
 from versevad.ui.inherited_form import render_inherited_form
 from versevad.ui.interactive_annotation import render_interactive_annotation
 from versevad.analysis_profiles import (
@@ -2575,6 +2584,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 ),
                 include_versemap=include_versemap,
                 versemap_configuration=versemap_configuration,
+                include_experiential_dynamics_measurements=(not is_other_text),
                 include_pronunciation=include_pronunciation,
                 pronunciation_configuration=pronunciation_configuration,
                 include_meter=include_meter,
@@ -2626,9 +2636,33 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         "Projecting Standard Profile 1.0 into the versioned "
                         "VerseMap reference space."
                     )
-                st.session_state["workspace"] = run_workspace_analysis(
+                completed_workspace = run_workspace_analysis(
                     request, preprocessor=_preprocessor()
                 )
+                st.session_state["workspace"] = completed_workspace
+                if not is_other_text:
+                    for question_id in (
+                        "V1", "V2", "V3", "V4",
+                        "A1", "A2", "A3", "A4",
+                        "D1", "D2", "D3", "D4",
+                        "C1", "C2", "C3", "C4",
+                    ):
+                        st.session_state.pop(
+                            f"experiential_dynamics_response_{question_id}",
+                            None,
+                        )
+                    st.session_state[
+                        "experiential_dynamics_text_version_id"
+                    ] = completed_workspace.document.text_version_id
+                    st.session_state[
+                        "experiential_dynamics_report_revealed"
+                    ] = bool(automatic_pronunciation_update)
+                    st.session_state[
+                        "experiential_dynamics_pre_assessment_open"
+                    ] = False
+                    st.session_state[
+                        "experiential_dynamics_post_assessment_open"
+                    ] = False
                 st.session_state["workspace_analysis_timestamp"] = (
                     datetime.now().astimezone().isoformat(timespec="seconds")
                 )
@@ -2649,7 +2683,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
             else:
                 completion_notice = (
-                    "Analysis complete. Start with Overview; use Evidence & "
+                    "Analysis complete. Choose View Analysis, or optionally "
+                    "complete Experiential Dynamics before the measurements are "
+                    "revealed."
+                    if not is_other_text
+                    else "Analysis complete. Start with Overview; use Evidence & "
                     "Diagnostics when you want to inspect why."
                 )
             st.session_state[
@@ -2761,6 +2799,96 @@ if workspace_page in {"Single Poem", "Other Text"}:
             "before using the results."
         )
 
+    if not is_other_text and workspace.experiential_dynamics_measurements is not None:
+        experiential_text_version = workspace.document.text_version_id
+        if (
+            st.session_state.get("experiential_dynamics_text_version_id")
+            != experiential_text_version
+        ):
+            st.session_state["experiential_dynamics_text_version_id"] = (
+                experiential_text_version
+            )
+            st.session_state["experiential_dynamics_report_revealed"] = bool(
+                workspace.experiential_dynamics is not None
+            )
+            st.session_state["experiential_dynamics_pre_assessment_open"] = False
+            st.session_state["experiential_dynamics_post_assessment_open"] = False
+        if workspace.experiential_dynamics is not None:
+            st.session_state["experiential_dynamics_report_revealed"] = True
+        if not st.session_state.get(
+            "experiential_dynamics_report_revealed",
+            False,
+        ):
+            measurements = workspace.experiential_dynamics_measurements
+            if st.session_state.get(
+                "experiential_dynamics_pre_assessment_open",
+                False,
+            ):
+                completed_assessment = render_experiential_assessment(
+                    title=workspace.document.title,
+                    original_text=workspace.document.original_text,
+                    measurements=measurements,
+                    assessment_timing=AssessmentTiming.PRE_ANALYSIS,
+                    key_prefix="experiential_dynamics_pre",
+                )
+                if completed_assessment is not None:
+                    workspace = replace(
+                        workspace,
+                        experiential_dynamics=completed_assessment,
+                    )
+                    st.session_state["workspace"] = workspace
+                    st.session_state[
+                        "experiential_dynamics_report_revealed"
+                    ] = True
+                    st.session_state[
+                        "experiential_dynamics_pre_assessment_open"
+                    ] = False
+                    st.session_state["single_poem_report_section"] = (
+                        "Affective Evidence"
+                    )
+                    st.session_state[
+                        "_single_poem_focus_experiential_dynamics"
+                    ] = True
+                    st.session_state.pop("prepared_workspace_exports", None)
+                    st.rerun()
+                st.stop()
+
+            st.divider()
+            render_section_intro(
+                "Analysis Complete",
+                "The completed result is stored locally and has not been rerun. "
+                "Open it now, or optionally record your structured impression "
+                "before the lexical measurements are shown.",
+            )
+            action_column, _spacer = st.columns((0.72, 0.28))
+            with action_column:
+                if st.button(
+                    "View Analysis",
+                    type="primary",
+                    width="stretch",
+                    key="experiential_dynamics_view_analysis",
+                ):
+                    st.session_state[
+                        "experiential_dynamics_report_revealed"
+                    ] = True
+                    st.rerun()
+                if measurements.available:
+                    if st.button(
+                        "Complete Experiential Dynamics First",
+                        type="tertiary",
+                        key="experiential_dynamics_begin_pre_assessment",
+                    ):
+                        st.session_state[
+                            "experiential_dynamics_pre_assessment_open"
+                        ] = True
+                        st.rerun()
+                else:
+                    st.caption(
+                        "Experiential Dynamics is unavailable for this result: "
+                        + measurements.unavailable_reason
+                    )
+            st.stop()
+
     st.divider()
     render_section_intro(
         workspace.document.title,
@@ -2802,6 +2930,12 @@ if workspace_page in {"Single Poem", "Other Text"}:
     focus_pronunciation_attention = bool(
         st.session_state.pop(
             f"_{report_state_key}_focus_pronunciation_attention",
+            False,
+        )
+    )
+    focus_experiential_dynamics = bool(
+        st.session_state.pop(
+            "_single_poem_focus_experiential_dynamics",
             False,
         )
     )
@@ -2897,6 +3031,26 @@ if workspace_page in {"Single Poem", "Other Text"}:
             state_key=f"{report_state_key}_poetry_id",
             collapse_label="PoetryID",
         )
+        experiential_tab = None
+        if not is_other_text:
+            experiential_status = (
+                "Complete"
+                if workspace.experiential_dynamics is not None
+                else (
+                    "Available"
+                    if (
+                        workspace.experiential_dynamics_measurements is not None
+                        and workspace.experiential_dynamics_measurements.available
+                    )
+                    else "Unavailable"
+                )
+            )
+            experiential_tab = _bottom_collapsible_expander(
+                f"Experiential Dynamics · {experiential_status}",
+                state_key=f"{report_state_key}_experiential_dynamics",
+                collapse_label="Experiential Dynamics",
+                expanded=focus_experiential_dynamics,
+            )
     with lexical_tab:
         concreteness_tab = _bottom_collapsible_expander(
             _section_label("Concreteness", workspace.concreteness is not None),
@@ -3192,6 +3346,32 @@ if workspace_page in {"Single Poem", "Other Text"}:
             },
             key_prefix=f"{report_state_key}_poetry_id",
         )
+
+    if experiential_tab is not None:
+        with experiential_tab:
+            experiential_result = render_experiential_panel(
+                title=workspace.document.title,
+                original_text=workspace.document.original_text,
+                measurements=workspace.experiential_dynamics_measurements,
+                result=workspace.experiential_dynamics,
+            )
+            if experiential_result is not None:
+                workspace = replace(
+                    workspace,
+                    experiential_dynamics=experiential_result,
+                )
+                st.session_state["workspace"] = workspace
+                st.session_state[
+                    "experiential_dynamics_post_assessment_open"
+                ] = False
+                st.session_state["single_poem_report_section"] = (
+                    "Affective Evidence"
+                )
+                st.session_state[
+                    "_single_poem_focus_experiential_dynamics"
+                ] = True
+                st.session_state.pop("prepared_workspace_exports", None)
+                st.rerun()
 
     with inherited_form_tab:
         st.caption(fixed_profile_notice("inherited_form"))
@@ -7564,6 +7744,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                         (
                             workspace.versemap.module_result.result_id
                             if workspace.versemap
+                            else ""
+                        ),
+                        (
+                            workspace.experiential_dynamics.assessment_id
+                            if workspace.experiential_dynamics
                             else ""
                         ),
                     )

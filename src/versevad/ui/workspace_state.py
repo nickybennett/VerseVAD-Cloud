@@ -49,6 +49,25 @@ _TEXT_WORKSPACE_KEYS = frozenset(PROFILE_WIDGET_KEYS).union(
 # clear operations without placing them in the restorable workspace vault.
 _TEXT_WORKSPACE_TRANSIENT_KEYS = frozenset({"uploaded_poem"})
 
+_EXPERIENTIAL_DYNAMICS_KEYS = frozenset(
+    {
+        "experiential_dynamics_text_version_id",
+        "experiential_dynamics_report_revealed",
+        "experiential_dynamics_pre_assessment_open",
+        "experiential_dynamics_post_assessment_open",
+        "_single_poem_focus_experiential_dynamics",
+        *(
+            f"experiential_dynamics_response_{item_id}"
+            for item_id in (
+                "V1", "V2", "V3", "V4",
+                "A1", "A2", "A3", "A4",
+                "D1", "D2", "D3", "D4",
+                "C1", "C2", "C3", "C4",
+            )
+        ),
+    }
+)
+
 _WORKSPACE_PREFIXES = {
     "Single Poem": ("single_poem_report_profiles_", "one_poem_"),
     "Other Text": ("other_text_report_profiles_",),
@@ -73,7 +92,9 @@ _WORKSPACE_EXACT_KEYS = {
 
 
 def _owned_keys(workspace_id: str) -> frozenset[str]:
-    if workspace_id in {"Single Poem", "Other Text"}:
+    if workspace_id == "Single Poem":
+        return _TEXT_WORKSPACE_KEYS.union(_EXPERIENTIAL_DYNAMICS_KEYS)
+    if workspace_id == "Other Text":
         return _TEXT_WORKSPACE_KEYS
     return frozenset()
 

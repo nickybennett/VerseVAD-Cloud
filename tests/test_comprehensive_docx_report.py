@@ -85,6 +85,36 @@ def test_complete_audit_report_marks_uncalculated_modules_and_lists_audit_files(
     assert "full-precision" in text.lower()
 
 
+def test_current_view_distinguishes_calculated_but_unreported_modules() -> None:
+    content = build_comprehensive_analysis_report(
+        export_files={"profile_metrics_selected.csv": _profile_csv()},
+        text_title="Example Poem",
+        export_mode="current_view",
+        visible_section="Overview",
+        calculated_modules=("vad", "readability", "meter", "poetry_id"),
+    )
+    text = _document_text(content)
+    assert "Calculated, not included" in text
+    assert "selected Overview report section" in text
+
+
+def test_corpus_vad_profile_appendix_names_real_companion_file() -> None:
+    content = build_comprehensive_analysis_report(
+        export_files={
+            "profile_metrics_selected.csv": _profile_csv(),
+            "profile_metrics_all_compatible.csv": _profile_csv(),
+            "corpus_vad_profiles.csv": _csv("dimension,value\nvalence,0.5\n"),
+        },
+        text_title="Example Corpus",
+        export_mode="complete_audit",
+        workspace_label="Saved Projects / Corpus",
+    )
+    text = _document_text(content)
+    assert "All Compatible VAD Profiles" in text
+    assert "companion corpus_vad_profiles.csv" in text
+    assert "companion profile_metrics_all_compatible.csv" not in text
+
+
 def test_primary_profile_table_uses_weighting_appropriate_coverage() -> None:
     type_profile = _profile_csv().decode("utf-8").replace(
         "stopword_excluded-token_weighted,stopword_excluded,token_weighted",
@@ -118,3 +148,30 @@ def test_corpus_report_distinguishes_pooled_and_between_work_dispersion() -> Non
     assert "Lexical and Between-Work Dispersion" in text
     assert "pooled matched lexical ratings" in text
     assert "between-work dispersion" in text
+
+
+def test_comprehensive_report_includes_experiential_dynamics_when_completed() -> None:
+    summary = _csv(
+        "assessment_id,text_version_id,assessment_timing,submitted_at,methodology_version,questionnaire_version,configuration_id,fixed_scope,fixed_weighting,agreement_tolerance,dynamic_signature,compact_code,dimension,dimension_label,resource_id,resource,resource_version,resource_sha256,measured_source_value,measured_source_unit,measured_normalized_0_1,experienced_raw_mean_1_5,experienced_normalized_0_1,reader_response_population_sd,dynamic_gap_experienced_minus_measured,relationship,relationship_label,compact_symbol,eligible_token_count,matched_token_count,token_coverage\n"
+        "assessment-1,text-1,pre_analysis,2026-08-13T12:00:00+00:00,experiential-dynamics-1.0,reader-response-16-v1,config-1,stopword_excluded,token_weighted,0.1,Darkened · Charged · Constrained · Evoked,V↓ A↑ D↓ C↑,valence,Valence,nrc_vad_v2_1,NRC VAD Lexicon v2.1,2.1,abc,0.4,normalized 0-1,0.4,1.8,0.2,0.1,-0.2,experienced_lower,Darkened,↓,20,18,0.9\n"
+    )
+    responses = _csv(
+        "assessment_id,text_version_id,assessment_timing,item_id,dimension,prompt,numeric_response_1_5,selected_response\n"
+        "assessment-1,text-1,pre_analysis,V1,valence,Question,2,Somewhat negative\n"
+    )
+    content = build_comprehensive_analysis_report(
+        export_files={
+            "profile_metrics_selected.csv": _profile_csv(),
+            "experiential_dynamics_summary.csv": summary,
+            "experiential_dynamics_responses.csv": responses,
+        },
+        text_title="Example Poem",
+        export_mode="current_view",
+        visible_section="Affective Evidence",
+        calculated_modules=("vad", "experiential_dynamics"),
+    )
+    text = _document_text(content)
+    assert "Experiential Dynamics" in text
+    assert "Darkened · Charged · Constrained · Evoked" in text
+    assert "Reader-derived responses" in text
+    assert "The reader-derived assessment and fixed lexical comparison" in text

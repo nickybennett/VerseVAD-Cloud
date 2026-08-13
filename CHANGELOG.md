@@ -6,6 +6,12 @@ All notable changes to VerseVAD are recorded here.
 
 ### Added
 
+- Added the optional Single Poem **Experiential Dynamics** module. It compares
+  a fixed NRC VAD v2.1/Brysbaert, Stopword-excluded · Token-weighted lexical
+  profile with a versioned sixteen-item reader assessment, reports one of 81
+  transparent four-part Dynamic Signatures, distinguishes pre- and
+  post-analysis timing, and includes auditable CSV and Word-report exports.
+
 - Local Windows and macOS setup, diagnostics, and browser launchers.
 - Single Poem, Compare Poems, Other Text, Lexicon Explorer, Saved Projects,
   Personal Corpus, Reference Corpora, Analysis Library, VerseMap, Form

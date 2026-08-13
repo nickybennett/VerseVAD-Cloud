@@ -119,6 +119,29 @@ control was silently ignored.
 
 ## Analyze a poem
 
+### Optional Experiential Dynamics assessment
+
+Single Poem analysis includes an optional **Experiential Dynamics** workflow.
+After analysis finishes, **View Analysis** remains the primary path. Selecting
+**Complete Experiential Dynamics First** instead keeps the completed report
+hidden, leaves the poem visible, and asks sixteen 1–5 questions about the
+reader's structured impression of the poem as a whole. Submitting the form
+reveals the stored report without rerunning the poem analysis.
+
+The result compares reader-derived impressions of valence, arousal, dominance,
+and concreteness with fixed lexical measurements and reports a four-part
+**Dynamic Signature**. A pre-analysis response is frozen after submission so
+viewing the measurements cannot silently alter the original record. The same
+assessment remains available from **Affective Evidence** after the report has
+already been viewed; that record is explicitly labelled **Post-analysis**.
+
+Experiential Dynamics is optional, experimental, and available only for Single
+Poem. It requires locally validated NRC VAD v2.1 and Brysbaert concreteness
+resources. It always uses its documented fixed Stopword-excluded ·
+Token-weighted profile, regardless of the global report selector. Completed
+assessments are included in applicable Current View exports and Complete Audit
+exports as separate CSV tables and a clearly labelled Word-report section.
+
 1. Open **Analyze → Single Poem**.
 2. Optionally upload a UTF-8 `.txt` file or paste the poem. Title, author, and
    workspace name are optional metadata.
