@@ -126,13 +126,13 @@ def test_sensorimotor_workspace_and_complete_audit_bundle(
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         names = set(bundle.namelist())
         assert names >= {
-            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/summary.csv",
-            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/dominant_dimensions.csv",
-            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/by_structure.csv",
-            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/terms.csv",
-            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/observations.csv",
-            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/unmatched.csv",
-            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/manifest.csv",
-            "02_EXPERIENCE_AND_IMAGERY/sensorimotor/report.docx",
-            "00_START_HERE/VerseVAD_Analysis_Report.docx",
+            "04_AUDIT/02_EXPERIENCE_AND_IMAGERY/sensorimotor/summary.csv",
+            "04_AUDIT/02_EXPERIENCE_AND_IMAGERY/sensorimotor/dominant_dimensions.csv",
+            "04_AUDIT/02_EXPERIENCE_AND_IMAGERY/sensorimotor/by_structure.csv",
+            "04_AUDIT/02_EXPERIENCE_AND_IMAGERY/sensorimotor/terms.csv",
+            "04_AUDIT/02_EXPERIENCE_AND_IMAGERY/sensorimotor/observations.csv",
+            "04_AUDIT/02_EXPERIENCE_AND_IMAGERY/sensorimotor/unmatched.csv",
+            "04_AUDIT/02_EXPERIENCE_AND_IMAGERY/sensorimotor/manifest.csv",
+            "04_AUDIT/02_EXPERIENCE_AND_IMAGERY/sensorimotor/report.docx",
+            "01_REPORTS/Analysis_Report.docx",
         }

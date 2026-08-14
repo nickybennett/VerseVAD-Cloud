@@ -38,6 +38,16 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Standardized Single Poem, Compare Poems, and Corpus / Research Project
+  Current View and Complete Audit exports under export schema 3.0. Packages now
+  share Read Me, Reports, focused Metric Tables, canonical Master Data, retained
+  Audit evidence, and Reproducibility layers; `Master_Metrics.csv` provides a
+  stable long-form machine interface without changing analytical calculations.
+- Canonicalized metric, resource, lexical-scope, token/type-weighting,
+  analysis-level, and corpus-aggregation vocabularies across analysis modes;
+  added cross-mode value/coverage regression tests and explicit coverage/data-
+  quality reports.
+
 - Added the module-specific **Content Words Only (Scope Override)** for
   emotional association/intensity, concreteness, sensorimotor imagery and
   embodiment, frequency/rarity, and age of acquisition. It preserves global

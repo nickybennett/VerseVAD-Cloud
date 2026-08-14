@@ -215,7 +215,7 @@ def test_lexical_trajectory_keeps_sources_separate_and_preserves_lines(
     }
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         assert (
-            "06_CROSS_MODULE_ANALYSIS/lexical_trajectory/values.csv"
+            "04_AUDIT/06_CROSS_MODULE_ANALYSIS/lexical_trajectory/values.csv"
             in bundle.namelist()
         )
 
@@ -253,17 +253,17 @@ def test_workspace_poetry_id_reuses_completed_vad_and_has_no_json_export(
         poetry_id_files = {
             name
             for name in bundle.namelist()
-            if name.startswith("05_COMPARATIVE_PROFILES/poetry_id/")
+            if name.startswith("04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/")
         }
         assert poetry_id_files == {
-            "05_COMPARATIVE_PROFILES/poetry_id/summary.csv",
-            "05_COMPARATIVE_PROFILES/poetry_id/neighbors.csv",
-            "05_COMPARATIVE_PROFILES/poetry_id/lexical_character.csv",
-            "05_COMPARATIVE_PROFILES/poetry_id/methodology.csv",
-            "05_COMPARATIVE_PROFILES/poetry_id/archetype_map.csv",
-            "05_COMPARATIVE_PROFILES/poetry_id/vad_scales.csv",
-            "05_COMPARATIVE_PROFILES/poetry_id/manifest.csv",
-            "05_COMPARATIVE_PROFILES/poetry_id/report.docx",
+            "04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/summary.csv",
+            "04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/neighbors.csv",
+            "04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/lexical_character.csv",
+            "04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/methodology.csv",
+            "04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/archetype_map.csv",
+            "04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/vad_scales.csv",
+            "04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/manifest.csv",
+            "04_AUDIT/05_COMPARATIVE_PROFILES/poetry_id/report.docx",
         }
         assert not any(name.endswith(".json") for name in poetry_id_files)
 
@@ -333,14 +333,14 @@ def test_workspace_requires_title_and_text_but_runs_resource_free_metrics(
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(resource_free))) as bundle:
         names = set(bundle.namelist())
         assert {
-            "01_AFFECT/vader/summary.csv",
-            "01_AFFECT/vader/sentences.csv",
-            "01_AFFECT/vader/report.docx",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/readability/summary.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/readability/word_audit.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/readability/report.docx",
+            "04_AUDIT/01_AFFECT/vader/summary.csv",
+            "04_AUDIT/01_AFFECT/vader/sentences.csv",
+            "04_AUDIT/01_AFFECT/vader/report.docx",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/readability/summary.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/readability/word_audit.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/readability/report.docx",
         } <= names
-        assert "06_CROSS_MODULE_ANALYSIS/lexical_trajectory/values.csv" not in names
+        assert "04_AUDIT/06_CROSS_MODULE_ANALYSIS/lexical_trajectory/values.csv" not in names
         assert not any(name.endswith(".json") for name in names)
 
 
@@ -656,45 +656,41 @@ def test_detailed_download_starts_with_friendly_files_and_retains_audit(
     archive = detailed_export_zip(synthetic_workspace)
     with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
         names = set(bundle.namelist())
-        assert "00_START_HERE/VerseVAD_Analysis_Report.docx" in names
-        assert "08_REPRODUCIBILITY/scholar_summary.csv" in names
-        assert "08_REPRODUCIBILITY/csv_reading_guide.csv" in names
-        assert "01_AFFECT/lexical_match_audit.csv" in names
-        assert "08_REPRODUCIBILITY/affect_lexicon_manifest.csv" in names
-        assert "07_PROCESSING_AUDIT/source.csv" in names
-        assert "07_PROCESSING_AUDIT/tokens.csv" in names
-        assert "07_PROCESSING_AUDIT/configuration.csv" in names
-        assert "06_CROSS_MODULE_ANALYSIS/vad_by_part_of_speech.csv" in names
+        assert "01_REPORTS/Analysis_Report.docx" in names
+        assert "01_REPORTS/Coverage_and_Data_Quality.docx" in names
+        assert "03_MASTER_DATA/Master_Metrics.csv" in names
+        assert "04_AUDIT/08_REPRODUCIBILITY/scholar_summary.csv" in names
+        assert "04_AUDIT/08_REPRODUCIBILITY/csv_reading_guide.csv" in names
+        assert "04_AUDIT/01_AFFECT/lexical_match_audit.csv" in names
+        assert "04_AUDIT/08_REPRODUCIBILITY/affect_lexicon_manifest.csv" in names
+        assert "04_AUDIT/07_PROCESSING_AUDIT/source.csv" in names
+        assert "04_AUDIT/07_PROCESSING_AUDIT/tokens.csv" in names
+        assert "04_AUDIT/07_PROCESSING_AUDIT/configuration.csv" in names
+        assert "04_AUDIT/06_CROSS_MODULE_ANALYSIS/vad_by_part_of_speech.csv" in names
         assert not any(name.endswith((".json", ".xlsx")) for name in names)
         assert {
-            "08_REPRODUCIBILITY/REPRODUCIBILITY_README.txt",
-            "08_REPRODUCIBILITY/FILE_INVENTORY.csv",
+            "05_REPRODUCIBILITY/REPRODUCIBILITY_README.txt",
+            "05_REPRODUCIBILITY/FILE_INVENTORY.csv",
         } <= names
-        source = _csv_rows(bundle.read("07_PROCESSING_AUDIT/source.csv"))[0]
+        source = _csv_rows(bundle.read("04_AUDIT/07_PROCESSING_AUDIT/source.csv"))[0]
         assert source["original_text"] == "Fear joy dark night."
         configuration = _csv_rows(
-            bundle.read("07_PROCESSING_AUDIT/configuration.csv")
+            bundle.read("04_AUDIT/07_PROCESSING_AUDIT/configuration.csv")
         )[0]
         assert configuration["preserve_original_text"] == "True"
-        coverage = _csv_rows(bundle.read("07_PROCESSING_AUDIT/coverage.csv"))[0]
+        coverage = _csv_rows(bundle.read("04_AUDIT/07_PROCESSING_AUDIT/coverage.csv"))[0]
         assert int(coverage["total_token_count"]) > 0
-        structure = _csv_rows(bundle.read("07_PROCESSING_AUDIT/structure.csv"))
+        structure = _csv_rows(bundle.read("04_AUDIT/07_PROCESSING_AUDIT/structure.csv"))
         assert any(unit["kind"] == "line" for unit in structure)
         inventory = _csv_rows(
-            bundle.read("08_REPRODUCIBILITY/FILE_INVENTORY.csv")
+            bundle.read("05_REPRODUCIBILITY/FILE_INVENTORY.csv")
         )
-        assert {row["path"] for row in inventory} == names
-        metric_rows = _csv_rows(bundle.read("00_START_HERE/metric_summary.csv"))
+        assert {row["path"] for row in inventory} <= names
+        metric_rows = _csv_rows(bundle.read("03_MASTER_DATA/Master_Metrics.csv"))
         assert metric_rows
-        assert all(row["resource"] for row in metric_rows)
-        assert all(
-            row["profile_label"]
-            == AnalysisProfile(
-                LexicalScope(row["scope_id"]),
-                AggregationWeighting(row["weighting"].replace("-weighted", "").upper()),
-            ).label
-            for row in metric_rows
-        )
+        assert {row["export_schema_version"] for row in metric_rows} == {"3.0"}
+        assert {row["analysis_mode"] for row in metric_rows} == {"single_poem"}
+        assert all(row["metric_id"] for row in metric_rows)
 
 
 def test_current_view_export_applies_scope_exception_only_to_target_module(
@@ -710,8 +706,10 @@ def test_current_view_export_applies_scope_exception_only_to_target_module(
     )
 
     with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
-        rows = _csv_rows(bundle.read("profile_metrics_selected.csv"))
-        override_rows = _csv_rows(bundle.read("module_scope_overrides.csv"))
+        rows = _csv_rows(bundle.read("03_MASTER_DATA/Selected_Profiles.csv"))
+        override_rows = _csv_rows(
+            bundle.read("05_REPRODUCIBILITY/Module_Scope_Overrides.csv")
+        )
 
     vad_rows = [row for row in rows if row["module_id"] == "vad"]
     emotion_rows = [
@@ -826,10 +824,10 @@ def test_workspace_can_run_pronunciation_without_an_affective_lexicon(
     assert float(mean_line_row["value"]) == pytest.approx(2.0)
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         names = set(bundle.namelist())
-        assert "04_SOUND_AND_FORM/pronunciation/summary.csv" in names
-        assert "04_SOUND_AND_FORM/pronunciation/lines.csv" in names
-        assert "04_SOUND_AND_FORM/pronunciation/token_audit.csv" in names
-        assert "04_SOUND_AND_FORM/pronunciation/report.docx" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/pronunciation/summary.csv" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/pronunciation/lines.csv" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/pronunciation/token_audit.csv" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/pronunciation/report.docx" in names
         assert not any(name.endswith(".json") for name in names)
 
 
@@ -862,12 +860,12 @@ def test_workspace_can_run_meter_and_automatically_include_pronunciation(
     )
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         names = set(bundle.namelist())
-        assert "04_SOUND_AND_FORM/meter/summary.csv" in names
-        assert "04_SOUND_AND_FORM/meter/candidates.csv" in names
-        assert "04_SOUND_AND_FORM/meter/schemes.csv" not in names
-        assert "04_SOUND_AND_FORM/meter/lines.csv" in names
-        assert "04_SOUND_AND_FORM/meter/alignment_operations.csv" in names
-        assert "04_SOUND_AND_FORM/meter/report.docx" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/meter/summary.csv" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/meter/candidates.csv" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/meter/schemes.csv" not in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/meter/lines.csv" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/meter/alignment_operations.csv" in names
+        assert "04_AUDIT/04_SOUND_AND_FORM/meter/report.docx" in names
         assert not any(name.endswith(".json") for name in names)
 
 
@@ -903,13 +901,13 @@ def test_workspace_can_run_phonology_and_automatically_include_pronunciation(
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         names = set(bundle.namelist())
         assert {
-            "04_SOUND_AND_FORM/rhyme_and_sound/summary.csv",
-            "04_SOUND_AND_FORM/rhyme_and_sound/stanzas.csv",
-            "04_SOUND_AND_FORM/rhyme_and_sound/lines.csv",
-            "04_SOUND_AND_FORM/rhyme_and_sound/pairs.csv",
-            "04_SOUND_AND_FORM/rhyme_and_sound/internal.csv",
-            "04_SOUND_AND_FORM/rhyme_and_sound/sounds.csv",
-            "04_SOUND_AND_FORM/rhyme_and_sound/report.docx",
+            "04_AUDIT/04_SOUND_AND_FORM/rhyme_and_sound/summary.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/rhyme_and_sound/stanzas.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/rhyme_and_sound/lines.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/rhyme_and_sound/pairs.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/rhyme_and_sound/internal.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/rhyme_and_sound/sounds.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/rhyme_and_sound/report.docx",
         } <= names
 
 
@@ -1028,10 +1026,10 @@ def test_workspace_can_run_lexical_style_without_external_resources(
     )
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         assert {
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/summary.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/word_lengths.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/lines.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/stanzas.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/token_audit.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/report.docx",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/summary.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/word_lengths.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/lines.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/stanzas.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/token_audit.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/lexical_style/report.docx",
         } <= set(bundle.namelist())

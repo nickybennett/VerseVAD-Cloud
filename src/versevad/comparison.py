@@ -320,13 +320,33 @@ def _vad_rows(
         summaries_a = vad_profile_summaries(first)
         summaries_b = vad_profile_summaries(second)
         denominator_kind = "tokens" if weighting == "token" else "types"
-        denominator_a = f"{len(matches_a)} matched {denominator_kind}"
-        denominator_b = f"{len(matches_b)} matched {denominator_kind}"
         for dimension in ("valence", "arousal", "dominance"):
             summary_a = summaries_a[dimension][profile]
             summary_b = summaries_b[dimension][profile]
             stats_a = summary_a.statistics
             stats_b = summary_b.statistics
+            if weighting == "token":
+                denominator_a = (
+                    f"{summary_a.coverage.matched_token_count} of "
+                    f"{summary_a.coverage.eligible_token_count} eligible tokens; "
+                    f"{summary_a.coverage.matched_token_count} matched tokens"
+                )
+                denominator_b = (
+                    f"{summary_b.coverage.matched_token_count} of "
+                    f"{summary_b.coverage.eligible_token_count} eligible tokens; "
+                    f"{summary_b.coverage.matched_token_count} matched tokens"
+                )
+            else:
+                denominator_a = (
+                    f"{summary_a.coverage.matched_type_count} of "
+                    f"{summary_a.coverage.eligible_type_count} eligible types; "
+                    f"{summary_a.coverage.matched_type_count} matched types"
+                )
+                denominator_b = (
+                    f"{summary_b.coverage.matched_type_count} of "
+                    f"{summary_b.coverage.eligible_type_count} eligible types; "
+                    f"{summary_b.coverage.matched_type_count} matched types"
+                )
             coverage_a = (
                 summary_a.coverage.token_coverage
                 if weighting == "token"

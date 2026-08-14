@@ -327,10 +327,13 @@ def test_comparison_set_complete_audit_contains_principal_word_report(
 
     with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
         names = set(archive.namelist())
-        assert "VerseVAD_comprehensive_comparison_report.docx" in names
-        assert "REPRODUCIBILITY_README.txt" in names
+        assert "01_REPORTS/Comparison_Report.docx" in names
+        assert "01_REPORTS/Coverage_and_Data_Quality.docx" in names
+        assert "03_MASTER_DATA/Master_Metrics.csv" in names
+        assert "03_MASTER_DATA/Comparison_Summary.csv" in names
+        assert "05_REPRODUCIBILITY/REPRODUCIBILITY_README.txt" in names
         document_xml = archive.read(
-            "VerseVAD_comprehensive_comparison_report.docx"
+            "01_REPORTS/Comparison_Report.docx"
         )
     with zipfile.ZipFile(io.BytesIO(document_xml)) as report_archive:
         report_xml = report_archive.read("word/document.xml").decode("utf-8")

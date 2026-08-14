@@ -794,6 +794,33 @@ and is inventoried rather than being expanded into an unreadable Word table.
 Interpretation bands appear only where the corresponding module already defines
 an auditable band; the report does not invent thresholds.
 
+## Export schema 3.0 and serialization contract
+
+Single Poem, Compare Poems, and Corpus / Research Project packages share one
+six-layer archive contract: Read Me, Reports, Metric Tables, Master Data, Audit,
+and Reproducibility. `03_MASTER_DATA/Master_Metrics.csv` is the authoritative
+machine-readable long table. One ordinary work-level row identifies the work,
+metric, resource, lexical scope, token/type weighting, analysis level, value,
+unit, denominator, observation count, and applicable token/type coverage counts.
+Corpus aggregate rows additionally identify `equal_work` or `token_pool` in a
+separate `corpus_aggregation` field; aggregation is never overloaded into the
+weighting field.
+
+The canonical machine vocabularies are `all_lexical`, `stopword_excluded`, and
+`content_words` for lexical scope; `token` and `type` for weighting; and stable
+resource-independent metric IDs such as `vad.valence.mean`. Resource identity
+is recorded separately, for example `nrc_vad_v2_1`. Structural levels such as
+line, stanza, sentence, part of speech, candidate, neighbor, work, and corpus
+are recorded separately from lexical scope.
+
+The exporter is a serialization layer over completed evidence. Current View
+filters the retained canonical records to the active interface state; Complete
+Audit exposes all compatible completed records. Focused tables pivot and label
+those records for people. Neither path tokenizes, rematches, imputes missing
+ratings, converts missing values to zero, or recalculates analytical values.
+The detailed legacy evidence is retained beneath `04_AUDIT/` so schema and
+presentation changes do not discard the underlying audit trail.
+
 ## Lexicon Explorer derivations
 
 Lexicon Explorer resolves an exact normalized entry or phrase before displaying

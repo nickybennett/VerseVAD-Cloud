@@ -148,23 +148,23 @@ def test_frequency_only_workspace_and_full_bundle(
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as bundle:
         names = set(bundle.namelist())
         assert names >= {
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/summary.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/distribution.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/by_structure.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/by_pos.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/terms.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/token_audit.csv",
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/report.docx",
-            "07_PROCESSING_AUDIT/source.csv",
-            "07_PROCESSING_AUDIT/tokens.csv",
-            "00_START_HERE/VerseVAD_Analysis_Report.docx",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/summary.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/distribution.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/by_structure.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/by_pos.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/terms.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/token_audit.csv",
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/report.docx",
+            "04_AUDIT/07_PROCESSING_AUDIT/source.csv",
+            "04_AUDIT/07_PROCESSING_AUDIT/tokens.csv",
+            "01_REPORTS/Analysis_Report.docx",
         }
         assert not any(name.startswith("phase2_") for name in names)
         assert not any(name.endswith((".json", ".xlsx")) for name in names)
         assert {
-            "08_REPRODUCIBILITY/REPRODUCIBILITY_README.txt",
-            "08_REPRODUCIBILITY/FILE_INVENTORY.csv",
+            "05_REPRODUCIBILITY/REPRODUCIBILITY_README.txt",
+            "05_REPRODUCIBILITY/FILE_INVENTORY.csv",
         } <= names
         assert bundle.read(
-            "03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/report.docx"
+            "04_AUDIT/03_LEXICAL_ACCESSIBILITY_AND_STYLE/frequency/report.docx"
         ).startswith(b"PK")

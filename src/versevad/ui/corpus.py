@@ -4684,11 +4684,13 @@ def _render_export_tab(
                 module_scope_overrides=module_scope_overrides,
             )
         with zipfile.ZipFile(io.BytesIO(export_bundle)) as archive:
-            report = archive.read("corpus_report.docx")
+            report = archive.read("01_REPORTS/Corpus_Report.docx")
+            metrics_csv = archive.read("03_MASTER_DATA/Master_Metrics.csv")
         st.session_state[prepared_key] = {
             "signature": signature,
             "bundle": export_bundle,
             "report": report,
+            "metrics": metrics_csv,
         }
     prepared = st.session_state.get(prepared_key)
     if isinstance(prepared, dict) and prepared.get("signature") == signature:
@@ -4697,9 +4699,21 @@ def _render_export_tab(
             if export_mode == "complete_audit"
             else "Download Current View ZIP"
         )
-        report_column, bundle_column = st.columns(2)
+        metrics_column, report_column, bundle_column = st.columns(3)
+        metrics_column.download_button(
+            (
+                "Download Current-View Metrics CSV"
+                if export_mode == "current_view"
+                else "Download Master Metrics CSV"
+            ),
+            data=prepared["metrics"],
+            file_name=f"{_safe_filename(project.title)}_VerseVAD_metrics.csv",
+            mime="text/csv",
+            width="stretch",
+            key=f"download_corpus_metrics_{project_id}",
+        )
         report_column.download_button(
-            "Download Comprehensive Word Report",
+            "Download Readable Word Report",
             data=prepared["report"],
             file_name=f"{_safe_filename(project.title)}_VerseVAD_report.docx",
             mime=(

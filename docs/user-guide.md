@@ -399,19 +399,31 @@ as if they were interchangeable.
 
 ## Export Current View and Export Complete Audit
 
-**Export Current View** includes only the selected lexical profile combinations
-and the fixed-profile results present in the chosen report section. It is the
-compact option for a focused analysis.
+**Export Current View** is an exact projection of the result visible when you
+prepare the export: the active report section, selected resources, lexical
+scope, token/type weighting, corpus aggregation where applicable, and displayed
+work or comparison set. It is the compact option for a focused analysis.
 
 **Export Complete Audit** includes all six compatible lexical profiles, all
 fixed-profile results, compatible sections, coverage, exclusions, evidence,
 and provenance retained by the run. Exporting does not rerun the analysis.
 
-Every analytical workspace exposes a principal scan-friendly comprehensive Word
-report: `00_START_HERE/VerseVAD_Analysis_Report.docx` for Single Poem and Other Text,
-`VerseVAD_comprehensive_comparison_report.docx` for Compare Poems, and
-`corpus_report.docx` for Saved Projects and Personal Corpus. The interface also
-offers the report as a direct DOCX download after preparation. Reports include
+Single Poem, Compare Poems, and Corpus / Research Project exports now share a
+schema-versioned, progressive-disclosure layout:
+
+1. `00_READ_ME/` explains the package and where to begin.
+2. `01_REPORTS/` contains the principal report and a coverage/data-quality report.
+3. `02_METRIC_TABLES/` contains concise domain-focused presentation tables.
+4. `03_MASTER_DATA/Master_Metrics.csv` is the authoritative long-form machine
+   interface. It uses export schema 3.0 and canonical metric, resource, scope,
+   weighting, analysis-level, and corpus-aggregation fields.
+5. `04_AUDIT/` retains detailed token, matching, pronunciation, structural, and
+   other module evidence.
+6. `05_REPRODUCIBILITY/` contains settings, provenance, dictionaries, warnings,
+   manifests, and the file inventory.
+
+Every analytical workspace also exposes the principal scan-friendly Word report
+as a direct download after preparation. Reports include
 text or collection metadata, analyst and research-question placeholders,
 primary means, secondary medians, dispersion, cumulative and midpoint loads,
 coverage, plain-language explanations, cautions, module-status information, and
@@ -421,10 +433,10 @@ calculated compatible profile and identify high-volume evidence retained in the
 companion files. Report displays round suitable numeric values to three decimal
 places; this does not alter stored or exported data.
 
-Complete Audit ZIPs use numbered domain folders and include clean CSV tables,
-comprehensive or module-specific Word reports,
-`08_REPRODUCIBILITY/REPRODUCIBILITY_README.txt`, and
-`08_REPRODUCIBILITY/FILE_INVENTORY.csv`. CSV values retain
+Focused tables are readable presentation views and do not independently
+recalculate metrics. Downstream scripts should use
+`03_MASTER_DATA/Master_Metrics.csv`, not the focused tables or Word reports.
+CSV values retain
 available precision even though the interface rounds most numbers to three
 decimal places. JSON is not required.
 

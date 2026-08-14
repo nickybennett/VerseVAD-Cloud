@@ -369,18 +369,20 @@ as if they were interchangeable.
 
 ## Export Current View and Export Complete Audit
 
-**Export Current View** includes only the selected lexical profile combinations
-and the fixed-profile results present in the chosen report section. It is the
-compact option for a focused analysis.
+**Export Current View** is an exact projection of the selected report section,
+resources, lexical scope, weighting, applicable corpus aggregation, and visible
+work(s). It is the compact option for a focused analysis.
 
 **Export Complete Audit** includes all six compatible lexical profiles, all
 fixed-profile results, compatible sections, coverage, exclusions, evidence,
 and provenance retained by the run. Exporting does not rerun the analysis.
 
-Complete Audit ZIPs use numbered domain folders and include clean CSV tables,
-narrative Word reports where available,
-`08_REPRODUCIBILITY/REPRODUCIBILITY_README.txt`, and
-`08_REPRODUCIBILITY/FILE_INVENTORY.csv`. CSV values retain
+All analytical packages use the same progressive-disclosure structure:
+`00_READ_ME`, `01_REPORTS`, `02_METRIC_TABLES`, `03_MASTER_DATA`, `04_AUDIT`,
+and `05_REPRODUCIBILITY`. The authoritative machine table is
+`03_MASTER_DATA/Master_Metrics.csv` (export schema 3.0); focused tables and Word
+reports are human-facing projections of those retained results. The reproducibility
+folder includes `FILE_INVENTORY.csv` so every packaged file is discoverable. CSV values retain
 available precision even though the interface rounds most numbers to three
 decimal places. JSON is not required.
 

@@ -6001,6 +6001,33 @@ def _build_detailed_export_zip(
                     export_mode=export_mode,
                     profile_ids=selected_ids,
                 )
+        from versevad.exports.canonical_schema import standardize_export_files
+
+        analysis_mode = (
+            "other_text"
+            if "other text" in workspace_label.casefold()
+            or "prose" in workspace_label.casefold()
+            else "single_poem"
+        )
+        # Schema v3 applies one cross-workspace archive contract to Current View
+        # and Complete Audit alike.  The exporter files above remain the retained
+        # audit evidence; the canonical layer only organizes and serializes them.
+        main_report_path = (
+            COMPLETE_AUDIT_ANALYSIS_REPORT_PATH
+            if COMPLETE_AUDIT_ANALYSIS_REPORT_PATH in export_files
+            else FLAT_ANALYSIS_REPORT_PATH
+        )
+        export_files = standardize_export_files(
+            export_files,
+            analysis_mode=analysis_mode,
+            export_mode=export_mode,
+            analysis_id=workspace.document.text_version_id,
+            work_id=workspace.document.text_id,
+            title=workspace.document.title,
+            author=author,
+            main_report_path=main_report_path,
+            main_report_name="Analysis_Report.docx",
+        )
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, mode="w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for filename, content in export_files.items():

@@ -30,7 +30,7 @@ the current release rather than its implementation history.
 | Understand VerseMap features and PCA | [VerseMap Standard Profile 1.0](versemap-standard-profile.md) |
 | Review inherited poetic forms | [Inherited Form Registry](inherited-form-registry-v2.md) |
 | Download free VerseVAD courses | **Learn → Training** in the application or [VerseVAD Training](https://www.versevad.org/training) |
-| Export CSV, Word, or audit reports | [User guide](user-guide.md#downloads-and-the-audit-bundle) |
+| Export CSV, Word, or audit reports | [User guide](user-guide.md#export-current-view-and-export-complete-audit) |
 
 ## Understand the evidence
 

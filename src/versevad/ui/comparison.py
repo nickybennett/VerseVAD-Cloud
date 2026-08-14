@@ -2190,7 +2190,10 @@ def _render_comparison_set_results(
                 )
                 with zipfile.ZipFile(io.BytesIO(bundle_content)) as archive:
                     docx_content = archive.read(
-                        "VerseVAD_comprehensive_comparison_report.docx"
+                        "01_REPORTS/Comparison_Report.docx"
+                    )
+                    csv_content = archive.read(
+                        "03_MASTER_DATA/Master_Metrics.csv"
                     )
                 docx_content = append_research_notes_to_docx(
                     docx_content,
@@ -2215,7 +2218,11 @@ def _render_comparison_set_results(
             return
         downloads = st.columns(4 if selected_notes else 3)
         downloads[0].download_button(
-            "Download Comparison-Set CSV",
+            (
+                "Download Current-View Metrics CSV"
+                if export_mode == "current_view"
+                else "Download Master Metrics CSV"
+            ),
             data=prepared_exports["csv"],
             file_name="VerseVAD_poem_comparison_set.csv",
             mime="text/csv",
@@ -2223,7 +2230,7 @@ def _render_comparison_set_results(
             width="stretch",
         )
         downloads[1].download_button(
-            "Download Comprehensive Word Report",
+            "Download Readable Word Report",
             data=prepared_exports["report"],
             file_name="VerseVAD_poem_comparison_set.docx",
             mime=(
@@ -2235,9 +2242,9 @@ def _render_comparison_set_results(
         )
         downloads[2].download_button(
             (
-                "Download Current-View Bundle"
+                "Download Current-View ZIP"
                 if export_mode == "current_view"
-                else "Download Complete Audit Bundle"
+                else "Download Complete Audit ZIP"
             ),
             data=prepared_exports["bundle"],
             file_name="VerseVAD_poem_comparison_bundle.zip",

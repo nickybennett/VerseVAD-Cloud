@@ -46,23 +46,25 @@ def test_corpus_export_contains_data_report_and_reproducibility_records() -> Non
     assert first == second
     with zipfile.ZipFile(io.BytesIO(first)) as archive:
         names = set(archive.namelist())
-        assert "corpus_report.docx" in names
-        assert "corpus_scope_token_counts.csv" in names
-        assert "corpus_works.csv" in names
-        assert "corpus_methodology.csv" in names
-        assert "REPRODUCIBILITY_README.txt" in names
-        assert "FILE_INVENTORY.txt" in names
+        assert "01_REPORTS/Corpus_Report.docx" in names
+        assert "01_REPORTS/Coverage_and_Data_Quality.docx" in names
+        assert "03_MASTER_DATA/Master_Metrics.csv" in names
+        assert "03_MASTER_DATA/Scope_Token_Counts.csv" in names
+        assert "03_MASTER_DATA/Works.csv" in names
+        assert "05_REPRODUCIBILITY/Methodology.csv" in names
+        assert "05_REPRODUCIBILITY/REPRODUCIBILITY_README.txt" in names
+        assert "05_REPRODUCIBILITY/FILE_INVENTORY.csv" in names
         assert not any(name.endswith((".json", ".xlsx")) for name in names)
         rows = list(
             csv.DictReader(
                 io.StringIO(
-                    archive.read("corpus_works.csv").decode("utf-8-sig")
+                    archive.read("03_MASTER_DATA/Works.csv").decode("utf-8-sig")
                 )
             )
         )
         assert rows[0]["title"] == "Fixture"
         assert "original_text" not in rows[0]
-        report = archive.read("corpus_report.docx")
+        report = archive.read("01_REPORTS/Corpus_Report.docx")
         assert report.startswith(b"PK")
         document = Document(io.BytesIO(report))
         text_content = "\n".join(
@@ -157,7 +159,7 @@ def test_corpus_export_reports_both_vad_dispersion_levels() -> None:
         profile_rows = list(
             csv.DictReader(
                 io.StringIO(
-                    archive.read("corpus_vad_profiles.csv").decode("utf-8-sig")
+                    archive.read("04_AUDIT/corpus_vad_profiles.csv").decode("utf-8-sig")
                 )
             )
         )
@@ -167,7 +169,7 @@ def test_corpus_export_reports_both_vad_dispersion_levels() -> None:
         assert float(
             profile_rows[0]["poem_mean_standard_deviation"]
         ) == pytest.approx(0.3)
-        report = Document(io.BytesIO(archive.read("corpus_report.docx")))
+        report = Document(io.BytesIO(archive.read("01_REPORTS/Corpus_Report.docx")))
         report_text = "\n".join(
             [
                 *(paragraph.text for paragraph in report.paragraphs),
@@ -252,7 +254,9 @@ def test_corpus_export_repairs_legacy_type_metadata_and_reports_matched_count() 
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         rows = list(
             csv.DictReader(
-                io.StringIO(archive.read("corpus_vad_metrics.csv").decode("utf-8-sig"))
+                io.StringIO(
+                    archive.read("04_AUDIT/corpus_vad_metrics.csv").decode("utf-8-sig")
+                )
             )
         )
         mean_row = next(row for row in rows if row["metric"] == "vad_mean")
@@ -261,7 +265,7 @@ def test_corpus_export_repairs_legacy_type_metadata_and_reports_matched_count() 
         assert mean_row["lexical_tokens"] == "21"
         assert float(mean_row["coverage"]) == pytest.approx(7 / 21)
 
-        report = Document(io.BytesIO(archive.read("corpus_report.docx")))
+        report = Document(io.BytesIO(archive.read("01_REPORTS/Corpus_Report.docx")))
         report_text = "\n".join(
             cell.text
             for table in report.tables
@@ -348,7 +352,7 @@ def test_corpus_current_view_uses_content_scope_only_for_overridden_module() -> 
         rows = list(
             csv.DictReader(
                 io.StringIO(
-                    archive.read("corpus_vad_metrics.csv").decode("utf-8-sig")
+                    archive.read("04_AUDIT/corpus_vad_metrics.csv").decode("utf-8-sig")
                 )
             )
         )
@@ -356,4 +360,4 @@ def test_corpus_current_view_uses_content_scope_only_for_overridden_module() -> 
             ("frequency_frequency_mean", "content_words"),
             ("concreteness_concreteness_mean", "stopwords_excluded"),
         }
-        assert "module_scope_overrides.csv" in archive.namelist()
+        assert "05_REPRODUCIBILITY/Module_Scope_Overrides.csv" in archive.namelist()

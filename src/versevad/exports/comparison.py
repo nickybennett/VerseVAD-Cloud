@@ -764,6 +764,28 @@ def export_poem_comparison_set_bundle(
             export_mode=export_mode,
             profile_ids=selected_ids,
         )
+    from versevad.exports.canonical_schema import standardize_export_files
+
+    files = standardize_export_files(
+        files,
+        analysis_mode="compare_poems",
+        export_mode=export_mode,
+        analysis_id=comparison_set.comparison_set_id,
+        title=report_title,
+        author="; ".join(
+            dict.fromkeys(
+                filter(
+                    None,
+                    (
+                        getattr(analysis.request, "author", "")
+                        for analysis in comparison_set.analyses
+                    ),
+                )
+            )
+        ),
+        main_report_path="VerseVAD_comprehensive_comparison_report.docx",
+        main_report_name="Comparison_Report.docx",
+    )
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
         for filename, content in files.items():

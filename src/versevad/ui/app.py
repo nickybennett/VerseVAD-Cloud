@@ -7653,7 +7653,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
     with download_tab:
         from versevad.exports.archive_contract import (
             read_analysis_report,
-            read_selected_profile_metrics,
+            read_master_metrics,
         )
         from versevad.exports.research_notes import (
             add_research_notes_to_audit_bundle,
@@ -7866,18 +7866,10 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 )
                 with zipfile.ZipFile(io.BytesIO(audit_bundle)) as archive:
                     narrative_report = read_analysis_report(archive)
-                    selected_summary = (
-                        read_selected_profile_metrics(archive)
-                        if export_mode == "current_view"
-                        else b""
-                    )
+                    selected_summary = read_master_metrics(archive)
                 prepared_exports = {
                     "signature": export_signature,
-                    "summary": (
-                        scholar_summary_csv(workspace)
-                        if export_mode == "complete_audit"
-                        else selected_summary
-                    ),
+                    "summary": selected_summary,
                     "guide": csv_reading_guide(),
                     "report": narrative_report,
                     "bundle": audit_bundle,
@@ -7889,9 +7881,13 @@ if workspace_page in {"Single Poem", "Other Text"}:
             prepared_exports
             and prepared_exports.get("signature") == export_signature
         ):
-            column1, column2, column3, column4 = st.columns(4)
+            column1, column2, column3 = st.columns(3)
             column1.download_button(
-                "Download readable summary",
+                (
+                    "Download Current-View Metrics CSV"
+                    if export_mode == "current_view"
+                    else "Download Master Metrics CSV"
+                ),
                 data=prepared_exports["summary"],
                 file_name=f"{safe_stem}_scholar_summary.csv",
                 mime="text/csv",
@@ -7899,15 +7895,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 key="download_summary",
             )
             column2.download_button(
-                "Download CSV reading guide",
-                data=prepared_exports["guide"],
-                file_name="VerseVAD_CSV_reading_guide.csv",
-                mime="text/csv",
-                width="stretch",
-                key="download_guide",
-            )
-            column3.download_button(
-                "Download comprehensive report",
+                "Download Readable Word Report",
                 data=prepared_exports["report"],
                 file_name=f"{safe_stem}_VerseVAD_report.docx",
                 mime=(
@@ -7917,11 +7905,11 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 width="stretch",
                 key="download_narrative_report",
             )
-            column4.download_button(
+            column3.download_button(
                 (
-                    "Download current-view bundle"
+                    "Download Current-View ZIP"
                     if export_mode == "current_view"
-                    else "Download complete audit bundle"
+                    else "Download Complete Audit ZIP"
                 ),
                 data=prepared_exports["bundle"],
                 file_name=f"{safe_stem}_VerseVAD_audit.zip",
@@ -7935,9 +7923,9 @@ if workspace_page in {"Single Poem", "Other Text"}:
                 "large audit bundles during ordinary interface interactions."
             )
         st.info(
-            "Each ZIP contains CSV data, a narrative Word report, "
-            "a reproducibility guide, and a CSV file inventory. Complete Audit "
-            "uses numbered domain folders, adds every compatible profile and "
+            "Each ZIP follows the same Read Me, Reports, Metric Tables, Master "
+            "Data, Audit, and Reproducibility layout. Complete Audit "
+            "adds every compatible profile and "
             "fixed-profile module, and records exact resource provenance; Current View "
             "contains only the selected report family and profiles. VerseVAD does "
             "not generate JSON or XLSX analysis exports. When explicitly selected "

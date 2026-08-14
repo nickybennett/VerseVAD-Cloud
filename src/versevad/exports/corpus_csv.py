@@ -770,6 +770,18 @@ def build_corpus_export_bundle(
             export_mode=export_mode,
             profile_ids=selected_ids,
         )
+    from versevad.exports.canonical_schema import standardize_export_files
+
+    bundle = standardize_export_files(
+        bundle,
+        analysis_mode="corpus",
+        export_mode=export_mode,
+        analysis_id=project.project_id,
+        title=project.title,
+        author=project.researcher,
+        main_report_path="corpus_report.docx",
+        main_report_name="Corpus_Report.docx",
+    )
 
     archive = io.BytesIO()
     with zipfile.ZipFile(

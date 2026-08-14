@@ -73,7 +73,7 @@ def test_comprehensive_user_manual_is_current_and_structurally_sound() -> None:
             "Understand common statistics",
             "Export Current View and Export Complete Audit",
             "Classic, Dark, Lavender, Ocean, Crimson, and Forest",
-            "REPRODUCIBILITY_README.txt",
+            "03_MASTER_DATA/Master_Metrics.csv",
             "FILE_INVENTORY.csv",
         ):
             assert required in text
