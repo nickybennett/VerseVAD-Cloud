@@ -130,6 +130,12 @@ _RESTORABLE_UI_STATE_BY_WORKSPACE = {
     "Compare Poems": _COMPARE_STATE_KEYS,
     "Lexicon Explorer": _EXPLORER_STATE_KEYS,
     "VerseMap": _VERSEMAP_STATE_KEYS,
+    # These workspaces persist their own records and selection state. Analysis
+    # Library restore must never replay their Streamlit widgets.
+    "Saved Projects": frozenset(),
+    "Personal Corpus": frozenset(),
+    "Reference Corpora": frozenset(),
+    "Corpus Browser": frozenset(),
 }
 
 
@@ -261,6 +267,24 @@ def _capture_ui_state(workspace: str) -> dict[str, object]:
         if _safe_session_value(value):
             state[key] = value
     return state
+
+
+def _filtered_restorable_ui_state(
+    ui_state: object,
+    *,
+    workspace: str,
+) -> dict[str, object]:
+    """Return only durable values that may safely be assigned on restore."""
+
+    if not isinstance(ui_state, dict):
+        return {}
+    return {
+        key: value
+        for key, value in ui_state.items()
+        if isinstance(key, str)
+        and _is_restorable_ui_state_key(key, workspace)
+        and _safe_session_value(value)
+    }
 
 
 def _request_settings(analysis: WorkspaceAnalysis) -> dict[str, object]:
@@ -786,24 +810,14 @@ def release_active_context(workspace: str) -> None:
 
 
 def _apply_ui_state(ui_state: object, *, workspace: str) -> None:
-    if not isinstance(ui_state, dict):
-        return
-    # Older saves could contain momentary Streamlit widget values. Remove only
-    # those legacy payload keys from current state, then replay the registered
-    # durable subset. This prevents every future action/upload widget from
-    # requiring another name-based exception.
-    for legacy_key in ui_state:
-        if (
-            isinstance(legacy_key, str)
-            and not _is_restorable_ui_state_key(legacy_key, workspace)
-        ):
-            st.session_state.pop(legacy_key, None)
-    for key, value in ui_state.items():
-        if (
-            isinstance(key, str)
-            and _is_restorable_ui_state_key(key, workspace)
-        ):
-            st.session_state[key] = value
+    # Never touch transient or foreign-workspace widgets. In particular,
+    # uploaders, buttons, form submitters, selectors owned by corpus views, and
+    # stale legacy keys are neither cleared nor assigned here.
+    for key, value in _filtered_restorable_ui_state(
+        ui_state,
+        workspace=workspace,
+    ).items():
+        st.session_state[key] = value
 
 
 def restore_library_revision(

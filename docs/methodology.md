@@ -236,6 +236,15 @@ Categorical emotion associations and numeric word-emotion intensities are not
 alternate scales for VAD. They retain their own value kinds and denominators
 and are never normalized into or averaged with the VAD dimensions.
 
+For categorical association, the reported metric value is the proportion of
+eligible evidence associated with that category. For intensity, the metric
+value summarizes the category's matched intensity observations. Neither value
+is resource coverage. Token and type coverage always use all eligible entries
+represented by the active emotion resource, regardless of category; matched
+and eligible counts are retained with that resource-wide ratio. When those
+counts cannot be established from retained evidence, canonical coverage fields
+remain blank rather than repeating a category proportion.
+
 ## VADER rule-based sentiment
 
 VerseVAD applies `vaderSentiment` locally to the complete preserved text and

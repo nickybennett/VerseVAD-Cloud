@@ -922,23 +922,61 @@ class ProjectRepository:
         """Delete exactly one project after an exact, case-sensitive title check."""
 
         self.initialize()
-        with self._connect() as connection:
-            row = connection.execute(
-                "SELECT title FROM projects WHERE project_id = ?",
-                (project_id,),
-            ).fetchone()
-            if row is None:
-                raise KeyError(f"Unknown project: {project_id}")
-            if confirmation_title != row["title"]:
-                raise ValueError(
-                    "The confirmation text does not exactly match the project title."
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    "SELECT title FROM projects WHERE project_id = ?",
+                    (project_id,),
+                ).fetchone()
+                if row is None:
+                    raise KeyError(f"Unknown project: {project_id}")
+                if confirmation_title != row["title"]:
+                    raise ValueError(
+                        "The confirmation text does not exactly match the project title."
+                    )
+
+                # Several preserved-history foreign keys intentionally use
+                # NO ACTION so ordinary record edits cannot erase evidence.
+                # Project deletion is the one explicitly confirmed lifecycle
+                # operation that must remove that evidence. Delete in a stable
+                # dependency order and break the active-version cycle first.
+                connection.execute(
+                    "UPDATE texts SET active_text_version_id = NULL WHERE project_id = ?",
+                    (project_id,),
                 )
-            cursor = connection.execute(
-                "DELETE FROM projects WHERE project_id = ?",
-                (project_id,),
-            )
-            if cursor.rowcount != 1:
-                raise RuntimeError("VerseVAD could not delete the selected project.")
+                connection.execute(
+                    "DELETE FROM analysis_runs WHERE project_id = ?",
+                    (project_id,),
+                )
+                connection.execute(
+                    "DELETE FROM corpus_batches WHERE project_id = ?",
+                    (project_id,),
+                )
+                connection.execute(
+                    "DELETE FROM review_scenarios WHERE project_id = ?",
+                    (project_id,),
+                )
+                connection.execute(
+                    "DELETE FROM unmatched_notes WHERE project_id = ?",
+                    (project_id,),
+                )
+                connection.execute(
+                    "DELETE FROM texts WHERE project_id = ?",
+                    (project_id,),
+                )
+                cursor = connection.execute(
+                    "DELETE FROM projects WHERE project_id = ?",
+                    (project_id,),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError(
+                        "VerseVAD could not delete the selected project."
+                    )
+        except sqlite3.Error as error:
+            raise RuntimeError(
+                "The project database rejected the deletion; no partial deletion "
+                "was saved."
+            ) from error
 
     @staticmethod
     def _review_scenario(

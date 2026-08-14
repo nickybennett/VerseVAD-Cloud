@@ -364,14 +364,17 @@ def test_corpus_service_runs_each_preserved_work_and_completes_batch(
     }
 
 
-def test_project_deletion_requires_exact_title_and_is_scoped(tmp_path) -> None:
+def test_project_deletion_requires_exact_title_and_is_scoped(
+    tmp_path,
+    preprocessor,
+) -> None:
     repository = ProjectRepository(tmp_path / "versevad.sqlite3")
     first = repository.create_project("Delete this project")
     second = repository.create_project("Keep this project")
-    repository.import_texts(
+    disposable_text = repository.import_texts(
         first.project_id,
         (CorpusTextImport("First", "first.txt", "first.txt", "Bright."),),
-    )
+    )[0]
     repository.import_texts(
         second.project_id,
         (CorpusTextImport("Second", "second.txt", "second.txt", "Dark."),),
@@ -379,6 +382,22 @@ def test_project_deletion_requires_exact_title_and_is_scoped(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="exactly match"):
         repository.delete_project(first.project_id, confirmation_title="delete this project")
+
+    batch = repository.begin_corpus_batch(
+        first.project_id,
+        text_ids=(disposable_text.text_id,),
+        lexicon_ids=("synthetic_vad_phase2",),
+        phrase_policy=PhrasePolicy.UNIGRAM_ONLY.value,
+        minimum_match_requirement=1,
+    )
+    repository.save_analysis(
+        first.project_id,
+        disposable_text.text_id,
+        _workspace(disposable_text, preprocessor),
+        batch_id=batch.batch_id,
+    )
+    repository.finish_corpus_batch(batch.batch_id)
+    repository.create_review_scenario(first.project_id, "Reviewed")
 
     repository.delete_project(
         first.project_id,
@@ -391,6 +410,18 @@ def test_project_deletion_requires_exact_title_and_is_scoped(tmp_path) -> None:
     assert repository.list_texts(second.project_id)[0].title == "Second"
     with pytest.raises(KeyError, match="Unknown project"):
         repository.get_project(first.project_id)
+    with sqlite3.connect(repository.database_path) as connection:
+        for table in (
+            "texts",
+            "text_versions",
+            "corpus_batches",
+            "analysis_runs",
+            "analysis_metrics",
+            "review_scenarios",
+        ):
+            assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == (
+                1 if table in {"texts", "text_versions"} else 0
+            )
 
 
 def test_text_deletion_requires_exact_title_and_is_scoped(tmp_path) -> None:

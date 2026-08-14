@@ -26,7 +26,11 @@ from versevad.exports.comparison import (
     export_poem_comparison_set_docx,
     export_poem_comparison_set_selected_csv,
 )
-from versevad.analysis_profiles import ProfileSelection
+from versevad.analysis_profiles import (
+    AggregationWeighting,
+    LexicalScope,
+    ProfileSelection,
+)
 from versevad.phase2_validation import (
     phase2_synthetic_emotion_lexicon,
     phase2_synthetic_intensity_lexicon,
@@ -42,6 +46,7 @@ from versevad.ui.comparison import (
     _ordered_metric_families,
     _report_location,
 )
+from versevad.workspace_profiles import workspace_profile_metrics
 
 
 def _workspace(preprocessor, *, identifier: str, title: str, text: str):
@@ -222,6 +227,51 @@ def test_comparison_retains_nrc_association_and_intensity_rows_in_stopword_view(
     assert "emotion.synthetic_emotion_phase2.positive.proportion" in metric_ids
     assert "emotion.synthetic_emotion_phase2.negative.proportion" in metric_ids
     assert "emotion_intensity.synthetic_intensity_phase2.anger.mean" in metric_ids
+
+
+def test_emotion_values_do_not_replace_resource_coverage(
+    preprocessor,
+) -> None:
+    first = _emotion_workspace(
+        preprocessor,
+        identifier="emotion-coverage-a",
+        title="Emotion coverage A",
+        text="Joy and fear rage beside an unrated stone.",
+    )
+    second = _emotion_workspace(
+        preprocessor,
+        identifier="emotion-coverage-b",
+        title="Emotion coverage B",
+        text="Fear and joy wait beside another unrated stone.",
+    )
+    profile_rows = [
+        row
+        for row in workspace_profile_metrics(first)
+        if row.module_id in {"emotion_association", "emotion_intensity"}
+        and row.profile.scope is LexicalScope.STOPWORD_EXCLUDED
+        and row.profile.weighting is AggregationWeighting.TOKEN
+    ]
+    by_source: dict[str, list] = {}
+    for row in profile_rows:
+        by_source.setdefault(row.source_id, []).append(row)
+    assert by_source
+    for source_rows in by_source.values():
+        coverages = {row.coverage.token_coverage for row in source_rows}
+        assert len(coverages) == 1
+        assert any(row.value != row.coverage.token_coverage for row in source_rows)
+
+    comparison = comparison_rows(
+        build_poem_comparison(first, second),
+        analysis_view="stopwords_excluded",
+        weighting="token",
+    )
+    association_rows = [
+        row for row in comparison if row.metric_id.startswith("emotion.")
+    ]
+    assert association_rows
+    assert any(row.value_a != row.coverage_a for row in association_rows)
+    assert len({row.coverage_a for row in association_rows}) == 1
+    assert all("eligible tokens matched" in row.denominator_a for row in association_rows)
 
 
 def test_comparison_rejects_mismatched_configuration(

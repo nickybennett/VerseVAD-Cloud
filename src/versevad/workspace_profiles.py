@@ -25,7 +25,7 @@ from versevad.profile_aggregation import (
 )
 
 
-WORKSPACE_PROFILE_ROWS_VERSION = "workspace-profile-rows-v3"
+WORKSPACE_PROFILE_ROWS_VERSION = "workspace-profile-rows-v4"
 _PROFILE_CACHE: OrderedDict[tuple[str, ...], tuple["WorkspaceProfileMetric", ...]] = OrderedDict()
 _PROFILE_CACHE_LOCK = RLock()
 _PROFILE_CACHE_LIMIT = 16
@@ -85,6 +85,7 @@ def _rows_from_summaries(
     summaries: Mapping[AnalysisProfile, ScalarProfileSummary],
     unit: str,
     include_normalized_midpoint_loads: bool = False,
+    coverage_by_profile: Mapping[AnalysisProfile, ScalarProfileSummary] | None = None,
 ) -> tuple[WorkspaceProfileMetric, ...]:
     capabilities = metric_capabilities(module_id)
     return tuple(
@@ -146,10 +147,58 @@ def _rows_from_summaries(
             ),
             average_deviation_from_mean=summary.average_deviation_from_mean,
             observation_count=summary.statistics.count,
-            coverage=summary.coverage,
+            coverage=(
+                coverage_by_profile[profile].coverage
+                if coverage_by_profile is not None
+                else summary.coverage
+            ),
             unit=unit,
         )
         for profile, summary in summaries.items()
+    )
+
+
+def _resource_coverage_summaries(
+    result: Phase2AnalysisResult,
+) -> Mapping[AnalysisProfile, ScalarProfileSummary]:
+    """Return resource-wide coverage independently of any metric category.
+
+    Categorical associations and emotion-intensity pairs are subsets of the
+    entries matched by their resource. Their proportions and means are metric
+    values, not resource-coverage rates. Building this shared coverage layer
+    from every retained match keeps those concepts separate in the UI,
+    persistence layer, and schema-v3 exports.
+    """
+
+    evidence = tuple(
+        ScalarEvidence(
+            token_ids=tuple(match.token_ids),
+            value=1.0,
+            type_identity=(
+                match.matched_lookup_form
+                or match.matched_term
+                or match.match_id
+            ).casefold(),
+            phrase=len(match.token_ids) > 1,
+        )
+        for match in result.matches
+        if match.selection is MatchSelection.INCLUDED and match.included
+    )
+    return aggregate_scalar_evidence(
+        tokens=result.tokens,
+        observations=evidence,
+        active_stopwords=_active_stopwords_for_result(result),
+        type_identity_rule="matched_resource_entry",
+    )
+
+
+def _active_stopwords_for_result(
+    result: Phase2AnalysisResult,
+) -> tuple[str, ...]:
+    return (
+        tuple(result.stopword_policy.active_words)
+        if result.stopword_policy is not None
+        else ()
     )
 
 
@@ -185,11 +234,8 @@ def _affect_category_rows(
         }
     )
     rows: list[WorkspaceProfileMetric] = []
-    active_stopwords = (
-        tuple(result.stopword_policy.active_words)
-        if result.stopword_policy is not None
-        else ()
-    )
+    active_stopwords = _active_stopwords_for_result(result)
+    resource_coverage = _resource_coverage_summaries(result)
     for category in categories:
         evidence = tuple(
             ScalarEvidence(
@@ -241,7 +287,7 @@ def _affect_category_rows(
                     absolute_midpoint_load=None,
                     average_deviation_from_mean=None,
                     observation_count=summary.statistics.count,
-                    coverage=summary.coverage,
+                    coverage=resource_coverage[profile].coverage,
                     unit="proportion of eligible lexical evidence",
                 )
             )
@@ -259,11 +305,8 @@ def _affect_intensity_rows(
             for category, _value in match.intensities
         }
     )
-    active_stopwords = (
-        tuple(result.stopword_policy.active_words)
-        if result.stopword_policy is not None
-        else ()
-    )
+    active_stopwords = _active_stopwords_for_result(result)
+    resource_coverage = _resource_coverage_summaries(result)
     output: list[WorkspaceProfileMetric] = []
     for category in categories:
         evidence = tuple(
@@ -295,6 +338,7 @@ def _affect_intensity_rows(
                     type_identity_rule="matched_entry_category",
                 ),
                 unit="source intensity scale",
+                coverage_by_profile=resource_coverage,
             )
         )
     return tuple(output)

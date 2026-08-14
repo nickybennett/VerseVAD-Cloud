@@ -17,6 +17,7 @@ from versevad.ui.profiles import load_custom_profiles, save_custom_profile
 from versevad.ui.preferences import AppearanceMode, load_preferences
 from versevad.ui.inherited_form import render_inherited_form
 from versevad.ui.vad_overview import preferred_overview_vad_lexicon_id
+from versevad.ui.research import _filtered_restorable_ui_state
 
 
 APP_PATH = Path(__file__).parents[1] / "src" / "versevad" / "ui" / "app.py"
@@ -74,6 +75,40 @@ def _section_navigation(app: AppTest, label: str):
         for control in app.get(control_type)
         if control.label == label
     )
+
+
+def test_restore_filter_never_replays_transient_or_foreign_workspace_widgets() -> None:
+    legacy_state = {
+        "poem_title": "Retained title",
+        "poem_text": "Retained text",
+        "uploaded_poem": object(),
+        "one_poem_import_stopwords": object(),
+        "delete_project_confirmation_project-1": "Project",
+        "prepare_complete_export": True,
+        "active_corpus_project": "project-1",
+        "explorer_value_display": "Source values",
+    }
+    assert _filtered_restorable_ui_state(
+        legacy_state,
+        workspace="Single Poem",
+    ) == {
+        "poem_title": "Retained title",
+        "poem_text": "Retained text",
+    }
+    assert _filtered_restorable_ui_state(
+        legacy_state,
+        workspace="Lexicon Explorer",
+    ) == {"explorer_value_display": "Source values"}
+    for workspace in (
+        "Saved Projects",
+        "Personal Corpus",
+        "Reference Corpora",
+        "Corpus Browser",
+    ):
+        assert _filtered_restorable_ui_state(
+            legacy_state,
+            workspace=workspace,
+        ) == {}
 
 
 def test_single_poem_survives_lexicon_explorer_round_trip() -> None:

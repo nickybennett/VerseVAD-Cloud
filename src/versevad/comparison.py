@@ -1601,15 +1601,35 @@ def _canonical_profile_rows(
             # midpoint/volatility family in _vad_rows below.
             continue
         section = section_by_module.get(row_a.module_id, "Structure")
+        type_weighted = weighting == "type"
+        matched_a = (
+            row_a.coverage.matched_type_count
+            if type_weighted
+            else row_a.coverage.matched_token_count
+        )
+        eligible_a = (
+            row_a.coverage.eligible_type_count
+            if type_weighted
+            else row_a.coverage.eligible_token_count
+        )
+        matched_b = (
+            row_b.coverage.matched_type_count
+            if type_weighted
+            else row_b.coverage.matched_token_count
+        )
+        eligible_b = (
+            row_b.coverage.eligible_type_count
+            if type_weighted
+            else row_b.coverage.eligible_token_count
+        )
+        evidence_unit = "types" if type_weighted else "tokens"
         denominator_a = (
             f"{row_a.observation_count} observations; "
-            f"{row_a.coverage.matched_token_count}/"
-            f"{row_a.coverage.eligible_token_count} eligible tokens matched"
+            f"{matched_a}/{eligible_a} eligible {evidence_unit} matched"
         )
         denominator_b = (
             f"{row_b.observation_count} observations; "
-            f"{row_b.coverage.matched_token_count}/"
-            f"{row_b.coverage.eligible_token_count} eligible tokens matched"
+            f"{matched_b}/{eligible_b} eligible {evidence_unit} matched"
         )
         common = dict(
             section=section,
@@ -1618,8 +1638,16 @@ def _canonical_profile_rows(
             weighting=weighting,
             denominator_a=denominator_a,
             denominator_b=denominator_b,
-            coverage_a=row_a.coverage.token_coverage,
-            coverage_b=row_b.coverage.token_coverage,
+            coverage_a=(
+                row_a.coverage.type_coverage
+                if type_weighted
+                else row_a.coverage.token_coverage
+            ),
+            coverage_b=(
+                row_b.coverage.type_coverage
+                if type_weighted
+                else row_b.coverage.token_coverage
+            ),
             note=(
                 "Post-analysis aggregation from retained evidence; scope-relative "
                 "coverage excludes out-of-scope tokens from the denominator."

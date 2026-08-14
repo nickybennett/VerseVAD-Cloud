@@ -760,9 +760,13 @@ def test_type_weighted_association_rate_uses_type_denominator(
         and item.metric_id == "fear_association"
         and item.profile == profile
     )
-    assert row.value == pytest.approx(
-        row.coverage.matched_type_count / row.coverage.eligible_type_count
-    )
+    # The category rate remains the metric value, while the attached Coverage
+    # object describes the entire NRC Emotion resource. In this fixture, one
+    # of four eligible lexical types is fear-associated, whereas two of four
+    # eligible types are matched by the resource at all.
+    assert row.value == pytest.approx(1 / 4)
+    assert row.coverage.type_coverage == pytest.approx(2 / 4)
+    assert row.value != pytest.approx(row.coverage.type_coverage)
 
 
 def test_persisted_type_weighted_metrics_use_type_metadata(

@@ -38,6 +38,18 @@ All notable changes to VerseVAD are recorded here.
 
 ### Changed
 
+- Corrected schema-3 emotion association and intensity exports so category
+  values cannot leak into canonical token/type coverage fields; resource-wide
+  matched and eligible counts now drive coverage in Single Poem, Compare
+  Poems, and corpus/project exports, and the readable coverage report
+  consolidates repeated metric rows by resource, scope, and weighting.
+- Made Saved Project deletion dependency-aware and transactional for imported
+  texts, preserved versions, analysis runs, corpus batches, review scenarios,
+  notes, and dependent evidence, with clean post-delete session state.
+- Restricted historical restore to explicit durable-state allowlists across
+  analytical and corpus-facing workspaces so legacy upload/action/widget keys
+  cannot be replayed into Streamlit session state.
+
 - Standardized Single Poem, Compare Poems, and Corpus / Research Project
   Current View and Complete Audit exports under export schema 3.0. Packages now
   share Read Me, Reports, focused Metric Tables, canonical Master Data, retained

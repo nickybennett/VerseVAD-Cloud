@@ -3942,6 +3942,16 @@ def _render_project_settings_tab(
     )
 
 
+def _clear_deleted_project_state(project_id: str) -> None:
+    """Remove only session state owned by a successfully deleted project."""
+
+    for key, value in tuple(st.session_state.items()):
+        if key == "active_corpus_project" and value == project_id:
+            st.session_state.pop(key, None)
+        elif project_id in str(key):
+            st.session_state.pop(key, None)
+
+
 def _render_review_tab(
     repository: ProjectRepository,
     project_id: str,
@@ -4754,6 +4764,7 @@ def render_corpus_workspace(
     )
     if isinstance(pending_delete, tuple) and len(pending_delete) == 3:
         pending_id, pending_title, confirmation_title = pending_delete
+        deleted = False
         try:
             repository.delete_project(
                 str(pending_id),
@@ -4769,6 +4780,7 @@ def render_corpus_workspace(
                     "could not be resolved."
                 )
             else:
+                deleted = True
                 st.session_state["corpus_project_flash"] = (
                     f'Project "{pending_title}" was deleted from this computer.'
                 )
@@ -4777,11 +4789,12 @@ def render_corpus_workspace(
                 f"The project was not deleted: {error}"
             )
         else:
+            deleted = True
             st.session_state["corpus_project_flash"] = (
                 f'Project "{pending_title}" was deleted from this computer.'
             )
-        if st.session_state.get("active_corpus_project") == str(pending_id):
-            st.session_state.pop("active_corpus_project", None)
+        if deleted:
+            _clear_deleted_project_state(str(pending_id))
     with st.sidebar:
         st.markdown("### Saved Projects")
         st.success("Projects, texts, notes, and results stay on this computer.")

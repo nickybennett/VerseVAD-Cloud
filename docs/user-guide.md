@@ -422,6 +422,22 @@ schema-versioned, progressive-disclosure layout:
 6. `05_REPRODUCIBILITY/` contains settings, provenance, dictionaries, warnings,
    manifests, and the file inventory.
 
+The readable coverage report consolidates repeated metric rows into one
+resource/scope/weighting summary and reports eligible, matched, and coverage
+counts. Emotion-category proportions remain analytical values and are never
+reused as coverage. The companion coverage CSV retains work-level detail.
+
+Deleting a Saved Project requires its exact title. Once confirmed, VerseVAD
+removes that project's texts, preserved versions, completed runs, batches,
+review scenarios, notes, and dependent evidence in one database transaction;
+other projects remain untouched. If any dependency cannot be removed, the
+transaction rolls back and the interface reports that nothing partial was
+saved.
+
+Historical restore replays only workspace-approved durable controls. Upload
+widgets, buttons, form submitters, download actions, project/corpus selectors,
+and unrelated workspace state are never assigned from a saved analysis.
+
 Every analytical workspace also exposes the principal scan-friendly Word report
 as a direct download after preparation. Reports include
 text or collection metadata, analyst and research-question placeholders,

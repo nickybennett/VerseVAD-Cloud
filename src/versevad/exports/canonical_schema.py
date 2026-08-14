@@ -307,12 +307,17 @@ def _coverage_counts(row: Mapping[str, object], weighting: str) -> dict[str, str
     eligible_types = _int_text(row.get("eligible_type_count", ""))
     matched_types = _int_text(row.get("matched_type_count", ""))
     unmatched_types = _int_text(row.get("unmatched_type_count", ""))
-    token_coverage = _number_text(
-        row.get("token_coverage", row.get("coverage", "") if weighting != "type" else "")
-    )
-    type_coverage = _number_text(
-        row.get("type_coverage", row.get("coverage", "") if weighting == "type" else "")
-    )
+    token_coverage = _number_text(row.get("token_coverage", ""))
+    type_coverage = _number_text(row.get("type_coverage", ""))
+    # Counts are authoritative. Reconstruct their exact ratio rather than
+    # trusting a generic ``coverage`` field, which legacy category metrics
+    # sometimes used for the metric proportion itself.
+    if eligible_tokens and matched_tokens:
+        denominator = int(eligible_tokens)
+        token_coverage = str(int(matched_tokens) / denominator) if denominator else ""
+    if eligible_types and matched_types:
+        denominator = int(eligible_types)
+        type_coverage = str(int(matched_types) / denominator) if denominator else ""
     if weighting == "type" and not eligible_types:
         eligible_types, matched_types, type_coverage = eligible_tokens, matched_tokens, token_coverage
         eligible_tokens = matched_tokens = unmatched_tokens = token_coverage = ""
@@ -434,9 +439,9 @@ def _comparison_coverage_source(row: Mapping[str, object]) -> dict[str, object]:
 
     denominator = _text(row.get("denominator", ""))
     match = re.search(r"(?P<matched>[\d,]+)\s+of\s+(?P<eligible>[\d,]+)", denominator)
-    source: dict[str, object] = {"coverage": row.get("coverage", "")}
     if not match:
-        return source
+        return {}
+    source: dict[str, object] = {}
     matched = match.group("matched").replace(",", "")
     eligible = match.group("eligible").replace(",", "")
     if canonical_weighting(row.get("weighting", "")) == "type":
@@ -898,7 +903,50 @@ def build_coverage_report(
     title: str,
     mode_label: str,
 ) -> bytes:
-    rows = _coverage_rows(records)
+    detail_rows = _coverage_rows(records)
+    grouped: dict[tuple[str, str, str], dict[str, object]] = {}
+    for row in detail_rows:
+        key = (row["Resource"], row["Scope"], row["Weighting"])
+        summary = grouped.setdefault(
+            key,
+            {
+                "Resource": row["Resource"],
+                "Scope": row["Scope"],
+                "Weighting": row["Weighting"],
+                "Works": set(),
+                "Eligible": 0,
+                "Matched": 0,
+                "complete_counts": True,
+            },
+        )
+        if row["Work"]:
+            summary["Works"].add(row["Work"])
+        try:
+            summary["Eligible"] += int(row["Eligible"])
+            summary["Matched"] += int(row["Matched"])
+        except (TypeError, ValueError):
+            summary["complete_counts"] = False
+    rows: list[dict[str, str]] = []
+    for summary in grouped.values():
+        complete = bool(summary.pop("complete_counts"))
+        works = summary.pop("Works")
+        eligible = int(summary["Eligible"])
+        matched = int(summary["Matched"])
+        rows.append(
+            {
+                **{
+                    key: str(value)
+                    for key, value in summary.items()
+                    if key not in {"Eligible", "Matched"}
+                },
+                "Works": str(len(works)),
+                "Eligible": str(eligible) if complete else "",
+                "Matched": str(matched) if complete else "",
+                "Coverage": (
+                    str(matched / eligible) if complete and eligible else ""
+                ),
+            }
+        )
     from versevad.exports.docx_report import _FIXED_CORE_DATE, _normalize_docx
 
     document = Document()
@@ -929,7 +977,7 @@ def build_coverage_report(
     else:
         table = document.add_table(rows=1, cols=7)
         table.style = "Light Shading Accent 1"
-        headers = ("Work", "Resource", "Scope", "Weighting", "Eligible", "Matched", "Coverage")
+        headers = ("Resource", "Scope", "Weighting", "Works", "Eligible", "Matched", "Coverage")
         for cell, label in zip(table.rows[0].cells, headers):
             cell.text = label
         for row in rows[:250]:
@@ -944,8 +992,8 @@ def build_coverage_report(
                 cell.text = value
         if len(rows) > 250:
             document.add_paragraph(
-                f"The readable report shows the first 250 of {len(rows):,} coverage rows. "
-                "The complete CSV retains every row."
+                f"The readable report shows the first 250 of {len(rows):,} resource/profile summaries. "
+                "The complete CSV retains work-level coverage detail."
             )
     document.add_heading("Interpretive safeguards", level=1)
     for text in (

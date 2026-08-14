@@ -1,6 +1,7 @@
 import csv
 import io
 
+import pytest
 from docx import Document
 
 from versevad.exports.canonical_schema import (
@@ -201,6 +202,89 @@ def test_type_weighted_comparison_counts_stay_in_type_fields() -> None:
     assert row["eligible_type_count"] == "9"
     assert row["matched_type_count"] == "7"
     assert row["unmatched_type_count"] == "2"
-    assert row["type_coverage"] == "0.7777777778"
+    assert float(row["type_coverage"]) == pytest.approx(7 / 9)
     assert row["eligible_token_count"] == ""
     assert row["token_coverage"] == ""
+
+
+def test_category_proportion_never_leaks_into_canonical_coverage() -> None:
+    files = standardize_export_files(
+        {
+            "comparison_stopwords_excluded_token.csv": _csv_bytes(
+                [{
+                    "poem_id": "work",
+                    "poem_title": "Poem",
+                    "metric_id": "emotion.nrc_emotion.anger.proportion",
+                    "metric": "Anger association",
+                    "source": "NRC Emotion Lexicon",
+                    "analysis_view": "stopwords_excluded",
+                    "weighting": "token-weighted",
+                    "value": "0.125",
+                    "unit_or_scale": "proportion of eligible lexical evidence",
+                    "denominator": "4 associated observations",
+                    "coverage": "0.125",
+                    "note": "",
+                }]
+            ),
+            "report.docx": _docx_bytes(),
+        },
+        analysis_mode="compare_poems",
+        export_mode="complete_audit",
+        analysis_id="comparison",
+        title="Comparison",
+        main_report_path="report.docx",
+        main_report_name="Comparison_Report.docx",
+    )
+    row = _master(files)[0]
+    assert row["value"] == "0.125"
+    assert row["eligible_token_count"] == ""
+    assert row["matched_token_count"] == ""
+    assert row["token_coverage"] == ""
+
+
+def test_category_value_and_resource_coverage_remain_independent() -> None:
+    files = standardize_export_files(
+        {
+            "comparison_stopwords_excluded_token.csv": _csv_bytes(
+                [{
+                    "poem_id": "work",
+                    "poem_title": "Poem",
+                    "metric_id": "emotion.nrc_emotion.anger.proportion",
+                    "metric": "Anger association",
+                    "source": "NRC Emotion Lexicon",
+                    "analysis_view": "stopwords_excluded",
+                    "weighting": "token-weighted",
+                    "value": "0.125",
+                    "unit_or_scale": "proportion of eligible lexical evidence",
+                    "denominator": "24 of 30 eligible tokens matched",
+                    "coverage": "0.125",
+                    "note": "",
+                }]
+            ),
+            "report.docx": _docx_bytes(),
+        },
+        analysis_mode="compare_poems",
+        export_mode="complete_audit",
+        analysis_id="comparison",
+        title="Comparison",
+        main_report_path="report.docx",
+        main_report_name="Comparison_Report.docx",
+    )
+    row = _master(files)[0]
+    assert row["value"] == "0.125"
+    assert row["eligible_token_count"] == "30"
+    assert row["matched_token_count"] == "24"
+    assert row["unmatched_token_count"] == "6"
+    assert row["token_coverage"] == "0.8"
+
+    coverage_rows = list(
+        csv.DictReader(
+            io.StringIO(
+                files["02_METRIC_TABLES/Coverage_and_Data_Quality.csv"].decode(
+                    "utf-8-sig"
+                )
+            )
+        )
+    )
+    assert len(coverage_rows) == 1
+    assert coverage_rows[0]["Coverage"] == "0.8"
