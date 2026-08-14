@@ -173,7 +173,12 @@ def select_detail_profile(
             "rankings, and line or stanza summaries below."
         ),
     )
-    return labels[selected]
+    # Streamlit can transiently return ``None`` (or a stale value no longer in
+    # the current options) while restoring widget state during a rerun.  Every
+    # caller needs a concrete profile, so use the first canonical enabled
+    # profile as the deterministic fallback rather than leaking ``None`` into
+    # shared Single Poem, Other Text, or comparison renderers.
+    return labels.get(selected, profiles[0])
 
 
 def _identity(row: object, attributes: Iterable[str]) -> str:
@@ -336,7 +341,7 @@ def affect_continuous_profile_detail(
     workspace: WorkspaceAnalysis,
     result: Phase2AnalysisResult,
     *,
-    profile: AnalysisProfile,
+    profile: AnalysisProfile | None,
     module_id: str,
     metric_id: str,
     value_getter: Callable[[object], float | None],
@@ -344,6 +349,8 @@ def affect_continuous_profile_detail(
 ) -> ContinuousProfileDetail | None:
     """Reconstruct source-specific continuous affect evidence for one profile."""
 
+    if profile is None:
+        return None
     selection = ProfileSelection(
         scopes=(profile.scope,),
         weightings=(profile.weighting,),
@@ -433,12 +440,14 @@ def categorical_affect_contributors(
     workspace: WorkspaceAnalysis,
     result: Phase2AnalysisResult,
     *,
-    profile: AnalysisProfile,
+    profile: AnalysisProfile | None,
     category: str,
     limit: int = 3,
 ) -> tuple[dict[str, object], ...]:
     """Return deterministic binary association contributors without fake strength."""
 
+    if profile is None:
+        return ()
     detail = affect_continuous_profile_detail(
         workspace,
         result,

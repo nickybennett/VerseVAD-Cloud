@@ -7375,7 +7375,14 @@ if workspace_page in {"Single Poem", "Other Text"}:
         )
         if affect_evidence_results:
             with st.expander("Representative Emotion Lexical Contributors", expanded=False):
-                contributor_profile = emotion_visual_profile
+                # Retained categorical/intensity evidence can exist even when
+                # the selected summary projection has no rows.  Keep the
+                # contributor view aligned to a real enabled profile instead
+                # of passing a transient ``None`` through shared renderers.
+                contributor_profile = (
+                    emotion_visual_profile
+                    or display_profile_order(emotion_selection)[0]
+                )
                 association_results = tuple(
                     result for result in affect_evidence_results if result.category_statistics
                 )

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Hardened shared affect-profile selection and contributor rendering against
+  transient or stale Streamlit widget state, preventing cloud reruns from
+  dereferencing a missing profile across Single Poem, Other Text, and shared
+  analytical views.
 - Cleaned corpus export presentation without changing schema 3.0 identities or
   calculations: one authoritative metric-label resolver now supplies concise
   CSV and Word-report names, and corpus packages add an aggregate-first
