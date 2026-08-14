@@ -288,3 +288,100 @@ def test_category_value_and_resource_coverage_remain_independent() -> None:
     )
     assert len(coverage_rows) == 1
     assert coverage_rows[0]["Coverage"] == "0.8"
+
+
+def test_corpus_readable_labels_are_concise_without_changing_identity_or_value() -> None:
+    source_rows = [
+        {
+            "text_id": "work",
+            "title": "Poem",
+            "author": "Poet",
+            "collection": "",
+            "date_label": "",
+            "genre": "",
+            "lexicon_id": resource_id,
+            "lexicon": resource_label,
+            "analysis_view": "stopwords_excluded",
+            "weighting": "token",
+            "dimension": dimension,
+            "category": "",
+            "metric": metric,
+            "value": value,
+            "scale": unit,
+            "denominator": "8 observations; 8/10 eligible tokens matched",
+            "observations": "8",
+            "eligible_token_count": "10",
+            "matched_token_count": "8",
+            "token_coverage": "0.8",
+        }
+        for resource_id, resource_label, dimension, metric, value, unit in (
+            ("brysbaert-concreteness-2014", "Brysbaert concreteness ratings", "concreteness_mean", "concreteness_concreteness_mean_mean", "3.25", "source 1-5"),
+            ("subtlex-us-zipf-official", "SUBTLEX-US Zipf frequencies", "frequency_mean", "frequency_frequency_mean_standard_deviation", "0.75", "Zipf"),
+            ("kuperman-aoa-2012-erratum-supplement", "Kuperman Age of Acquisition ratings", "aoa_mean", "aoa_aoa_mean_mean", "6.5", "years"),
+            ("lancaster-sensorimotor-2020", "Lancaster Sensorimotor Norms", "auditory", "sensorimotor_auditory_cumulative", "9.0", "summed ratings"),
+            ("nrc_emotion_intensity_v1", "NRC Emotion Intensity Lexicon", "anger_intensity", "emotion_intensity_anger_intensity_standard_deviation", "0.12", "normalized 0-1"),
+        )
+    ]
+    files = standardize_export_files(
+        {"corpus_vad_metrics.csv": _csv_bytes(source_rows), "report.docx": _docx_bytes()},
+        analysis_mode="corpus",
+        export_mode="complete_audit",
+        analysis_id="corpus",
+        title="Corpus",
+        main_report_path="report.docx",
+        main_report_name="Corpus_Report.docx",
+    )
+    master = _master(files)
+    assert [row["metric_label"] for row in master] == [
+        "Mean Concreteness",
+        "Frequency SD",
+        "Mean Age of Acquisition",
+        "Auditory Cumulative",
+        "Anger Intensity SD",
+    ]
+    assert [row["value"] for row in master] == [row["value"] for row in source_rows]
+    assert [row["legacy_metric_id"] for row in master] == [row["metric"] for row in source_rows]
+    readable = "".join(
+        files[path].decode("utf-8-sig")
+        for path in (
+            "02_METRIC_TABLES/Experience_and_Imagery_Corpus.csv",
+            "02_METRIC_TABLES/Lexical_Accessibility_Corpus.csv",
+            "02_METRIC_TABLES/Affect_Corpus.csv",
+        )
+    )
+    assert "Concreteness Mean Concreteness" not in readable
+    assert "Aoa Mean Aoa" not in readable
+    assert "Sensorimotor Auditory" not in readable
+
+
+def test_corpus_summary_preserves_equal_work_and_token_pool_values() -> None:
+    files = standardize_export_files(
+        {
+            "corpus_vad_profiles.csv": _csv_bytes([{
+                "lexicon_id": "nrc_vad_v2_1",
+                "lexicon": "NRC VAD Lexicon v2.1",
+                "analysis_view": "stopwords_excluded",
+                "weighting": "token",
+                "dimension": "valence",
+                "work_weighted_volume_mean": "0.61",
+                "token_weighted_volume_mean": "0.64",
+                "works_included": "12",
+                "matched_observations": "240",
+                "lexical_tokens": "260",
+                "volume_coverage": "0.9230769231",
+            }]),
+            "report.docx": _docx_bytes(),
+        },
+        analysis_mode="corpus",
+        export_mode="complete_audit",
+        analysis_id="corpus",
+        title="Corpus",
+        main_report_path="report.docx",
+        main_report_name="Corpus_Report.docx",
+    )
+    summary = list(csv.DictReader(io.StringIO(files["02_METRIC_TABLES/Corpus_Summary.csv"].decode("utf-8-sig"))))
+    assert len(summary) == 1
+    assert summary[0]["Metric"] == "Mean Valence"
+    assert summary[0]["Equal-work Value"] == "0.61"
+    assert summary[0]["Token-pool Value"] == "0.64"
+    assert {row["metric_id"] for row in _master(files)} == {"vad.valence.mean"}

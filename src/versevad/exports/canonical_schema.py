@@ -20,6 +20,8 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, RGBColor
 
+from versevad.exports.metric_labels import human_metric_label
+
 
 EXPORT_SCHEMA_VERSION = "3.0"
 MASTER_METRICS_PATH = "03_MASTER_DATA/Master_Metrics.csv"
@@ -373,6 +375,15 @@ def _record(
     resource = canonical_resource_id(resource_id, resource_label)
     registered = RESOURCE_REGISTRY.get(resource, {})
     counts = _coverage_counts(coverage_source or {}, weight)
+    canonical_id = canonical_metric_id(module, metric_id, dimension=dimension, category=category)
+    display_label = human_metric_label(
+        module_id=module,
+        metric_id=canonical_id,
+        fallback=metric_label,
+        legacy_metric_id=legacy_metric_id or metric_id,
+        dimension=dimension,
+        category=category,
+    )
     row = {
         "export_schema_version": EXPORT_SCHEMA_VERSION,
         "analysis_id": analysis_id,
@@ -384,8 +395,8 @@ def _record(
         "date_label": _text(date_label),
         "genre": _text(genre),
         "module_id": module,
-        "metric_id": canonical_metric_id(module, metric_id, dimension=dimension, category=category),
-        "metric_label": _text(metric_label) or _text(metric_id).replace("_", " ").title(),
+        "metric_id": canonical_id,
+        "metric_label": display_label,
         "legacy_metric_id": _text(legacy_metric_id or metric_id),
         "dimension": _text(dimension),
         "category": _text(category),
@@ -1101,6 +1112,58 @@ def _work_summary(records: Sequence[Mapping[str, str]]) -> bytes:
     return _csv_bytes(list(by_work.values()))
 
 
+def _corpus_summary(records: Sequence[Mapping[str, str]]) -> bytes:
+    """Create an aggregate-first orientation table without recalculating values."""
+
+    grouped: dict[tuple[str, ...], dict[str, str]] = {}
+    for row in records:
+        if row.get("analysis_level") != "corpus":
+            continue
+        key = (
+            _domain(row.get("module_id", "")),
+            row.get("resource_label", ""),
+            row.get("lexical_scope", ""),
+            row.get("weighting", ""),
+            row.get("metric_id", ""),
+            row.get("metric_label", ""),
+            row.get("unit", ""),
+        )
+        output = grouped.setdefault(
+            key,
+            {
+                "Profile Area": key[0].replace("_", " "),
+                "Resource": key[1],
+                "Scope": key[2],
+                "Weighting": key[3],
+                "Metric": key[5],
+                "Equal-work Value": "",
+                "Token-pool Value": "",
+                "Other Aggregate Value": "",
+                "Unit": key[6],
+                "Works Represented": "",
+                "Pooled Observations": "",
+                "Other Aggregate Observations": "",
+                "Interpretive Note": "",
+            },
+        )
+        aggregation = row.get("corpus_aggregation", "")
+        if aggregation == "equal_work":
+            output["Equal-work Value"] = row.get("value", "")
+            output["Works Represented"] = row.get("observation_count", "")
+        elif aggregation == "token_pool":
+            output["Token-pool Value"] = row.get("value", "")
+            output["Pooled Observations"] = row.get("observation_count", "")
+        else:
+            output["Other Aggregate Value"] = row.get("value", "")
+            output["Other Aggregate Observations"] = row.get(
+                "observation_count", ""
+            )
+        note = row.get("notes", "")
+        if note:
+            output["Interpretive Note"] = note
+    return _csv_bytes(list(grouped.values()))
+
+
 def _start_here(*, mode_label: str, export_mode: str, title: str) -> bytes:
     return (
         "VerseVAD Export\n"
@@ -1110,7 +1173,8 @@ def _start_here(*, mode_label: str, export_mode: str, title: str) -> bytes:
         f"Export type: {'Complete Audit' if export_mode == 'complete_audit' else 'Current View'}\n"
         f"Title: {title or 'Untitled'}\n\n"
         "Start with 01_REPORTS for readable findings and coverage guidance.\n"
-        "Use 02_METRIC_TABLES for focused, human-readable measurements.\n"
+        "For a corpus, begin with 02_METRIC_TABLES/Corpus_Summary.csv, then use 03_MASTER_DATA/Work_Summary.csv to orient to individual works.\n"
+        "Use the remaining 02_METRIC_TABLES files for detailed, human-readable work-level measurements.\n"
         "Use 03_MASTER_DATA/Master_Metrics.csv as the authoritative machine interface.\n"
         "Use 04_AUDIT to inspect detailed retained evidence.\n"
         "Use 05_REPRODUCIBILITY for settings, resources, metric definitions, warnings, and manifests.\n\n"
@@ -1135,8 +1199,8 @@ def _file_guide() -> bytes:
             },
             {
                 "Folder": "02_METRIC_TABLES",
-                "Purpose": "Focused, human-readable tables grouped by analytical domain.",
-                "Start here": "The domain matching the research question",
+                "Purpose": "Aggregate-first corpus summary plus detailed human-readable tables grouped by analytical domain.",
+                "Start here": "Corpus_Summary.csv, then the domain matching the research question",
             },
             {
                 "Folder": "03_MASTER_DATA",
@@ -1261,6 +1325,7 @@ def standardize_export_files(
     if analysis_mode == "compare_poems":
         organized["03_MASTER_DATA/Comparison_Summary.csv"] = _comparison_summary(records)
     if analysis_mode == "corpus":
+        organized["02_METRIC_TABLES/Corpus_Summary.csv"] = _corpus_summary(records)
         aggregate_rows = [
             {
                 "Resource": row.get("resource_label", ""),

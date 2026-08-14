@@ -623,9 +623,23 @@ def _add_companion_table(document: Document, filenames: Sequence[str]) -> None:
             run.font.color.rgb = RGBColor(255, 255, 255)
             run.bold = True
     _set_repeat_table_header(table.rows[0])
+    standardized_paths = {
+        "profile_metrics_selected.csv": "03_MASTER_DATA/Selected_Profiles.csv",
+        "profile_metrics_all_compatible.csv": "03_MASTER_DATA/All_Profiles.csv",
+        "corpus_vad_profiles.csv": "03_MASTER_DATA/Corpus_Aggregates.csv",
+        "corpus_module_aggregates.csv": "03_MASTER_DATA/Module_Aggregates.csv",
+        "corpus_scope_token_counts.csv": "03_MASTER_DATA/Scope_Token_Counts.csv",
+        "corpus_works.csv": "03_MASTER_DATA/Works.csv",
+        "corpus_project.csv": "05_REPRODUCIBILITY/Project_Settings.csv",
+        "corpus_methodology.csv": "05_REPRODUCIBILITY/Methodology.csv",
+        "resource_manifest.csv": "05_REPRODUCIBILITY/Legacy_Resource_Manifest.csv",
+        "metric_dictionary.csv": "05_REPRODUCIBILITY/Legacy_Metric_Dictionary.csv",
+        "warnings.csv": "05_REPRODUCIBILITY/Warnings.csv",
+        "module_scope_overrides.csv": "05_REPRODUCIBILITY/Module_Scope_Overrides.csv",
+    }
     for filename in filenames:
         cells = table.add_row().cells
-        cells[0].text = filename
+        cells[0].text = standardized_paths.get(filename, f"04_AUDIT/{filename}")
         stem = filename.removesuffix(".csv").replace("_", " ")
         cells[1].text = f"Machine-readable {stem} data."
     _set_table_width(table, (3900, 5460))
@@ -1397,6 +1411,13 @@ def build_comprehensive_analysis_report(
         document.add_paragraph(
             "This Complete Audit report includes every calculated aggregate available in the completed analysis. Disabled or unavailable modules are marked Not calculated. Atomic token-, line-, pair-, and operation-level evidence remains in the companion audit bundle so this document stays readable."
         )
+    if any(
+        label in workspace_label.casefold()
+        for label in ("corpus", "project", "collection")
+    ):
+        document.add_paragraph(
+            "Corpus reporting is aggregate-first: begin with the Executive Metric Dashboard and corpus-level module tables, use Work_Summary.csv to orient to individual works, then consult the detailed domain tables and Master_Metrics.csv for work-level and machine-readable evidence."
+        )
     _add_callout(
         document,
         "Rounding",
@@ -1653,7 +1674,10 @@ def build_comprehensive_analysis_report(
     )
     if export_mode == "complete_audit" and all_profile_rows:
         document.add_page_break()
-        corpus_profile_matrix = "corpus_vad_profiles.csv" in parsed
+        profile_modules = {
+            _clean(row.get("module_id", "")) for row in all_profile_rows
+        }
+        corpus_profile_matrix = profile_modules == {"vad"}
         matrix_title = (
             "All Compatible VAD Profiles"
             if corpus_profile_matrix

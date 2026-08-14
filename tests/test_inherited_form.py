@@ -353,13 +353,13 @@ def test_workspace_selection_runs_shared_dependencies_and_complete_export(
     assert workspace.inherited_form.best_candidate.profile_id == "villanelle"
     with zipfile.ZipFile(io.BytesIO(detailed_export_zip(workspace))) as archive:
         assert {
-            "inherited_form_summary.csv",
-            "inherited_form_candidates.csv",
-            "inherited_form_features.csv",
-            "inherited_form_profiles.csv",
-            "inherited_form_methodology.csv",
-            "inherited_form_manifest.csv",
-            "inherited_form_report.docx",
+            "04_AUDIT/04_SOUND_AND_FORM/inherited_form/summary.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/inherited_form/candidates.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/inherited_form/features.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/inherited_form/profiles.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/inherited_form/methodology.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/inherited_form/manifest.csv",
+            "04_AUDIT/04_SOUND_AND_FORM/inherited_form/report.docx",
         } <= set(archive.namelist())
         assert not any(name.endswith(".json") for name in archive.namelist())
 

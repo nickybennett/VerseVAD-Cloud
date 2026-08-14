@@ -98,7 +98,7 @@ def test_current_view_distinguishes_calculated_but_unreported_modules() -> None:
     assert "selected Overview report section" in text
 
 
-def test_corpus_vad_profile_appendix_names_real_companion_file() -> None:
+def test_corpus_profile_appendix_names_real_standardized_companion_file() -> None:
     content = build_comprehensive_analysis_report(
         export_files={
             "profile_metrics_selected.csv": _profile_csv(),
@@ -110,9 +110,9 @@ def test_corpus_vad_profile_appendix_names_real_companion_file() -> None:
         workspace_label="Saved Projects / Corpus",
     )
     text = _document_text(content)
-    assert "All Compatible VAD Profiles" in text
-    assert "companion corpus_vad_profiles.csv" in text
-    assert "companion profile_metrics_all_compatible.csv" not in text
+    assert "All Compatible Lexical Profiles" in text
+    assert "03_MASTER_DATA/All_Profiles.csv" in text
+    assert "companion corpus_vad_profiles.csv" not in text
 
 
 def test_primary_profile_table_uses_weighting_appropriate_coverage() -> None:

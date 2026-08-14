@@ -189,11 +189,11 @@ def test_optional_module_only_corpus_batch_persists_auditable_results(
         module_warnings=warnings,
     )
     with zipfile.ZipFile(io.BytesIO(corpus_bundle)) as archive:
-        assert "corpus_report.docx" in archive.namelist()
+        assert "01_REPORTS/Corpus_Report.docx" in archive.namelist()
         metric_rows = list(
             csv.DictReader(
                 io.StringIO(
-                    archive.read("corpus_module_metrics.csv").decode(
+                    archive.read("04_AUDIT/corpus_module_metrics.csv").decode(
                         "utf-8-sig"
                     )
                 )
@@ -202,7 +202,7 @@ def test_optional_module_only_corpus_batch_persists_auditable_results(
         aggregate_rows = list(
             csv.DictReader(
                 io.StringIO(
-                    archive.read("corpus_module_aggregates.csv").decode(
+                    archive.read("03_MASTER_DATA/Module_Aggregates.csv").decode(
                         "utf-8-sig"
                     )
                 )

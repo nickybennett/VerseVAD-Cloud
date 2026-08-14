@@ -49,6 +49,9 @@ def test_corpus_export_contains_data_report_and_reproducibility_records() -> Non
         assert "01_REPORTS/Corpus_Report.docx" in names
         assert "01_REPORTS/Coverage_and_Data_Quality.docx" in names
         assert "03_MASTER_DATA/Master_Metrics.csv" in names
+        assert "02_METRIC_TABLES/Corpus_Summary.csv" in names
+        assert "03_MASTER_DATA/Selected_Profiles.csv" in names
+        assert "03_MASTER_DATA/All_Profiles.csv" in names
         assert "03_MASTER_DATA/Scope_Token_Counts.csv" in names
         assert "03_MASTER_DATA/Works.csv" in names
         assert "05_REPRODUCIBILITY/Methodology.csv" in names
@@ -361,3 +364,19 @@ def test_corpus_current_view_uses_content_scope_only_for_overridden_module() -> 
             ("concreteness_concreteness_mean", "stopwords_excluded"),
         }
         assert "05_REPRODUCIBILITY/Module_Scope_Overrides.csv" in archive.namelist()
+        report = Document(io.BytesIO(archive.read("01_REPORTS/Corpus_Report.docx")))
+        report_text = "\n".join(
+            [
+                *(paragraph.text for paragraph in report.paragraphs),
+                *(
+                    cell.text
+                    for table in report.tables
+                    for table_row in table.rows
+                    for cell in table_row.cells
+                ),
+            ]
+        )
+        assert "Mean Zipf Frequency" in report_text
+        assert "Mean Concreteness" in report_text
+        assert "Frequency Frequency Mean" not in report_text
+        assert "Concreteness Concreteness Mean" not in report_text

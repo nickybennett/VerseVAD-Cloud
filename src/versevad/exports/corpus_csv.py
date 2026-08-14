@@ -25,6 +25,7 @@ from versevad.db import (
 )
 from versevad import __version__
 from versevad.exports.docx_report import build_comprehensive_analysis_report
+from versevad.exports.metric_labels import human_metric_label
 from versevad.exports.reproducibility import (
     build_file_inventory,
     build_reproducibility_readme,
@@ -619,13 +620,12 @@ def build_corpus_export_bundle(
                 "source_id": source_id,
                 "source": source,
                 "metric_id": metric_id,
-                "metric": " ".join(
-                    part
-                    for part in (
-                        (dimension or category).replace("_", " ").title(),
-                        metric_id.replace(module_id + "_", "").replace("_", " ").title(),
-                    )
-                    if part
+                "metric": human_metric_label(
+                    module_id=module_id,
+                    metric_id=metric_id,
+                    legacy_metric_id=metric_id,
+                    dimension=dimension,
+                    category=category,
                 ),
                 "value": statistics.fmean(values),
                 "median": statistics.median(values),
@@ -670,11 +670,17 @@ def build_corpus_export_bundle(
         report_profile_fields,
         report_profile_rows,
     )
+    bundle["profile_metrics_selected.csv"] = report_files[
+        "profile_metrics_selected.csv"
+    ]
     if export_mode == "complete_audit":
         report_files["profile_metrics_all_compatible.csv"] = _csv_bytes(
             report_profile_fields,
             report_profile_rows,
         )
+        bundle["profile_metrics_all_compatible.csv"] = report_files[
+            "profile_metrics_all_compatible.csv"
+        ]
     module_report_filenames = {
         "rhyme_and_phonological_patterns": "corpus_rhyme_phonological_aggregates.csv",
         "candidate_meter_and_rhythmic_regularity": "corpus_meter_aggregates.csv",

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Cleaned corpus export presentation without changing schema 3.0 identities or
+  calculations: one authoritative metric-label resolver now supplies concise
+  CSV and Word-report names, and corpus packages add an aggregate-first
+  `Corpus_Summary.csv` orientation table while retaining all detailed tables,
+  work summaries, audit evidence, and master data.
+
 All notable changes to VerseVAD are recorded here.
 
 ## [1.0.0] - 2026-07-24
