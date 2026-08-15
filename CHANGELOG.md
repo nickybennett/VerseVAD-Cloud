@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed UTF-8 mojibake in representative emotion-contributor frequencies and
+  nearby corpus placeholders/separators (`×`, `—`, and `·`).
 - Hardened shared affect-profile selection and contributor rendering against
   transient or stale Streamlit widget state, preventing cloud reruns from
   dereferencing a missing profile across Single Poem, Other Text, and shared

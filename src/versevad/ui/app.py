@@ -7409,7 +7409,7 @@ if workspace_page in {"Single Poem", "Other Text"}:
                                 "Category": category_stat.category.title(),
                                 "Representative matched terms": ", ".join(
                                     (
-                                        f"{record['Word / expression']} Ã—{record['Occurrences']}"
+                                        f"{record['Word / expression']} ×{record['Occurrences']}"
                                         if int(record["Occurrences"]) > 1
                                         else str(record["Word / expression"])
                                     )

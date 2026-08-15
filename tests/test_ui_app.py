@@ -21,6 +21,16 @@ from versevad.ui.research import _filtered_restorable_ui_state
 
 
 APP_PATH = Path(__file__).parents[1] / "src" / "versevad" / "ui" / "app.py"
+
+
+def test_interface_sources_do_not_contain_common_utf8_mojibake() -> None:
+    paths = (APP_PATH, APP_PATH.with_name("corpus.py"))
+    source = "".join(
+        path.read_text(encoding="utf-8") for path in paths if path.is_file()
+    )
+    for corrupted in ("Ã—", "â€”", "Â·"):
+        assert corrupted not in source
+    assert "×{record['Occurrences']}" in source
 REPORT_SECTIONS = [
     "Overview",
     "Affective Evidence",
@@ -1919,7 +1929,7 @@ def test_interface_runs_optional_aoa_profile_and_contextual_scope_if_present() -
     mean_metric = next(
         metric for metric in app.metric if metric.label == "Mean normative AoA"
     )
-    assert mean_metric.value != "â€”"
+    assert mean_metric.value != "—"
     assert next(
         field for field in app.multiselect if field.label == "Lexical scope"
     ).value == ["Content words only"]

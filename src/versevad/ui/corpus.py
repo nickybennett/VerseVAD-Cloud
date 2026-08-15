@@ -1310,9 +1310,9 @@ def _render_canonical_corpus_module_profiles(
                 "Poem": row.title,
                 "Source": row.lexicon,
                 "Metric": _humanize_metric(row.metric),
-                "Dimension": (row.dimension or row.category or "â€”").title(),
+                "Dimension": (row.dimension or row.category or "—").title(),
                 "Profile": (
-                    f"{scope_labels[row.analysis_view]} Â· "
+                    f"{scope_labels[row.analysis_view]} · "
                     f"{row.weighting.title()}-weighted"
                 ),
                 "Value": row.value,
@@ -1346,7 +1346,7 @@ def _render_canonical_corpus_module_profiles(
                     "Poem-Level SD": "{:.3f}",
                     "Mean Coverage": "{:.1%}",
                 },
-                na_rep="â€”",
+                na_rep="—",
             ),
             hide_index=True,
             width="stretch",
@@ -1360,7 +1360,7 @@ def _render_canonical_corpus_module_profiles(
         render_dataframe(
             frame.drop(columns=("Poem",)).style.format(
                 {"Value": "{:.3f}", "Coverage": "{:.1%}"},
-                na_rep="â€”",
+                na_rep="—",
             ),
             hide_index=True,
             width="stretch",
